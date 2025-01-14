@@ -9,3 +9,5 @@ export function factory(args: CreateArgs) {
 export function createOptions(command: Command) {
     command.option('--directory <string>', 'Directory to store test run data', 'test-runs');
 }
+
+export const description = 'Local file storage adapter';

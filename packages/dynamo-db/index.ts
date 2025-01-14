@@ -14,3 +14,5 @@ export function createOptions(command: Command) {
         .option('--ttl <number>', 'TTL in days', '30')
         .option('--endpoint-url <string>', 'DynamoDB endpoint URL');
 }
+
+export const description = 'Amazon DynamoDB storage adapter';

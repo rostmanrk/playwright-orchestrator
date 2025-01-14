@@ -9,11 +9,15 @@ import { createTempConfig } from './playwright-tools/modify-config';
 const exec = promisify(child_process.exec);
 
 export class TestRunner {
+    private readonly runId: string;
+    private readonly outputFolder: string;
     constructor(
-        private readonly runId: string,
-        private readonly outputFolder: string,
+        options: { runId: string; output: string },
         private readonly adapter: Adapter,
-    ) {}
+    ) {
+        this.runId = options.runId;
+        this.outputFolder = options.output;
+    }
 
     async runTests() {
         await this.removePreviousReports();

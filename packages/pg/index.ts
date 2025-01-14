@@ -13,3 +13,5 @@ export function createOptions(command: Command) {
         .option('--table-name-prefix <string>', 'Tables name prefix', 'playwright_orchestrator')
         .requiredOption('--connection-string <string>', 'Connection string');
 }
+
+export const description = 'PostgreSQL storage adapter';
