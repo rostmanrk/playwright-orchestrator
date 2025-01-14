@@ -1,0 +1,33 @@
+{
+    "name": "playwright-orchestrator",
+    "version": "1.0.0",
+    "directories": {
+        "test": "tests"
+    },
+    "workspaces": [
+        "packages/*"
+    ],
+    "scripts": {
+        "watch": "tsc -b -w",
+        "test": "vitest",
+        "test-update": "vitest -u",
+        "run-node": "node packages/core/dist/cli",
+        "cli-permissions": "chmod +x ./packages/core/dist/cli.js",
+        "link-packages": "chmod +x ./scripts/link-packages.sh && ./scripts/link-packages.sh",
+        "dynamo-local": "podman compose -f ./packages/dynamo-db/compose.yml up -d",
+        "pg-local": "podman compose -f ./packages/pg/compose.yml up -d"
+    },
+    "keywords": [],
+    "author": "Rostyslav Kudrevatykh",
+    "license": "MIT",
+    "description": "",
+    "devDependencies": {
+        "@playwright/test": "^1.49.1",
+        "@types/node": "^22.10.2",
+        "prettier": "3.4.2",
+        "vitest": "^2.1.8"
+    },
+    "peerDependencies": {
+        "@playwright-orchestrator/core": "latest"
+    }
+}

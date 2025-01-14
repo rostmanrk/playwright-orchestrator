@@ -1,0 +1,11 @@
+services:
+    postgresql:
+        image: postgres
+        restart: always
+        hostname: postgres
+        ports:
+            - 5432:5432
+        volumes:
+            - ./db:/var/lib/postgresql/data
+        environment:
+            POSTGRES_PASSWORD: password

@@ -1,0 +1,125 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`test analyzer command 1`] = `
+"{
+  "config": {
+    "workers": 6,
+    "configFile": "/Users/ros/Documents/playwright-orchestrator/playwright.config.ts",
+    "projects": [
+      {
+        "name": "chromium",
+        "outputDir": "/Users/ros/Documents/playwright-orchestrator/test-results/chromium"
+      },
+      {
+        "name": "firefox",
+        "outputDir": "/Users/ros/Documents/playwright-orchestrator/test-results"
+      },
+      {
+        "name": "webkit",
+        "outputDir": "/Users/ros/Documents/playwright-orchestrator/test-results"
+      }
+    ]
+  },
+  "testRun": {
+    "ast/basic-case.spec.ts": {
+      "4:5": {
+        "timeout": 30000,
+        "projects": [
+          "chromium",
+          "firefox",
+          "webkit"
+        ]
+      },
+      "10:9": {
+        "timeout": 30000,
+        "projects": [
+          "chromium",
+          "firefox",
+          "webkit"
+        ]
+      }
+    },
+    "ast/constant-timeout.spec.ts": {
+      "4:5": {
+        "timeout": 40000,
+        "projects": [
+          "chromium",
+          "firefox",
+          "webkit"
+        ]
+      },
+      "12:9": {
+        "timeout": 45000,
+        "projects": [
+          "chromium",
+          "firefox",
+          "webkit"
+        ]
+      },
+      "16:9": {
+        "timeout": 50000,
+        "projects": [
+          "chromium",
+          "firefox",
+          "webkit"
+        ]
+      },
+      "23:13": {
+        "timeout": 135000,
+        "projects": [
+          "chromium",
+          "firefox",
+          "webkit"
+        ]
+      }
+    },
+    "ast/failed.spec.ts": {
+      "3:5": {
+        "timeout": 30000,
+        "projects": [
+          "chromium",
+          "firefox",
+          "webkit"
+        ]
+      }
+    },
+    "ast/serial-top-level.spec.ts": {
+      "0:0": {
+        "timeout": 60000,
+        "projects": [
+          "chromium",
+          "firefox",
+          "webkit"
+        ]
+      }
+    },
+    "ast/serial.spec.ts": {
+      "4:5": {
+        "timeout": 30000,
+        "projects": [
+          "chromium",
+          "firefox",
+          "webkit"
+        ]
+      },
+      "10:9": {
+        "timeout": 30000,
+        "projects": [
+          "chromium",
+          "firefox",
+          "webkit"
+        ]
+      },
+      "14:10": {
+        "timeout": 85000,
+        "projects": [
+          "chromium",
+          "firefox",
+          "webkit"
+        ]
+      }
+    }
+  }
+}
+"
+`;

@@ -1,0 +1,24 @@
+{
+    "name": "@playwright-orchestrator/pg",
+    "version": "1.0.0",
+    "keywords": [],
+    "author": "",
+    "license": "ISC",
+    "dependencies": {
+        "pg": "^8.13.1"
+    },
+    "devDependencies": {
+        "@commander-js/extra-typings": "^13.0.0",
+        "@types/pg": "^8.11.0"
+    },
+    "peerDependencies": {
+        "@playwright-orchestrator/core": "^1.0.0"
+    },
+    "description": "",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "default": "./dist/index.js"
+        }
+    }
+}

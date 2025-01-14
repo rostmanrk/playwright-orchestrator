@@ -1,0 +1,52 @@
+{
+    "name": "@playwright-orchestrator/core",
+    "version": "1.0.0",
+    "description": "Core lib for Playwright test orchestration",
+    "keywords": [
+        "playwright",
+        "testing",
+        "automation",
+        "orchestration"
+    ],
+    "author": "",
+    "license": "ISC",
+    "module": "dist/index.js",
+    "types": "dist/index.d.ts",
+    "bin": {
+        "playwright-orchestrator": "./dist/cli.js"
+    },
+    "files": [
+        "dist"
+    ],
+    "devDependencies": {
+        "@commander-js/extra-typings": "^13.0.0"
+    },
+    "dependencies": {
+        "commander": "^13.0.0",
+        "typescript": "^5.0.0",
+        "uuid": "^11.0.3"
+    },
+    "exports": {
+        "./*": {
+            "types": "./dist/*.d.ts",
+            "default": "./dist/*.js"
+        },
+        ".": {
+            "types": "./dist/index.d.ts",
+            "default": "./dist/index.js"
+        }
+    },
+    "peerDependencies": {
+        "@playwright/test": "^1.44.0",
+        "@playwright-orchestrator/file": "^1.0.0",
+        "@playwright-orchestrator/dynamo-db": "^1.0.0"
+    },
+    "peerDependenciesMeta": {
+        "@playwright-orchestrator/file": {
+            "optional": true
+        },
+        "@playwright-orchestrator/dynamo-db": {
+            "optional": true
+        }
+    }
+}
