@@ -4,7 +4,7 @@ A CLI tool for orchestrating and managing Playwright test execution.
 
 Looking for smarter test sharding without complex configuration or external cloud services? If you have a database, Playwright Orchestrator is the right choice for you.
 
-![Timeline](assets/timeline.png)
+![Timeline](https://github.com/rostmanrk/playwright-orchestrator/raw/main/assets/timeline.png)
 
 ## 🎯 Overview
 
@@ -30,7 +30,7 @@ npm install @playwright-orchestrator/<storage_plugin_name> --save-dev
 Run the CLI tool:
 
 ```bash
-playwright-orchestrator <command> <storage_type> [options]
+npx playwright-orchestrator <command> <storage_type> [options]
 ```
 
 ## 📝 Example
@@ -38,25 +38,25 @@ playwright-orchestrator <command> <storage_type> [options]
 1. Run the `init` command. Required to run once to set up storage. Make sure that executing credentials have all permissions.
 
 ```bash
-playwright-orchestrator init pg --connection-string "postgres://username:password@localhost:5432/postgres"
+npx playwright-orchestrator init pg --connection-string "postgres://username:password@localhost:5432/postgres"
 ```
 
 2. Run the `create` command. Required to run once per run.
 
 ```bash
-playwright-orchestrator init pg --connection-string "postgres://username:password@localhost:5432/postgres" --workers 2
+npx playwright-orchestrator create pg --connection-string "postgres://username:password@localhost:5432/postgres" --workers 2
 > 019464f7-1488-75d1-b5c0-5e7d3dde9195
 ```
 
 3. Start the desired count of shards using the `run` command. Run ID is generated in the previous step. All Playwright options are already saved in the previous step.
 
 ```bash
-playwright-orchestrator init pg --connection-string "postgres://username:password@localhost:5432/postgres" --run-id 019464f7-1488-75d1-b5c0-5e7d3dde9195
+npx playwright-orchestrator run pg --connection-string "postgres://username:password@localhost:5432/postgres" --run-id 019464f7-1488-75d1-b5c0-5e7d3dde9195
 ```
 
 4. Failed tests can be started again using step 3.
 
-5. Merge report using Playwright's Merge-reports CLI
+5. Merge report using [Playwright's Merge-reports CLI](https://playwright.dev/docs/test-sharding#merge-reports-cli)
 
 ```bash
 npx playwright merge-reports ./blob-reports --reporter html

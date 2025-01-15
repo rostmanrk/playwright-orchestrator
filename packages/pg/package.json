@@ -1,6 +1,6 @@
 {
     "name": "@playwright-orchestrator/pg",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "keywords": [],
     "author": "Rostyslav Kudrevatykh",
     "license": "Apache-2.0",
@@ -16,10 +16,10 @@
         "pg": "^8.13.1"
     },
     "devDependencies": {
-        "@commander-js/extra-typings": "^13.0.0",
         "@types/pg": "^8.11.0"
     },
     "peerDependencies": {
+        "@commander-js/extra-typings": "^13.0.0",
         "@playwright-orchestrator/core": "^1.0.0"
     },
     "exports": {

@@ -10,7 +10,6 @@
     "scripts": {
         "watch": "tsc -b -w",
         "test": "vitest",
-        "prepare": "cp ./README.md ./packages/core/README.md",
         "build": "tsc -b --sourceMap false",
         "test-update": "vitest -u",
         "run-node": "node packages/core/dist/cli",
