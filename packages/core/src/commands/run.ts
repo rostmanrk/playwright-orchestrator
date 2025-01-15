@@ -1,5 +1,6 @@
 import { loadPlugins } from '../plugin';
 import { TestRunner } from '../test-runner';
+import { withErrorHandling } from './error-handler';
 import { program } from './program';
 
 const command = program.command('run').description('Start test run shard');
@@ -12,14 +13,12 @@ for (const { factory, subCommand } of loadPlugins(command)) {
             'Output folder for blob reports. Existing content is deleted before writing the new report.',
             'blob-reports',
         )
-        .action(async (options) => {
-            try {
+        .action(
+            withErrorHandling(async (options) => {
                 const adapter = factory(options);
                 const runner = new TestRunner(options as any, adapter);
                 await runner.runTests();
                 console.log('Run completed');
-            } catch (error: any) {
-                program.error(error.message);
-            }
-        });
+            }),
+        );
 }

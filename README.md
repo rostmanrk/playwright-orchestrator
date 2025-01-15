@@ -123,7 +123,7 @@ Use PostgreSQL as storage.
 npm run watch # Watch mode for development
 npm test # Run tests
 npm run test-update # Update test snapshots
-npm run link-packages # Link packages for development
+npm run link-packages # Link packages for local development
 ```
 
 ## ⚖️ License
