@@ -19,8 +19,12 @@
     },
     "keywords": [],
     "author": "Rostyslav Kudrevatykh",
-    "license": "MIT",
+    "license": "Apache-2.0",
     "description": "",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/rostmanrk/playwright-orchestrator.git"
+    },
     "devDependencies": {
         "@playwright/test": "^1.49.1",
         "@types/node": "^22.10.2",
