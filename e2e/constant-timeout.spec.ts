@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { wait } from '../../tests/test-utils';
+import { wait } from '../tests/test-utils';
 
 test('timeout outside of group', { tag: '@analyzer' }, async () => {
     test.setTimeout(40_000);

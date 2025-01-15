@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { wait } from '../../tests/test-utils';
+import { wait } from '../tests/test-utils';
 
 test('outside of group', { tag: '@analyzer' }, async () => {
     await wait(2000);

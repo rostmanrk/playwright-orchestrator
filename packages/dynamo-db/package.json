@@ -1,9 +1,17 @@
 {
     "name": "@playwright-orchestrator/dynamo-db",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "keywords": [],
-    "author": "",
-    "license": "ISC",
+    "author": "Rostyslav Kudrevatykh",
+    "license": "Apache-2.0",
+    "description": "Playwright orchestrator DynamoDB plugin",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/rostmanrk/playwright-orchestrator.git"
+    },
+    "files": [
+        "dist"
+    ],
     "dependencies": {
         "@aws-sdk/client-dynamodb": "^3.724.0",
         "@aws-sdk/lib-dynamodb": "^3.724.0"
@@ -14,11 +22,13 @@
     "peerDependencies": {
         "@playwright-orchestrator/core": "^1.0.0"
     },
-    "description": "",
     "exports": {
         ".": {
             "types": "./dist/index.d.ts",
             "default": "./dist/index.js"
         }
+    },
+    "scripts": {
+        "prepare": "cp ../../LICENSE.md ./"
     }
 }

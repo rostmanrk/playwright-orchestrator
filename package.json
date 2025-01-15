@@ -10,12 +10,15 @@
     "scripts": {
         "watch": "tsc -b -w",
         "test": "vitest",
+        "prepare": "cp ./README.md ./packages/core/README.md",
+        "build": "tsc -b --sourceMap false",
         "test-update": "vitest -u",
         "run-node": "node packages/core/dist/cli",
         "cli-permissions": "chmod +x ./packages/core/dist/cli.js",
         "link-packages": "chmod +x ./scripts/link-packages.sh && ./scripts/link-packages.sh",
         "dynamo-local": "podman compose -f ./packages/dynamo-db/compose.yml up -d",
-        "pg-local": "podman compose -f ./packages/pg/compose.yml up -d"
+        "pg-local": "podman compose -f ./packages/pg/compose.yml up -d",
+        "version": "npm version --workspaces"
     },
     "keywords": [],
     "author": "Rostyslav Kudrevatykh",
@@ -23,7 +26,7 @@
     "description": "",
     "repository": {
         "type": "git",
-        "url": "https://github.com/rostmanrk/playwright-orchestrator.git"
+        "url": "git+https://github.com/rostmanrk/playwright-orchestrator.git"
     },
     "devDependencies": {
         "@playwright/test": "^1.49.1",

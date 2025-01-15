@@ -1,15 +1,19 @@
 {
     "name": "@playwright-orchestrator/core",
-    "version": "1.0.0",
-    "description": "Core lib for Playwright test orchestration",
+    "version": "1.0.1",
+    "description": "Core lib and cli for Playwright test orchestration",
     "keywords": [
         "playwright",
         "testing",
         "automation",
         "orchestration"
     ],
-    "author": "",
-    "license": "ISC",
+    "author": "Rostyslav Kudrevatykh",
+    "license": "Apache-2.0",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/rostmanrk/playwright-orchestrator.git"
+    },
     "module": "dist/index.js",
     "types": "dist/index.d.ts",
     "bin": {
@@ -39,7 +43,8 @@
     "peerDependencies": {
         "@playwright/test": "^1.44.0",
         "@playwright-orchestrator/file": "^1.0.0",
-        "@playwright-orchestrator/dynamo-db": "^1.0.0"
+        "@playwright-orchestrator/dynamo-db": "^1.0.0",
+        "@playwright-orchestrator/pg": "^1.0.0"
     },
     "peerDependenciesMeta": {
         "@playwright-orchestrator/file": {
@@ -47,6 +52,12 @@
         },
         "@playwright-orchestrator/dynamo-db": {
             "optional": true
+        },
+        "@playwright-orchestrator/pg": {
+            "optional": true
         }
+    },
+    "scripts": {
+        "prepare": "cp ../../README.md ./ && cp ../../LICENSE.md ./"
     }
 }

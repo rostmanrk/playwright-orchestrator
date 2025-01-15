@@ -1,9 +1,17 @@
 {
     "name": "@playwright-orchestrator/file",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "keywords": [],
-    "author": "",
-    "license": "ISC",
+    "author": "Rostyslav Kudrevatykh",
+    "license": "Apache-2.0",
+    "description": "Playwright orchestrator local file plugin",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/rostmanrk/playwright-orchestrator.git"
+    },
+    "files": [
+        "dist"
+    ],
     "dependencies": {
         "proper-lockfile": "4.1.2"
     },
@@ -15,11 +23,13 @@
         "@playwright-orchestrator/core": "^1.0.0",
         "commander": "^13.0.0"
     },
-    "description": "",
     "exports": {
         ".": {
             "types": "./dist/index.d.ts",
             "default": "./dist/index.js"
         }
+    },
+    "scripts": {
+        "prepare": "cp ../../LICENSE.md ./"
     }
 }
