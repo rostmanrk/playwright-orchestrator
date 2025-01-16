@@ -9,3 +9,19 @@ services:
             - ./db:/var/lib/postgresql/data
         environment:
             POSTGRES_PASSWORD: password
+
+    test:
+        image: postgres
+        restart: always
+        hostname: postgres
+        ports:
+            - 5433:5432
+        environment:
+            POSTGRES_PASSWORD: password
+        profiles:
+            - test
+        healthcheck:
+            test: ["CMD-SHELL", "pg_isready -U postgres"]
+            interval: 0.5s
+            timeout: 0.5s
+            retries: 10

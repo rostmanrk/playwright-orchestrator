@@ -119,6 +119,8 @@ Use PostgreSQL as storage.
 
 ## 💻 Development
 
+Make sure podman and compose is installed. They used for tests and local debugging.
+
 ```bash
 npm run watch # Watch mode for development
 npm test # Run tests
@@ -132,7 +134,7 @@ Licensed under the Apache License 2.0. See LICENSE.md for details.
 
 ## 🔮 Future plans
 
-- ⬜ ~~More~~ Tests
+- ✅ ~~More~~ Tests
 - ⬜ Better Logging
 - ⬜ Better Error Handling
 - ⬜ MySQL adapter

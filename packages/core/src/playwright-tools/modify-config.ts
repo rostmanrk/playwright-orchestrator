@@ -1,19 +1,16 @@
-import { PlaywrightTestConfig } from '@playwright/test';
 import { writeFile } from 'fs/promises';
 import * as path from 'path';
-import { dynamicImport } from './dynamic-import';
+import * as uuid from 'uuid';
 
-export { defineConfig } from '@playwright/test';
-
-export async function createTempConfig(file?: string): Promise<string | undefined> {
+export async function createTempConfig(file: string | undefined): Promise<string | undefined> {
     if (!file) return;
-    const config = (await dynamicImport(file)).default as PlaywrightTestConfig;
     // Remove webServer from the config. Not supported in the orchestrator
+    const content = `
+    import config from '${path.resolve(file)}';
     delete config.webServer;
-    const tempFile = path.join(path.dirname(file), `playwright-config-${Date.now()}.js`);
-    const configContent = `
-        exports.default = ${JSON.stringify(config, null, 2)};
-    `;
-    await writeFile(tempFile, configContent);
+    export default config;`;
+
+    const tempFile = `playwright${uuid.v7()}.config.tmp.ts`;
+    await writeFile(tempFile, content);
     return tempFile;
 }

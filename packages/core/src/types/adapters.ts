@@ -16,6 +16,7 @@ export abstract class Adapter {
     abstract initialize(): Promise<void>;
     abstract startShard(runId: string): Promise<TestRunConfig>;
     abstract finishShard(runId: string): Promise<void>;
+    abstract dispose(): Promise<void>;
     protected flattenTestRun(run: TestRun, reverse = false): TestItem[] {
         return Object.entries(run)
             .flatMap(([file, tests]) => {

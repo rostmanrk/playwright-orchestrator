@@ -1,125 +1,124 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`test analyzer command 1`] = `
-"{
+exports[`test custom info reporter 1`] = `
+{
   "config": {
-    "workers": 6,
-    "configFile": "/Users/ros/Documents/playwright-orchestrator/playwright.config.ts",
+    "configFile": "playwright.config.ts",
     "projects": [
       {
         "name": "chromium",
-        "outputDir": "/Users/ros/Documents/playwright-orchestrator/test-results/chromium"
+        "outputDir": "test-results/chromium",
       },
       {
         "name": "firefox",
-        "outputDir": "/Users/ros/Documents/playwright-orchestrator/test-results"
+        "outputDir": "test-results",
       },
       {
         "name": "webkit",
-        "outputDir": "/Users/ros/Documents/playwright-orchestrator/test-results"
-      }
-    ]
+        "outputDir": "test-results",
+      },
+    ],
+    "workers": 2,
   },
   "testRun": {
-    "ast/basic-case.spec.ts": {
-      "4:5": {
-        "timeout": 30000,
-        "projects": [
-          "chromium",
-          "firefox",
-          "webkit"
-        ]
-      },
+    "basic-case.spec.ts": {
       "10:9": {
+        "projects": [
+          "chromium",
+          "firefox",
+          "webkit",
+        ],
         "timeout": 30000,
-        "projects": [
-          "chromium",
-          "firefox",
-          "webkit"
-        ]
-      }
-    },
-    "ast/constant-timeout.spec.ts": {
-      "4:5": {
-        "timeout": 40000,
-        "projects": [
-          "chromium",
-          "firefox",
-          "webkit"
-        ]
       },
-      "12:9": {
-        "timeout": 45000,
+      "4:5": {
         "projects": [
           "chromium",
           "firefox",
-          "webkit"
-        ]
+          "webkit",
+        ],
+        "timeout": 30000,
+      },
+    },
+    "constant-timeout.spec.ts": {
+      "12:9": {
+        "projects": [
+          "chromium",
+          "firefox",
+          "webkit",
+        ],
+        "timeout": 45000,
       },
       "16:9": {
-        "timeout": 50000,
         "projects": [
           "chromium",
           "firefox",
-          "webkit"
-        ]
+          "webkit",
+        ],
+        "timeout": 50000,
       },
       "23:13": {
+        "projects": [
+          "chromium",
+          "firefox",
+          "webkit",
+        ],
         "timeout": 135000,
-        "projects": [
-          "chromium",
-          "firefox",
-          "webkit"
-        ]
-      }
-    },
-    "ast/failed.spec.ts": {
-      "3:5": {
-        "timeout": 30000,
-        "projects": [
-          "chromium",
-          "firefox",
-          "webkit"
-        ]
-      }
-    },
-    "ast/serial-top-level.spec.ts": {
-      "0:0": {
-        "timeout": 60000,
-        "projects": [
-          "chromium",
-          "firefox",
-          "webkit"
-        ]
-      }
-    },
-    "ast/serial.spec.ts": {
-      "4:5": {
-        "timeout": 30000,
-        "projects": [
-          "chromium",
-          "firefox",
-          "webkit"
-        ]
       },
-      "10:9": {
-        "timeout": 30000,
+      "4:5": {
         "projects": [
           "chromium",
           "firefox",
-          "webkit"
-        ]
+          "webkit",
+        ],
+        "timeout": 40000,
+      },
+    },
+    "failed.spec.ts": {
+      "3:5": {
+        "projects": [
+          "chromium",
+          "firefox",
+          "webkit",
+        ],
+        "timeout": 30000,
+      },
+    },
+    "serial-top-level.spec.ts": {
+      "0:0": {
+        "projects": [
+          "chromium",
+          "firefox",
+          "webkit",
+        ],
+        "timeout": 60000,
+      },
+    },
+    "serial.spec.ts": {
+      "10:9": {
+        "projects": [
+          "chromium",
+          "firefox",
+          "webkit",
+        ],
+        "timeout": 30000,
       },
       "14:10": {
-        "timeout": 85000,
         "projects": [
           "chromium",
           "firefox",
-          "webkit"
-        ]
-      }
-    }
-  }
+          "webkit",
+        ],
+        "timeout": 85000,
+      },
+      "4:5": {
+        "projects": [
+          "chromium",
+          "firefox",
+          "webkit",
+        ],
+        "timeout": 30000,
+      },
+    },
+  },
 }
-"
 `;

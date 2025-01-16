@@ -1,0 +1,39 @@
+ 1  o  [webkit]    basic-case.spec.ts:3:5          outside of group
+ 2  o  [firefox]   basic-case.spec.ts:3:5          outside of group
+ 3  o  [chromium]  basic-case.spec.ts:3:5          outside of group
+ 4  o  [firefox]   basic-case.spec.ts:8:9          inside group
+ 5  o  [chromium]  basic-case.spec.ts:8:9          inside group
+ 6  o  [webkit]    basic-case.spec.ts:8:9          inside group
+ 7  o  [chromium]  constant-timeout.spec.ts:10:9   inside group
+ 8  o  [firefox]   constant-timeout.spec.ts:10:9   inside group
+ 9  o  [webkit]    constant-timeout.spec.ts:10:9   inside group
+10  o  [webkit]    constant-timeout.spec.ts:13:9   inside group override timeout
+11  o  [chromium]  constant-timeout.spec.ts:13:9   inside group override timeout
+12  o  [firefox]   constant-timeout.spec.ts:13:9   inside group override timeout
+13  o  [chromium]  constant-timeout.spec.ts:19:13  inside nested group and slow
+14  o  [firefox]   constant-timeout.spec.ts:19:13  inside nested group and slow
+15  o  [webkit]    constant-timeout.spec.ts:19:13  inside nested group and slow
+16  o  [chromium]  constant-timeout.spec.ts:3:5    timeout outside of group
+17  o  [firefox]   constant-timeout.spec.ts:3:5    timeout outside of group
+18  o  [webkit]    constant-timeout.spec.ts:3:5    timeout outside of group
+19  x  [chromium]  failed.spec.ts:3:5              should failing
+20  x  [webkit]    failed.spec.ts:3:5              should failing
+21  x  [firefox]   failed.spec.ts:3:5              should failing
+22  o  [firefox]   serial-top-level.spec.ts:10:9   inside group
+23  o  [webkit]    serial-top-level.spec.ts:10:9   inside group
+24  o  [chromium]  serial-top-level.spec.ts:10:9   inside group
+25  o  [firefox]   serial-top-level.spec.ts:5:5    outside of group
+26  o  [webkit]    serial-top-level.spec.ts:5:5    outside of group
+27  o  [chromium]  serial-top-level.spec.ts:5:5    outside of group
+28  o  [firefox]   serial.spec.ts:13:13            inside nested group 1
+29  o  [webkit]    serial.spec.ts:13:13            inside nested group 1
+30  o  [chromium]  serial.spec.ts:13:13            inside nested group 1
+31  o  [firefox]   serial.spec.ts:17:13            inside nested group 2
+32  o  [webkit]    serial.spec.ts:17:13            inside nested group 2
+33  o  [chromium]  serial.spec.ts:17:13            inside nested group 2
+34  o  [webkit]    serial.spec.ts:3:5              outside of group
+35  o  [firefox]   serial.spec.ts:3:5              outside of group
+36  o  [chromium]  serial.spec.ts:3:5              outside of group
+37  o  [chromium]  serial.spec.ts:8:9              inside group
+38  o  [firefox]   serial.spec.ts:8:9              inside group
+39  o  [webkit]    serial.spec.ts:8:9              inside group
