@@ -1,12 +1,13 @@
 {
     "name": "@playwright-orchestrator/core",
-    "version": "1.0.3",
+    "version": "1.0.4",
     "description": "Core lib and cli for Playwright test orchestration",
     "keywords": [
         "playwright",
         "testing",
         "automation",
-        "orchestration"
+        "orchestration",
+        "e2e"
     ],
     "author": "Rostyslav Kudrevatykh",
     "license": "Apache-2.0",

@@ -15,7 +15,7 @@ for (const { factory, subCommand } of loadPlugins(command)) {
         .action(
             withErrorHandling(async (options) => {
                 const runId = uuid.v7();
-                const args = command.args.slice(command.registeredArguments.length);
+                const args = subCommand.args.slice(subCommand.registeredArguments.length);
                 const testsInfo = await loadReporterInfo(args);
                 const adapter = factory(options);
                 await adapter.saveTestRun(runId, testsInfo, args);
