@@ -1,4 +1,4 @@
-import { hash } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { TestRunConfig } from './types/test-info';
 import { TestItem, Adapter } from './types/adapters';
 import child_process from 'node:child_process';
@@ -23,10 +23,12 @@ export class TestRunner {
         await this.removePreviousReports();
         const config = await this.adapter.startShard(this.runId);
         config.configFile = await createTempConfig(config.configFile);
-        await this.runTestsUntilAvailable(config);
-        await this.adapter.finishShard(this.runId);
-        if (config.configFile) {
-            await rm(config.configFile);
+        try {
+            await this.runTestsUntilAvailable(config);
+            await this.adapter.finishShard(this.runId);
+            await this.adapter.dispose();
+        } finally {
+            if (config.configFile) await rm(config.configFile);
         }
     }
 
@@ -48,32 +50,25 @@ export class TestRunner {
     }
 
     private async removePreviousReports() {
-        try {
-            await rm(`./${this.outputFolder}`, { recursive: true });
-        } catch (error: any) {
-            // Ignore if folder doesn't exist (ENOENT)
-            if (error.code !== 'ENOENT') {
-                throw error; // Re-throw other errors
-            }
-        }
+        await rm(`./${this.outputFolder}`, { recursive: true, force: true });
     }
 
     private async runTest(test: TestItem, config: TestRunConfig) {
         const testPosition = `${test.file}:${test.position}`;
         const testName = `[${test.project}] > ${testPosition}`;
+        const testHash = createHash('md5').update(testName).digest('hex');
         try {
-            const testHash = hash('md5', testName);
             console.log(`Running test: ${testName}`);
             await exec(`npx playwright test ${testPosition} ${this.buildParams(test, config, testHash)}`, {
                 env: {
                     ...process.env,
-                    PLAYWRIGHT_BLOB_OUTPUT_FILE: `./${this.outputFolder}/${testHash}.zip`,
+                    PLAYWRIGHT_BLOB_OUTPUT_FILE: `${this.outputFolder}/${testHash}.zip`,
                 },
             });
-            await this.adapter.finishTest(this.runId, test);
         } catch (error) {
             await this.adapter.failTest(this.runId, test);
         }
+        await this.adapter.finishTest(this.runId, test);
     }
 
     private buildParams(test: TestItem, config: TestRunConfig, testHash: string): string {

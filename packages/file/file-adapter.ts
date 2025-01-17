@@ -1,8 +1,7 @@
 import { TestItem, TestRunInfo, Adapter, TestRun, TestRunConfig, RunStatus } from '@playwright-orchestrator/core';
 import { CreateArgs } from './create-args';
 import { lock } from 'proper-lockfile';
-import { readFile, writeFile } from 'fs/promises';
-import { mkdir } from 'fs/promises';
+import { readFile, writeFile, mkdir } from 'fs/promises';
 
 export class FileAdapter extends Adapter {
     private readonly dir: string;
@@ -14,7 +13,7 @@ export class FileAdapter extends Adapter {
 
     async startShard(runId: string): Promise<TestRunConfig> {
         const file = this.getRunConfigPath(runId);
-        const release = await lock(file);
+        const release = await lock(file, { retries: 100 });
         const config = JSON.parse(await readFile(file, 'utf-8')) as TestRunConfig;
         if (config.status === RunStatus.Created || config.status === RunStatus.Finished) {
             config.status = config.status === RunStatus.Created ? RunStatus.Run : RunStatus.Rerun;
@@ -29,7 +28,7 @@ export class FileAdapter extends Adapter {
     }
     async finishShard(runId: string): Promise<void> {
         const file = this.getRunConfigPath(runId);
-        const release = await lock(file);
+        const release = await lock(file, { retries: 100 });
         const config = JSON.parse(await readFile(file, 'utf-8')) as TestRunConfig;
         config.status = RunStatus.Finished;
         config.updated = Date.now();
@@ -72,11 +71,13 @@ export class FileAdapter extends Adapter {
             this.getRunIdFilePath(runId),
             JSON.stringify(this.flattenTestRun(testRun.testRun, true), null, 2),
         );
+        await writeFile(this.getFailedRunPath(runId), '[]');
     }
 
     async initialize(): Promise<void> {
         return;
     }
+    async dispose(): Promise<void> {}
 
     private getRunIdFilePath(runId: string) {
         return `${this.dir}/${runId}.json`;

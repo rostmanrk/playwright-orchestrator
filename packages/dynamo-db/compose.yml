@@ -1,6 +1,7 @@
 services:
     dynamodb-local:
         command: '-jar DynamoDBLocal.jar -sharedDb -dbPath ./data -cors http://localhost:8001'
+        restart: always
         image: 'amazon/dynamodb-local:latest'
         container_name: dynamodb-local
         ports:
@@ -14,4 +15,18 @@ services:
         restart: always
         privileged: true
         ports:
-            - 8001:80–
+            - 8001:80
+
+    test:
+        command: '-jar DynamoDBLocal.jar -sharedDb -dbPath ./data'
+        restart: always
+        image: 'amazon/dynamodb-local:latest'
+        container_name: dynamodb-local-test
+        ports:
+            - '8002:8000'
+        profiles:
+            - test
+        tmpfs:
+            - /home/dynamodblocal/data
+
+        working_dir: /home/dynamodblocal

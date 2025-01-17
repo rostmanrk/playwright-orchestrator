@@ -1,4 +1,4 @@
-import type { FullConfig, Reporter, Suite } from '@playwright/test/reporter';
+import { FullConfig, Reporter, Suite } from '@playwright/test/reporter';
 import { RunBuilder } from './run-builder';
 
 export class TestsInfoReporter implements Reporter {

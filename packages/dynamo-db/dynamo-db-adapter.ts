@@ -60,7 +60,7 @@ export class DynamoDbAdapter extends Adapter {
     private readonly ttl: number;
     constructor(createArgs: CreateArgs) {
         super();
-        this.client = new DynamoDBClient({ endpoint: createArgs.endpointUrl });
+        this.client = new DynamoDBClient({ endpoint: createArgs.endpointUrl, maxAttempts: 10 });
         this.docClient = DynamoDBDocumentClient.from(this.client);
         this.testsTableName = `${createArgs.tableNamePrefix}-tests`;
         this.ttl = createArgs.ttl * 24 * 60 * 60;
@@ -233,6 +233,10 @@ export class DynamoDbAdapter extends Adapter {
     async initialize(): Promise<void> {
         await this.createTestsTable();
         await this.enableTtl();
+    }
+
+    async dispose(): Promise<void> {
+        this.client.destroy();
     }
 
     private async enableTtl(): Promise<void> {

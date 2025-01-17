@@ -9,10 +9,10 @@
     ],
     "scripts": {
         "watch": "tsc -b -w",
-        "test": "vitest",
+        "test": "vitest run --pool threads",
         "build": "tsc -b --sourceMap false",
         "test-update": "vitest -u",
-        "run-node": "node packages/core/dist/cli",
+        "run-node": "node --inspect packages/core/dist/cli",
         "cli-permissions": "chmod +x ./packages/core/dist/cli.js",
         "link-packages": "chmod +x ./scripts/link-packages.sh && ./scripts/link-packages.sh",
         "dynamo-local": "podman compose -f ./packages/dynamo-db/compose.yml",

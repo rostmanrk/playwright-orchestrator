@@ -1,4 +1,4 @@
-import type { FullConfig, Suite, TestCase } from '@playwright/test/reporter';
+import { FullConfig, Suite, TestCase } from '@playwright/test/reporter';
 import { TestASTAnalyzer } from './test-ats-analyzer';
 import { TestConfig, TestRun, TestRunInfo } from '../types/test-info';
 

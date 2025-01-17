@@ -9,6 +9,7 @@ for (const { factory, subCommand } of loadPlugins(command)) {
         withErrorHandling(async (options) => {
             const adapter = factory(options);
             await adapter.initialize();
+            await adapter.dispose();
             console.log('Storage initialized');
         }),
     );

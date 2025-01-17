@@ -19,6 +19,7 @@ for (const { factory, subCommand } of loadPlugins(command)) {
                 const testsInfo = await loadReporterInfo(args);
                 const adapter = factory(options);
                 await adapter.saveTestRun(runId, testsInfo, args);
+                await adapter.dispose();
                 console.log(runId);
             }),
         );

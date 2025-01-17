@@ -150,4 +150,9 @@ export class PostgreSQLAdapter extends Adapter {
             values: [RunStatus.Finished, runId],
         });
     }
+
+    async dispose(): Promise<void> {
+        if (this.pool.ending) return;
+        await this.pool.end();
+    }
 }

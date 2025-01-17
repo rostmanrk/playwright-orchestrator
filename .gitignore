@@ -9,3 +9,5 @@ node_modules/
 **/db/
 /blob-reports/
 .DS_Store
+/tmp*/
+/test-runs/
