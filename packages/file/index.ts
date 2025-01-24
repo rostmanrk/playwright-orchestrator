@@ -1,13 +1,15 @@
-import { Command } from '@commander-js/extra-typings';
+import { Command, Option } from '@commander-js/extra-typings';
 import { CreateArgs } from './create-args';
 import { FileAdapter } from './file-adapter';
 
-export function factory(args: CreateArgs) {
+export async function factory(args: CreateArgs) {
     return new FileAdapter(args);
 }
 
 export function createOptions(command: Command) {
-    command.option('--directory <string>', 'Directory to store test run data', 'test-runs');
+    command.addOption(
+        new Option('--directory <string>', 'Directory to store test run data').default('test-runs').env('DIRECTORY'),
+    );
 }
 
 export const description = 'Local file storage adapter';

@@ -1,4 +1,4 @@
-import { loadPlugins } from '../plugin';
+import { loadPlugins } from '../helpers/plugin';
 import { TestRunner } from '../test-runner';
 import { withErrorHandling } from './error-handler';
 import { program } from './program';
@@ -15,7 +15,7 @@ for (const { factory, subCommand } of loadPlugins(command)) {
         )
         .action(
             withErrorHandling(async (options) => {
-                const adapter = factory(options);
+                const adapter = await factory(options);
                 const runner = new TestRunner(options as any, adapter);
                 await runner.runTests();
                 console.log('Run completed');

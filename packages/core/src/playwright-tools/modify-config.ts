@@ -10,7 +10,7 @@ export async function createTempConfig(file: string | undefined): Promise<string
     delete config.webServer;
     export default config;`;
 
-    const tempFile = `playwright${uuid.v7()}.config.tmp.ts`;
+    const tempFile = `.playwright-${uuid.v7()}.config.tmp.ts`;
     await writeFile(tempFile, content);
     return tempFile;
 }

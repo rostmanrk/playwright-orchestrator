@@ -1,13 +1,12 @@
 import { Command } from '@commander-js/extra-typings';
-import { Adapter } from './types/adapters';
-
-const STORAGES = ['file', 'dynamo-db', 'pg'] as const;
+import { Adapter } from '../types/adapters';
+import { STORAGES } from '../plugins-list';
 
 export type StorageType = (typeof STORAGES)[number];
 
 export function loadPluginModule(storage: string):
     | {
-          factory: (options: any) => Adapter;
+          factory: (options: any) => Promise<Adapter>;
           createOptions: (command: Command) => void;
           description?: string;
       }

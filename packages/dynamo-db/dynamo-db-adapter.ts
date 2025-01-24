@@ -79,7 +79,7 @@ export class DynamoDbAdapter extends Adapter {
         const config = this.mapDbConfigToTestRunConfig(configRequest.Item);
         const status: RunStatus = configRequest.Item[Fields.Config].status;
         if (status === RunStatus.Created || status === RunStatus.Finished) {
-            const newStatus = status === RunStatus.Finished ? RunStatus.Rerun : RunStatus.Run;
+            const newStatus = status === RunStatus.Finished ? RunStatus.RepeatRun : RunStatus.Run;
             config.status = newStatus;
             await this.updateConfigStatus(runId, newStatus);
             // If the run is finished, rerun the failed tests

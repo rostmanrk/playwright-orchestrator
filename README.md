@@ -2,18 +2,22 @@
 
 A CLI tool for orchestrating and managing Playwright test execution.
 
-Looking for smarter test sharding without complex configuration or external cloud services? If you have a database, Playwright Orchestrator is the right choice for you.
+Helps to orchestrate Playwright test execution through smart sharding using existing database.
 
 ![Timeline](https://github.com/rostmanrk/playwright-orchestrator/raw/main/assets/timeline.png)
 
 ## 🎯 Overview
 
-Test are ordered base on test timeout
+**Test are ordered base on test timeout**.
+More options will be added in next versions
+
 The project provides tooling to analyze and orchestrate Playwright tests using available storage plugin options. Currently available plugin options:
 
 - file: Basic storage that uses a local file as storage.
-- dynamo-db: Amazon's DynamoDB wrapper.
-- pg: PostgreSQL wrapper.
+- dynamo-db: Amazon's DynamoDB adapter.
+- pg: PostgreSQL adapter.
+- mysql: MySQL adapter
+- mongo: MongoDB adapter
 
 ## 📦 Installation
 
@@ -75,7 +79,7 @@ Creates and configures a new test run. Outputs created run ID. Supports most of 
 
 ### `run`
 
-Starts test shard for the provided test run.
+Starts a test shard for the provided test run. If used with a finished run, it will only start failed tests.
 
 Command generate blob reports into `--output` directory. To merge it use [Playwright's Merge-reports CLI](https://playwright.dev/docs/test-sharding#merge-reports-cli)
 
@@ -88,7 +92,9 @@ Command generate blob reports into `--output` directory. To merge it use [Playwr
 
 ## ⚙️ Subcommands and Options
 
-Each command has corresponding subcommands for installed storages
+Each command has corresponding subcommands for installed storages.
+
+**Each storage option can be parsed from env variable**. For example, `table-name-prefix` -> TABLE_NAME_PREFIX.
 
 ### `file`
 
@@ -116,36 +122,68 @@ Use PostgreSQL as storage.
 | --------------------- | -------------------- | -------- | ------------------------- | --------- |
 | `--connection-string` | Connection string    | `string` | -                         | yes       |
 | `--table-name-prefix` | Table(s) name prefix | `string` | 'playwright-orchestrator' | no        |
+| `--ssl-ca `           | SSL CA file          | `string` | -                         | no        |
+| `--ssl-cert `         | SSL certificate file | `string` | -                         | no        |
+| `--ssl-key `          | SSL key file         | `string` | -                         | no        |
+
+### `mysql`
+
+Use MySQL as storage.
+
+| Option                            | Description                                  | Type     | Default                   | Required? |
+| --------------------------------- | -------------------------------------------- | -------- | ------------------------- | --------- |
+| `--connection-string`             | Connection string                            | `string` | -                         | yes       |
+| `--table-name-prefix`             | Table(s) name prefix                         | `string` | 'playwright-orchestrator' | no        |
+| `--ssl-profile `                  | The SSL profile overrides other SSL options. | `string` | -                         | no        |
+| `--ssl-ca`                        | SSL CA file                                  | `string` | -                         | no        |
+| `--ssl-cert`                      | SSL certificate file                         | `string` | -                         | no        |
+| `--ssl-key`                       | SSL key file                                 | `string` | -                         | no        |
+| `--ssl-passphrase`                | SSL passphrase                               | `string` | -                         | no        |
+| `--ssl-reject-unauthorized`       | SSL reject unauthorized                      | `string` | -                         | no        |
+| `--ssl-verify-server-certificate` | SSL verify server certificate                | `string` | -                         | no        |
+
+### `mongo`
+
+Use MongoDB as storage.
+
+| Option                     | Description                           | Type     | Default                   | Required? |
+| -------------------------- | ------------------------------------- | -------- | ------------------------- | --------- |
+| `--connection-string`      | Connection string                     | `string` | -                         | yes       |
+| `--db`                     | Database name                         | `string` | -                         | yes       |
+| `--collection-name-prefix` | Table(s) name prefix                  | `string` | 'playwright-orchestrator' | no        |
+| `--tls`                    | Enable TLS                            | `string` | -                         | no        |
+| `--debug`                  | Add extra fields for some collections | `string` | -                         | no        |
 
 ## 💻 Development
 
-Make sure podman and compose is installed. They used for tests and local debugging.
+Make sure podman and compose is installed. They used for tests and local development.
 
-```bash
-npm run watch # Watch mode for development
-npm test # Run tests
-npm run test-update # Update test snapshots
-npm run link-packages # Link packages for local development
-```
+Build or use `npm run watch`.
+
+Make sure yoy run `npm run cli-permissions` and `npm run link-packages`
+
+See packages.json .scripts section for more commands.
 
 ## ⚖️ License
 
 Licensed under the Apache License 2.0. See LICENSE.md for details.
 
-## 🔮 Future plans
+## 🔮 Future plans/ideas
 
-- ✅ ~~More~~ Tests
+- ✅ ~~Tests~~
+- ✅ ~~Better Error Handling~~
+- ✅ ~~MySQL adapter~~
+- ✅ ~~MongoDB adapter~~
+- ✅ ~~Tests improvements~~
 - ⬜ Better Logging
-- ⬜ Better Error Handling
-- ⬜ MySQL adapter
-- ⬜ MS SQL adapter
-- ⬜ Redis adapter
-- ⬜ MongoDB adapter
-- ⬜ GHA reporter
 - ⬜ More examples
-- ⬜ Test History statistics (test duration trends, count of test failures for past n days, etc.)
+- ⬜ Use Bun as runtime?
+- ⬜ Redis adapter
 - ⬜ Even more adapters (by request)
+- ⬜ GHA reporter
+- ⬜ Test History statistics (test duration trends, count of test failures for past n days, etc.)
 - ⬜ Create Documentation site.
+- ⬜ Restore unfinished tests in case shard terminated.
 - ⬜ Smarter test ordering based on previous execution duration
 
 ## ⚠️ Disclaimer

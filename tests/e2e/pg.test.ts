@@ -1,5 +1,5 @@
 import { test, expect, afterAll, beforeAll } from 'vitest';
-import { exec } from '../e2e/test-utils';
+import { exec } from '../../e2e/test-utils';
 import { rm } from 'fs/promises';
 
 const reportsFolder = './test-reports-folder-pg';
@@ -7,10 +7,12 @@ const config = 'tests-playwright.config.ts';
 const storageOptions = `pg --connection-string postgres://postgres:password@localhost:5433/postgres`;
 
 beforeAll(async () => {
+    if (process.env.CI) return;
     await exec('npm run pg-local -- up test --wait');
 });
 
 afterAll(async () => {
+    if (process.env.CI) return;
     await exec('npm run pg-local -- down test');
     await rm(reportsFolder, { recursive: true, force: true });
 });
@@ -31,5 +33,5 @@ test('test pg plugin', async () => {
     const { stdout } = await exec(
         `npx playwright merge-reports ${reportsFolder} --reporter tests/utils/test-consistent-reporter.ts`,
     );
-    await expect(stdout).toMatchFileSnapshot('__snapshots__/test-run.output.snap');
+    await expect(stdout).toMatchFileSnapshot('../__snapshots__/test-run.output.snap');
 }, 60000);

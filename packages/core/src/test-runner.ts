@@ -65,10 +65,10 @@ export class TestRunner {
                     PLAYWRIGHT_BLOB_OUTPUT_FILE: `${this.outputFolder}/${testHash}.zip`,
                 },
             });
+            await this.adapter.finishTest(this.runId, test);
         } catch (error) {
             await this.adapter.failTest(this.runId, test);
         }
-        await this.adapter.finishTest(this.runId, test);
     }
 
     private buildParams(test: TestItem, config: TestRunConfig, testHash: string): string {

@@ -1,14 +1,23 @@
 import { TestItem, TestRunInfo, Adapter, TestRunConfig, RunStatus, TestStatus } from '@playwright-orchestrator/core';
 import { CreateArgs } from './create-args';
-import { Pool, escapeIdentifier } from 'pg';
+import { Pool, PoolConfig, escapeIdentifier } from 'pg';
 
 export class PostgreSQLAdapter extends Adapter {
     private readonly configTable: string;
     private readonly testsTable: string;
     private readonly pool: Pool;
-    constructor({ connectionString, tableNamePrefix }: CreateArgs) {
+    constructor({ connectionString, tableNamePrefix, sslCa, sslCert, sslKey }: CreateArgs) {
         super();
-        this.pool = new Pool({ connectionString });
+        const config: PoolConfig = { connectionString };
+        config.ssl = sslCa || sslCert || sslKey ? {} : undefined;
+        if (sslCa) {
+            config.ssl!.ca = sslCa;
+        }
+        if (sslCert && sslKey) {
+            config.ssl!.cert = sslCert;
+            config.ssl!.key = sslKey;
+        }
+        this.pool = new Pool(config);
         this.configTable = escapeIdentifier(`${tableNamePrefix}_test_runs`);
         this.testsTable = escapeIdentifier(`${tableNamePrefix}_tests`);
     }
@@ -30,7 +39,7 @@ export class PostgreSQLAdapter extends Adapter {
                 FROM next_test
                 WHERE t.run_id = $1 AND t.order_num = next_test.order_num
                 RETURNING *`,
-                values: [runId, TestStatus.Ready, TestStatus.Running],
+                values: [runId, TestStatus.Ready, TestStatus.Ongoing],
             });
             await client.query('COMMIT');
             if (result.rowCount === 0) return undefined;
@@ -105,37 +114,60 @@ export class PostgreSQLAdapter extends Adapter {
                 updated TIMESTAMP NOT NULL DEFAULT NOW(),
                 PRIMARY KEY (run_id, order_num),
                 FOREIGN KEY (run_id) REFERENCES ${this.configTable}(id)
-            );`,
+            );
+            CREATE INDEX IF NOT EXISTS status_idx ON ${this.testsTable}(status);`,
         );
     }
     async startShard(runId: string): Promise<TestRunConfig> {
-        // Avoid updating updated field as shard can be started multiple times in uncertain order and time.
-        const result = await this.pool.query({
-            name: 'update-start-config',
-            text: `UPDATE ${this.configTable}
-            SET status = 
-                CASE 
-                WHEN status IN ($1, $2) THEN $2
-                ELSE $3
-                END
-            WHERE id = $4 
-            RETURNING *`,
-            values: [RunStatus.Finished, RunStatus.Rerun, RunStatus.Run, runId],
-        });
-        if (result.rowCount === 0) {
-            throw new Error(`Run ${runId} not found`);
-        }
-        const { updated, status, config } = result.rows[0];
-        const mappedConfig = { ...config, updated: updated.getTime(), status };
-        await this.pool.query({
-            name: 'update-tests-status',
-            text: `UPDATE ${this.testsTable}
-            SET status = $1
-            WHERE run_id = $2 AND status = $3 AND updated < $4`,
-            values: [TestStatus.Ready, runId, TestStatus.Failed, updated],
-        });
+        const client = await this.pool.connect();
+        try {
+            await client.query('BEGIN');
+            let result = await client.query({
+                text: `
+                    SELECT *
+                    FROM ${this.configTable}
+                    WHERE id = $1
+                    FOR UPDATE`,
+                values: [runId],
+            });
+            if (result.rowCount === 0) {
+                throw new Error(`Run ${runId} not found`);
+            }
+            const { updated: updatedBefore, status: statusBefore } = result.rows[0];
+            if (statusBefore === RunStatus.Created || statusBefore === RunStatus.Finished) {
+                await client.query({
+                    text: `
+                    UPDATE ${this.testsTable}
+                    SET updated = NOW(), status = $3
+                    WHERE run_id = $1 AND status = $2 AND updated <= $4;`,
+                    values: [runId, TestStatus.Failed, TestStatus.Ready, updatedBefore],
+                });
+                // using str interpolation for case statement to avoid casting ints to strings
+                result = await client.query({
+                    text: `
+                    UPDATE ${this.configTable}
+                    SET status = (CASE
+                        WHEN status = $2 THEN ${RunStatus.Run}
+                        ELSE ${RunStatus.RepeatRun}
+                    END),
+                    updated = NOW()
+                    WHERE id = $1
+                    RETURNING *;`,
+                    values: [runId, RunStatus.Created],
+                });
+            }
 
-        return mappedConfig;
+            await client.query('COMMIT');
+            const { updated, status, config } = result.rows[0];
+            const mappedConfig = { ...config, updated: updated.getTime(), status };
+
+            return mappedConfig;
+        } catch (e) {
+            await client.query('ROLLBACK');
+            throw e;
+        } finally {
+            client.release();
+        }
     }
 
     async finishShard(runId: string): Promise<void> {

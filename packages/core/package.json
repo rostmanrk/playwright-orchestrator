@@ -1,6 +1,6 @@
 {
     "name": "@playwright-orchestrator/core",
-    "version": "1.0.5",
+    "version": "1.1.0",
     "description": "Core lib and cli for Playwright test orchestration",
     "keywords": [
         "playwright",
@@ -43,7 +43,9 @@
         "@playwright/test": "^1.44.0",
         "@playwright-orchestrator/file": "^1.0.0",
         "@playwright-orchestrator/dynamo-db": "^1.0.0",
-        "@playwright-orchestrator/pg": "^1.0.0"
+        "@playwright-orchestrator/pg": "^1.0.0",
+        "@playwright-orchestrator/mysql": "^1.0.0",
+        "@playwright-orchestrator/mongo": "^1.0.0"
     },
     "peerDependenciesMeta": {
         "@playwright-orchestrator/file": {
@@ -53,6 +55,12 @@
             "optional": true
         },
         "@playwright-orchestrator/pg": {
+            "optional": true
+        },
+        "@playwright-orchestrator/mysql": {
+            "optional": true
+        },
+        "@playwright-orchestrator/mongo": {
             "optional": true
         }
     },

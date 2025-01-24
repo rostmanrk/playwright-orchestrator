@@ -37,13 +37,13 @@ export interface Annotation {
 export enum RunStatus {
     Created = 0,
     Run = 10,
-    Rerun = 20,
+    RepeatRun = 20,
     Finished = 30,
 }
 
 export enum TestStatus {
     Ready = 0,
-    Running = 10,
+    Ongoing = 10,
     Failed = 20,
     Passed = 30,
 }
