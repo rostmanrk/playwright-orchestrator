@@ -13,14 +13,13 @@
         "dist"
     ],
     "dependencies": {
+        "@commander-js/extra-typings": "^13.0.0",
+        "@playwright-orchestrator/core": "^1.1.0",
+        "commander": "^13.0.0",
         "pg": "^8.13.1"
     },
     "devDependencies": {
         "@types/pg": "^8.11.0"
-    },
-    "peerDependencies": {
-        "@commander-js/extra-typings": "^13.0.0",
-        "@playwright-orchestrator/core": "^1.0.0"
     },
     "exports": {
         ".": {

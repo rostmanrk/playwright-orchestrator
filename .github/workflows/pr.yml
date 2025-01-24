@@ -24,9 +24,10 @@ jobs:
         uses: tj-actions/changed-files@v45
         with:
           files_ignore: |
-            **.md
-            **.json
-            **.plugins-list.ts
+            **/*.md
+            **/*.json
+            **/plugins-list.ts
+            **/*.yml
 
       - name: Check paths
         id: check-files
@@ -44,6 +45,8 @@ jobs:
           echo "projects=${projects## }" >> "$GITHUB_OUTPUT"
   tests:
     runs-on: ubuntu-latest
+    needs: check-changes
+    if: contains(needs.check-changes.outputs.projects, 'core')
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/test-setup
@@ -154,6 +157,7 @@ jobs:
         run: npm test -- mongo.test.ts
 
   test-passed:
+    runs-on: ubuntu-latest
     needs:
       - "tests"
       - "test-file"
@@ -161,7 +165,10 @@ jobs:
       - "test-pg"
       - "test-mysql"
       - "test-mongo"
-    runs-on: ubuntu-latest
+    if: always()
     steps:
       - name: Check if all tests passed
-        run: exit 0
+        run: |
+          if [[ ${{ contains(needs.*.result, 'failure') }} == true ]] || [[ ${{ contains(needs.*.result, 'cancelled') }} == true ]]; then
+            exit 1
+          fi
