@@ -1,24 +1,28 @@
-import { test, expect, afterAll } from 'vitest';
-import { exec } from '../e2e/test-utils';
+import { test, expect, afterAll, beforeAll } from 'vitest';
+import { exec } from '../../e2e/test-utils';
 import { rm } from 'fs/promises';
 
-const filesFolder = 'test-runs-folder';
-const reportsFolder = './test-reports-folder';
+const reportsFolder = './test-reports-folder-mysql';
 const config = 'tests-playwright.config.ts';
-const storageOptions = `file --directory ${filesFolder}`;
+const storageOptions = `mysql --connection-string mysql://root:password@localhost:3307/test`;
+
+beforeAll(async () => {
+    if (process.env.CI) return;
+    await exec('npm run mysql-local -- up test --wait');
+});
 
 afterAll(async () => {
-    await rm(filesFolder, { recursive: true, force: true });
+    if (process.env.CI) return;
+    await exec('npm run mysql-local -- down test');
     await rm(reportsFolder, { recursive: true, force: true });
 });
 
-test('test file plugin', async () => {
+test('test mysql plugin', async () => {
     // init command
     const init = await exec(`playwright-orchestrator init ${storageOptions}`);
     expect(init.stdout).toBeTruthy();
 
     // create command
-    await rm(filesFolder, { recursive: true, force: true });
     const create = await exec(`playwright-orchestrator create ${storageOptions} -j 2 --config ${config}`);
     const runId = create.stdout.trim();
     expect(runId).toBeTruthy();
@@ -29,5 +33,5 @@ test('test file plugin', async () => {
     const { stdout } = await exec(
         `npx playwright merge-reports ${reportsFolder} --reporter tests/utils/test-consistent-reporter.ts`,
     );
-    await expect(stdout).toMatchFileSnapshot('__snapshots__/test-run.output.snap');
+    await expect(stdout).toMatchFileSnapshot('../__snapshots__/test-run.output.snap');
 }, 60000);

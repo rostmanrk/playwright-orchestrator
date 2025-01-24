@@ -1,44 +1,167 @@
 name: Pull Request Checks
 
+permissions:
+  contents: read
+  pull-requests: write
+
 on:
-    pull_request:
-        branches: [main]
-        types: [opened, synchronize, reopened]
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-    build-and-test:
-        runs-on: ubuntu-latest
+  check-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      projects: ${{ steps.check-files.outputs.projects }}
+    steps:
+      - name: Get changed files
+        id: files
+        uses: tj-actions/changed-files@v45
+        with:
+          files_ignore: |
+            **.md
+            **.json
+            **.plugins-list.ts
 
-        steps:
-            - uses: actions/checkout@v4
+      - name: Check paths
+        id: check-files
+        run: |
+          projects=""
+          for file in ${{ steps.files.outputs.all_changed_files }}; do
+            if [[ $file == "packages/"* ]]; then
+              project=$(echo $file | cut -d'/' -f2)
+              projects="$projects $project"
+            else
+              projects="$projects core"
+            fi
+          done
+          projects=$(echo "$projects" | tr ' ' '\n' | sort -u | tr '\n' ' ' | xargs)
+          echo "projects=${projects## }" >> "$GITHUB_OUTPUT"
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/test-setup
+      - name: Run tests
+        run: npm test -- --exclude "**/e2e/**"
 
-            - name: Setup Node.js
-              uses: actions/setup-node@v4
-              with:
-                  node-version: '18'
-                  cache: 'npm'
+  test-file:
+    needs: check-changes
+    if: contains(needs.check-changes.outputs.projects, 'core') || contains(needs.check-changes.outputs.projects, 'file')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/test-setup
+      - name: Run tests
+        run: npm test -- file.test.ts
 
-            - name: Install dependencies
-              run: npm ci
+  test-dynamo-db:
+    needs: check-changes
+    if: contains(needs.check-changes.outputs.projects, 'core') || contains(needs.check-changes.outputs.projects, 'dynamo-db')
+    runs-on: ubuntu-latest
+    env:
+      AWS_ACCESS_KEY_ID: "local"
+      AWS_SECRET_ACCESS_KEY: "local"
+      AWS_REGION: "local"
 
-            - name: Build
-              run: npm run build
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: "adopt"
+          java-version: "21"
 
-            - name: link packages
-              run: |
-                  npm run link-packages
+      - name: Download DynamoDB Local
+        run: |
+          curl -o dynamodb_local_latest.tar.gz https://d1ni2b6xgvw0s0.cloudfront.net/v2.x/dynamodb_local_latest.tar.gz
+          tar -xvzf dynamodb_local_latest.tar.gz
+          rm dynamodb_local_latest.tar.gz
+      - name: Start DynamoDB Local
+        run: |
+          nohup java -Djava.library.path=./DynamoDBLocal_lib -jar DynamoDBLocal.jar -sharedDb &
+          sleep 2
 
-            - name: Instal podman
-              run: |
-                  sudo apt-get update
-                  sudo apt-get install -y podman podman-compose
-                  systemctl --user start podman.socket
-                  systemctl --user enable podman.socket
-                  export DOCKER_HOST="unix://$XDG_RUNTIME_DIR/podman/podman.sock"
-                  # Verify podman is working
-                  podman info
-                  # Set compose to use podman
-                  export COMPOSE_PROVIDER=podman
+      - uses: ./.github/actions/test-setup
+      - name: Run tests
+        run: npm test -- dynamo-db.test.ts
 
-            - name: Run tests
-              run: npm test -- --poolOptions.threads.singleThread true
+  test-pg:
+    needs: check-changes
+    if: contains(needs.check-changes.outputs.projects, 'core') || contains(needs.check-changes.outputs.projects, 'pg')
+    runs-on: ubuntu-latest
+    services:
+      test:
+        image: postgres
+        ports:
+          - 5433:5432
+        env:
+          POSTGRES_PASSWORD: password
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/test-setup
+      - name: Run tests
+        run: npm test -- pg.test.ts
+
+  test-mysql:
+    needs: check-changes
+    if: contains(needs.check-changes.outputs.projects, 'core') || contains(needs.check-changes.outputs.projects, 'mysql')
+    runs-on: ubuntu-latest
+    services:
+      test:
+        image: mysql
+        ports:
+          - 3307:3306
+        env:
+          MYSQL_ROOT_PASSWORD: password
+          MYSQL_DATABASE: test
+        options: >-
+          --health-cmd "mysqladmin ping"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/test-setup
+      - name: Run tests
+        run: npm test -- mysql.test.ts
+
+  test-mongo:
+    needs: check-changes
+    if: contains(needs.check-changes.outputs.projects, 'core') || contains(needs.check-changes.outputs.projects, 'mongo')
+    runs-on: ubuntu-latest
+    services:
+      test:
+        image: mongo
+        ports:
+          - 27018:27017
+        env:
+          MONGO_INITDB_ROOT_USERNAME: root
+          MONGO_INITDB_ROOT_PASSWORD: password
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/test-setup
+      - name: Run tests
+        run: npm test -- mongo.test.ts
+
+  test-passed:
+    needs:
+      - "tests"
+      - "test-file"
+      - "test-dynamo-db"
+      - "test-pg"
+      - "test-mysql"
+      - "test-mongo"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check if all tests passed
+        run: exit 0

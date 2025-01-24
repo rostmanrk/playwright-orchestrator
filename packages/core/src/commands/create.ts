@@ -1,7 +1,7 @@
 import * as uuid from 'uuid';
 import { program } from './program';
-import { loadReporterInfo } from '../reporter-tools';
-import { loadPlugins } from '../plugin';
+import { loadReporterInfo } from '../helpers/reporter-tools';
+import { loadPlugins } from '../helpers/plugin';
 import { withErrorHandling } from './error-handler';
 
 const command = program
@@ -17,7 +17,7 @@ for (const { factory, subCommand } of loadPlugins(command)) {
                 const runId = uuid.v7();
                 const args = subCommand.args.slice(subCommand.registeredArguments.length);
                 const testsInfo = await loadReporterInfo(args);
-                const adapter = factory(options);
+                const adapter = await factory(options);
                 await adapter.saveTestRun(runId, testsInfo, args);
                 await adapter.dispose();
                 console.log(runId);

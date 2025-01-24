@@ -1,24 +1,23 @@
 import { test, expect, afterAll, beforeAll } from 'vitest';
-import { exec } from '../e2e/test-utils';
+import { exec } from '../../e2e/test-utils';
 import { rm } from 'fs/promises';
 
-const reportsFolder = './test-reports-folder-dynamo';
+const reportsFolder = './test-reports-folder-mongo';
 const config = 'tests-playwright.config.ts';
-const storageOptions = `dynamo-db --endpoint-url http://localhost:8002`;
+const storageOptions = `mongo --connection-string mongodb://root:password@localhost:27018/ --db test`;
 
 beforeAll(async () => {
-    process.env.AWS_ACCESS_KEY_ID = 'local';
-    process.env.AWS_SECRET_ACCESS_KEY = 'local';
-    process.env.AWS_REGION = 'local';
-    await exec('npm run dynamo-local -- up test --wait');
-}, 20000);
+    if (process.env.CI) return;
+    await exec('npm run mongo-local -- up test --wait');
+});
 
 afterAll(async () => {
-    await exec('npm run dynamo-local -- down test');
+    if (process.env.CI) return;
+    await exec('npm run mongo-local -- down test');
     await rm(reportsFolder, { recursive: true, force: true });
 });
 
-test('test dynamo-db plugin', async () => {
+test('test mongodb plugin', async () => {
     // init command
     const init = await exec(`playwright-orchestrator init ${storageOptions}`);
     expect(init.stdout).toBeTruthy();
@@ -34,5 +33,5 @@ test('test dynamo-db plugin', async () => {
     const { stdout } = await exec(
         `npx playwright merge-reports ${reportsFolder} --reporter tests/utils/test-consistent-reporter.ts`,
     );
-    await expect(stdout).toMatchFileSnapshot('__snapshots__/test-run.output.snap');
+    await expect(stdout).toMatchFileSnapshot('../__snapshots__/test-run.output.snap');
 }, 60000);

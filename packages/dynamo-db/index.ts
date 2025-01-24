@@ -1,18 +1,20 @@
-import { Command } from '@commander-js/extra-typings';
+import { Command, Option } from '@commander-js/extra-typings';
 import { CreateArgs } from './create-args';
 import { DynamoDbAdapter } from './dynamo-db-adapter';
 
-export { DynamoDbAdapter };
-
-export function factory(args: CreateArgs) {
+export async function factory(args: CreateArgs) {
     return new DynamoDbAdapter(args);
 }
 
 export function createOptions(command: Command) {
     command
-        .option('--table-name-prefix <string>', 'DynamoDB table(s) name prefix', 'playwright-orchestrator')
-        .option('--ttl <number>', 'TTL in days', '30')
-        .option('--endpoint-url <string>', 'DynamoDB endpoint URL');
+        .addOption(
+            new Option('--table-name-prefix <string>', 'DynamoDB table(s) name prefix')
+                .default('playwright-orchestrator')
+                .env('TABLE_NAME_PREFIX'),
+        )
+        .addOption(new Option('--ttl <number>', 'TTL in days').default('30').env('TTL'))
+        .addOption(new Option('--endpoint-url <string>', 'DynamoDB endpoint URL'));
 }
 
 export const description = 'Amazon DynamoDB storage adapter';

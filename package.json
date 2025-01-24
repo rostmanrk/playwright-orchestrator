@@ -1,6 +1,6 @@
 {
     "name": "playwright-orchestrator",
-    "version": "1.0.5",
+    "version": "1.1.0",
     "directories": {
         "test": "tests"
     },
@@ -12,11 +12,13 @@
         "test": "vitest run --pool threads",
         "build": "tsc -b --sourceMap false",
         "test-update": "vitest -u",
-        "run-node": "node --inspect packages/core/dist/cli",
+        "start": "node --inspect packages/core/dist/cli",
         "cli-permissions": "chmod +x ./packages/core/dist/cli.js",
         "link-packages": "chmod +x ./scripts/link-packages.sh && ./scripts/link-packages.sh",
         "dynamo-local": "podman compose -f ./packages/dynamo-db/compose.yml",
         "pg-local": "podman compose -f ./packages/pg/compose.yml",
+        "mysql-local": "podman compose -f ./packages/mysql/compose.yml",
+        "mongo-local": "podman compose -f ./packages/mongo/compose.yml",
         "version:patch": "npm version patch --workspaces && npm version patch --git-tag-version false",
         "version:minor": "npm version minor --workspaces && npm version minor --git-tag-version false",
         "version:major": "npm version major --workspaces && npm version major --git-tag-version false"

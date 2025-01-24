@@ -18,7 +18,9 @@
         { "path": "./packages/core" },
         { "path": "./packages/file" },
         { "path": "./packages/dynamo-db" },
-        { "path": "./packages/pg" }
+        { "path": "./packages/pg" },
+        { "path": "./packages/mysql" },
+        { "path": "./packages/mongo" }
     ],
     "exclude": ["**"]
 }

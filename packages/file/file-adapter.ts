@@ -16,11 +16,11 @@ export class FileAdapter extends Adapter {
         const release = await lock(file, { retries: 100 });
         const config = JSON.parse(await readFile(file, 'utf-8')) as TestRunConfig;
         if (config.status === RunStatus.Created || config.status === RunStatus.Finished) {
-            config.status = config.status === RunStatus.Created ? RunStatus.Run : RunStatus.Rerun;
+            config.status = config.status === RunStatus.Created ? RunStatus.Run : RunStatus.RepeatRun;
             config.updated = Date.now();
             await writeFile(file, JSON.stringify(config));
         }
-        if (config.status === RunStatus.Rerun) {
+        if (config.status === RunStatus.RepeatRun) {
             await writeFile(this.getRunIdFilePath(runId), await readFile(this.getFailedRunPath(runId), 'utf-8'));
         }
         await release();
