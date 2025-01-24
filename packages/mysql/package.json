@@ -13,13 +13,12 @@
         "dist"
     ],
     "dependencies": {
+        "@commander-js/extra-typings": "^13.0.0",
+        "@playwright-orchestrator/core": "^1.1.0",
+        "commander": "^13.0.0",
         "mysql2": "^3.12.0"
     },
     "devDependencies": {},
-    "peerDependencies": {
-        "@commander-js/extra-typings": "^13.0.0",
-        "@playwright-orchestrator/core": "^1.0.0"
-    },
     "exports": {
         ".": {
             "types": "./dist/index.d.ts",
