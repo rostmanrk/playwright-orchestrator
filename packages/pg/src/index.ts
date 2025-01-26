@@ -1,8 +1,18 @@
 import { Command, Option } from '@commander-js/extra-typings';
 import { CreateArgs } from './create-args.js';
 import { PostgreSQLAdapter } from './postgresql-adapter.js';
+import { readFile } from 'node:fs/promises';
 
 export async function factory(args: CreateArgs) {
+    if (args.sslCa) {
+        args.sslCa = await readFile(args.sslCa);
+    }
+    if (args.sslCert) {
+        args.sslCert = await readFile(args.sslCert);
+    }
+    if (args.sslKey) {
+        args.sslKey = await readFile(args.sslKey);
+    }
     return new PostgreSQLAdapter(args);
 }
 
