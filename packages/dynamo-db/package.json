@@ -1,6 +1,6 @@
 {
     "name": "@playwright-orchestrator/dynamo-db",
-    "version": "1.1.0",
+    "version": "1.1.1",
     "keywords": [],
     "author": "Rostyslav Kudrevatykh",
     "license": "Apache-2.0",
