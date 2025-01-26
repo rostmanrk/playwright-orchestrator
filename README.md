@@ -146,17 +146,21 @@ Use MySQL as storage.
 
 Use MongoDB as storage.
 
-| Option                     | Description                           | Type     | Default                   | Required? |
-| -------------------------- | ------------------------------------- | -------- | ------------------------- | --------- |
-| `--connection-string`      | Connection string                     | `string` | -                         | yes       |
-| `--db`                     | Database name                         | `string` | -                         | yes       |
-| `--collection-name-prefix` | Table(s) name prefix                  | `string` | 'playwright-orchestrator' | no        |
-| `--tls`                    | Enable TLS                            | -        | -                         | no        |
-| `--ssl-ca`                 | SSL CA                                | `string` | -                         | no        |
-| `--ssl-cert`               | SSL certificate                       | `string` | -                         | no        |
-| `--ssl-key`                | SSL key                               | `string` | -                         | no        |
-| `--ssl-passphrase`         | SSL passphrase                        | `string` |
-| `--debug`                  | Add extra fields for some collections | `string` | -                         | no        |
+| Option                             | Description                           | Type     | Default                   | Required? |
+| ---------------------------------- | ------------------------------------- | -------- | ------------------------- | --------- |
+| `--connection-string`              | Connection string                     | `string` | -                         | yes       |
+| `--db`                             | Database name                         | `string` | -                         | yes       |
+| `--collection-name-prefix`         | Table(s) name prefix                  | `string` | 'playwright-orchestrator' | no        |
+| `--tls`                            | Enable TLS                            | -        | -                         | no        |
+| `--tls-ca`                         | SSL CA                                | `string` | -                         | no        |
+| `--tls-key`                        | SSL key                               | `string` | -                         | no        |
+| `--tls-key-password`               | SSL key password                      | `string` | -                         | no        |
+| `--tls-passphrase`                 | SSL passphrase                        | `string` | -                         | no        |
+| `--tls-allow-invalid-certificates` | Allow invalid certificates            | -        | -                         | no        |
+| `--tls-allow-invalid-hostnames`    | Allow invalid hostnames               | -        | -                         | no        |
+| `--tls-allow-invalid-certificates` | Allow invalid certificates            | -        | -                         | no        |
+| `--tls-insecure`                   | Allow insecure                        | -        | -                         | no        |
+| `--debug`                          | Add extra fields for some collections | `string` | -                         | no        |
 
 ## 💻 Development
 

@@ -4,8 +4,11 @@ export interface CreateArgs {
     collectionNamePrefix: string;
     tls?: boolean;
     tlsCA?: string;
-    tlsCert?: string;
     tlsKey?: string;
+    tlsKeyPassword?: string;
     tlsPassphrase?: string;
+    tlsAllowInvalidCertificates?: boolean;
+    tlsAllowInvalidHostnames?: boolean;
+    tlsInsecure?: boolean;
     debug?: boolean;
 }

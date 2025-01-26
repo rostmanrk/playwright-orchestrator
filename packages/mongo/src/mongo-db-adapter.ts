@@ -38,14 +38,30 @@ export class MongoDbAdapter extends Adapter {
     private readonly db: Db;
     private readonly client: MongoClient;
     constructor(args: CreateArgs) {
-        const { connectionString, collectionNamePrefix, db, tls, tlsCA, tlsCert, tlsKey, tlsPassphrase, debug } = args;
+        const {
+            connectionString,
+            collectionNamePrefix,
+            db,
+            tls,
+            tlsCA,
+            tlsKey,
+            tlsPassphrase,
+            tlsAllowInvalidCertificates,
+            tlsAllowInvalidHostnames,
+            tlsInsecure,
+            tlsKeyPassword,
+            debug,
+        } = args;
         super();
         this.client = new MongoClient(connectionString, {
             tls,
-            ca: tlsCA,
-            cert: tlsCert,
-            key: tlsKey,
+            tlsCAFile: tlsCA,
+            tlsCertificateKeyFile: tlsKey,
+            tlsCertificateKeyFilePassword: tlsKeyPassword,
             passphrase: tlsPassphrase,
+            tlsAllowInvalidCertificates,
+            tlsAllowInvalidHostnames,
+            tlsInsecure,
         });
         this.db = this.client.db(db);
         this.runsCollection = `${collectionNamePrefix}_test_runs`;
