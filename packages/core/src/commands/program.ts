@@ -6,7 +6,7 @@ import { readFile } from 'node:fs/promises';
 
 export const program = new Command();
 
-const package_json = JSON.parse(await readFile('package.json', 'utf-8'));
+const package_json = JSON.parse(await readFile('node_modules/@playwright-orchestrator/core/package.json', 'utf-8'));
 
 program
     .name('playwright-orchestrator')

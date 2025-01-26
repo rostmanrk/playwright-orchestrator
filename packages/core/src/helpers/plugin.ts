@@ -16,8 +16,6 @@ export async function loadPluginModule(storage: string): Promise<
         const a = await import(`@playwright-orchestrator/${storage}`);
         return a;
     } catch (error) {
-        console.error(`Failed to load plugin for storage: ${storage}`);
-        console.error(error);
         return;
     }
 }
