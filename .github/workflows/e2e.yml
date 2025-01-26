@@ -1,0 +1,69 @@
+name: E2E Tests
+
+permissions:
+  contents: read
+
+on:
+  push:
+
+  workflow_dispatch:
+
+env:
+  CONNECTION_STRING": ${{ secrets.MONGO_CONN_STR }}
+  DB: tests
+  TLS: true
+  TLS_CA: cert.pem
+
+jobs:
+  create:
+    outputs:
+      run-id: ${{ steps.create-run.outputs.run-id }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/e2e-setup
+
+      - name: Create run
+        id: create-run
+        run: |
+          npm why @playwright-orchestrator/core
+          npx playwright-orchestrator --version
+          echo "${{ secrets.MONGO_CERT }}" > ${{ env.TLS_CA }}
+          echo "run-id=$(npx playwright-orchestrator create mongo -j 2)" >> "$GITHUB_OUTPUT"
+
+  run:
+    needs: create
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        shard: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/e2e-setup
+
+      - name: Run tests
+        run: |
+          echo "${{ secrets.MONGO_CERT }}" > ${{ env.TLS_CA }}
+          npx playwright-orchestrator run mongo --run-id ${{ needs.create.outputs.run-id }}
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: blob-results
+
+  generate-report:
+    needs: run
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/e2e-setup
+        with:
+          type: ${{ github.event.inputs.type }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: blob-results
+      - name: Generate report
+        run: |
+          npx playwright merge-reports --reporter=list,github ./blob-reports

@@ -1,0 +1,32 @@
+name: Setup e2e Test Environment
+description: Basic setup for e2e tests
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: "20"
+        cache: "npm"
+
+    - name: Install dependencies
+      shell: bash
+      run: npm ci
+
+    - name: Get Playwright version
+      shell: bash
+      id: version
+      run: echo "PLAYWRIGHT_VERSION=$(npm why @playwright/test --json | jq '.[0].version' -r)" >> $GITHUB_ENV
+
+    - name: Cache Playwright
+      id: cache
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/ms-playwright
+        key: playwright-${{ env.PLAYWRIGHT_VERSION }}
+
+    - name: Install Playwright browsers
+      shell: bash
+      if: steps.cache.outputs.cache-hit != 'true'
+      run: npx playwright install --with-deps
