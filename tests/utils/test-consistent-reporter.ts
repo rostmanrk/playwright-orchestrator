@@ -1,5 +1,5 @@
 import { FullConfig, FullResult, Reporter, Suite, TestCase, TestResult } from '@playwright/test/reporter';
-import * as path from 'path';
+import path from 'node:path';
 const STATUS_MAP = {
     passed: 'o',
     failed: 'x',

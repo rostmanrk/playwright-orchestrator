@@ -1,5 +1,5 @@
 import { TestItem, TestRunInfo, Adapter, TestRunConfig, RunStatus, TestStatus } from '@playwright-orchestrator/core';
-import { CreateArgs } from './create-args';
+import { CreateArgs } from './create-args.js';
 import { createPool, Pool, RowDataPacket, SslOptions } from 'mysql2/promise';
 
 interface Test extends RowDataPacket {

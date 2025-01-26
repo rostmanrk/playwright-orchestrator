@@ -21,8 +21,7 @@ services:
         profiles:
             - test
         healthcheck:
-            test: ["CMD", "mysql", "-h", "localhost", "-u", "root", "-ppassword"]
-            interval: 10s
+            test: ['CMD', 'mysql', '-h', 'localhost', '-u', 'root', '-ppassword']
+            interval: 2s
             retries: 10
-            timeout: 10s
-            start_period: 20s
+            timeout: 2s

@@ -1,14 +1,14 @@
 import { TestItem, TestRunInfo, Adapter, TestRunConfig, RunStatus, TestStatus } from '@playwright-orchestrator/core';
-import { CreateArgs } from './create-args';
-import { Pool, PoolConfig, escapeIdentifier } from 'pg';
+import { CreateArgs } from './create-args.js';
+import pg from 'pg';
 
 export class PostgreSQLAdapter extends Adapter {
     private readonly configTable: string;
     private readonly testsTable: string;
-    private readonly pool: Pool;
+    private readonly pool: pg.Pool;
     constructor({ connectionString, tableNamePrefix, sslCa, sslCert, sslKey }: CreateArgs) {
         super();
-        const config: PoolConfig = { connectionString };
+        const config: pg.PoolConfig = { connectionString };
         config.ssl = sslCa || sslCert || sslKey ? {} : undefined;
         if (sslCa) {
             config.ssl!.ca = sslCa;
@@ -17,9 +17,9 @@ export class PostgreSQLAdapter extends Adapter {
             config.ssl!.cert = sslCert;
             config.ssl!.key = sslKey;
         }
-        this.pool = new Pool(config);
-        this.configTable = escapeIdentifier(`${tableNamePrefix}_test_runs`);
-        this.testsTable = escapeIdentifier(`${tableNamePrefix}_tests`);
+        this.pool = new pg.Pool(config);
+        this.configTable = pg.escapeIdentifier(`${tableNamePrefix}_test_runs`);
+        this.testsTable = pg.escapeIdentifier(`${tableNamePrefix}_tests`);
     }
     async getNextTest(runId: string, config: TestRunConfig): Promise<TestItem | undefined> {
         const client = await this.pool.connect();

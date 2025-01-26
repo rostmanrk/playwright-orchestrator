@@ -1,7 +1,7 @@
-import { TestItem, TestRunInfo, Adapter, TestRun, TestRunConfig, RunStatus } from '@playwright-orchestrator/core';
-import { CreateArgs } from './create-args';
+import { TestItem, TestRunInfo, Adapter, TestRunConfig, RunStatus } from '@playwright-orchestrator/core';
+import { CreateArgs } from './create-args.js';
 import { lock } from 'proper-lockfile';
-import { readFile, writeFile, mkdir } from 'fs/promises';
+import { readFile, writeFile, mkdir } from 'node:fs/promises';
 
 export class FileAdapter extends Adapter {
     private readonly dir: string;
@@ -22,6 +22,7 @@ export class FileAdapter extends Adapter {
         }
         if (config.status === RunStatus.RepeatRun) {
             await writeFile(this.getRunIdFilePath(runId), await readFile(this.getFailedRunPath(runId), 'utf-8'));
+            await writeFile(this.getFailedRunPath(runId), '[]', 'utf-8');
         }
         await release();
         return config;

@@ -1,4 +1,4 @@
-import * as ts from 'typescript';
+import ts from 'typescript';
 import { Location, Suite, TestCase } from '@playwright/test/reporter';
 
 const FILTER_PROPERTIES = ['setTimeout', 'slow', 'configure'];

@@ -1,6 +1,6 @@
 import { Command, Option } from '@commander-js/extra-typings';
-import { CreateArgs } from './create-args';
-import { MongoDbAdapter } from './mongo-db-adapter';
+import { CreateArgs } from './create-args.js';
+import { MongoDbAdapter } from './mongo-db-adapter.js';
 
 export async function factory(args: CreateArgs) {
     return new MongoDbAdapter(args);
@@ -20,6 +20,10 @@ export function createOptions(command: Command) {
         )
         .addOption(new Option('--db <string>', 'Database name').env('DB').makeOptionMandatory())
         .addOption(new Option('--tls', 'Enable TLS').env('TLS'))
+        .addOption(new Option('--tls-ca <string>', 'TLS CA').env('TLS_CA'))
+        .addOption(new Option('--tls-cert <string>', 'TLS certificate').env('TLS_CERT'))
+        .addOption(new Option('--tls-key <string>', 'TLS key').env('TLS_KEY'))
+        .addOption(new Option('--tls-passphrase <string>', 'TLS passphrase').env('TLS_PASSPHRASE'))
         .addOption(new Option('--debug', 'Add extra fields for some collections').env('DEBUG'));
 }
 

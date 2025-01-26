@@ -1,4 +1,4 @@
-import { TestRun, TestRunConfig, TestRunInfo } from './test-info';
+import { TestRun, TestRunConfig, TestRunInfo } from './test-info.js';
 
 export interface TestItem {
     file: string;

@@ -1,6 +1,6 @@
 import { Command, Option } from '@commander-js/extra-typings';
-import { CreateArgs } from './create-args';
-import { DynamoDbAdapter } from './dynamo-db-adapter';
+import { CreateArgs } from './create-args.js';
+import { DynamoDbAdapter } from './dynamo-db-adapter.js';
 
 export async function factory(args: CreateArgs) {
     return new DynamoDbAdapter(args);

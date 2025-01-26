@@ -1,6 +1,6 @@
 import { Command, Option } from '@commander-js/extra-typings';
-import { CreateArgs } from './create-args';
-import { FileAdapter } from './file-adapter';
+import { CreateArgs } from './create-args.js';
+import { FileAdapter } from './file-adapter.js';
 
 export async function factory(args: CreateArgs) {
     return new FileAdapter(args);
