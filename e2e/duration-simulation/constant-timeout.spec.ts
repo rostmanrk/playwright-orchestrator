@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { wait } from '../test-utils';
+import { wait } from '../test-utils.js';
 
 test('timeout outside of group', { tag: '@duration-simulation' }, async () => {
     test.setTimeout(40_000);

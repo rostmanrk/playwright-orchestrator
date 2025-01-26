@@ -1,5 +1,5 @@
-import { writeFile } from 'fs/promises';
-import * as path from 'path';
+import { writeFile } from 'node:fs/promises';
+import path from 'path';
 import * as uuid from 'uuid';
 
 export async function createTempConfig(file: string | undefined): Promise<string | undefined> {

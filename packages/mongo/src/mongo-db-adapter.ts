@@ -7,7 +7,7 @@ import {
     TestStatus,
     TestConfig,
 } from '@playwright-orchestrator/core';
-import { CreateArgs } from './create-args';
+import { CreateArgs } from './create-args.js';
 import { MongoClient, Db, Binary, Document } from 'mongodb';
 import * as uuid from 'uuid';
 
@@ -38,9 +38,15 @@ export class MongoDbAdapter extends Adapter {
     private readonly db: Db;
     private readonly client: MongoClient;
     constructor(args: CreateArgs) {
-        const { connectionString, collectionNamePrefix, db, tls, debug } = args;
+        const { connectionString, collectionNamePrefix, db, tls, tlsCA, tlsCert, tlsKey, tlsPassphrase, debug } = args;
         super();
-        this.client = new MongoClient(connectionString, { tls });
+        this.client = new MongoClient(connectionString, {
+            tls,
+            ca: tlsCA,
+            cert: tlsCert,
+            key: tlsKey,
+            passphrase: tlsPassphrase,
+        });
         this.db = this.client.db(db);
         this.runsCollection = `${collectionNamePrefix}_test_runs`;
         this.testsCollection = `${collectionNamePrefix}_tests`;

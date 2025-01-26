@@ -1,6 +1,6 @@
 import { FullConfig, Suite, TestCase } from '@playwright/test/reporter';
-import { TestASTAnalyzer } from './test-ats-analyzer';
-import { TestConfig, TestRun, TestRunInfo } from '../types/test-info';
+import { TestASTAnalyzer } from './test-ats-analyzer.js';
+import { TestConfig, TestRun, TestRunInfo } from '../types/test-info.js';
 
 export class RunBuilder {
     private readonly testRun: TestRun = {};

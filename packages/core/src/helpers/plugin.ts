@@ -1,26 +1,30 @@
 import { Command } from '@commander-js/extra-typings';
-import { Adapter } from '../types/adapters';
-import { STORAGES } from '../plugins-list';
+import { Adapter } from '../types/adapters.js';
+import { STORAGES } from '../plugins-list.js';
 
 export type StorageType = (typeof STORAGES)[number];
 
-export function loadPluginModule(storage: string):
+export async function loadPluginModule(storage: string): Promise<
     | {
           factory: (options: any) => Promise<Adapter>;
           createOptions: (command: Command) => void;
           description?: string;
       }
-    | undefined {
+    | undefined
+> {
     try {
-        return require(`@playwright-orchestrator/${storage}`);
+        const a = await import(`@playwright-orchestrator/${storage}`);
+        return a;
     } catch (error) {
+        console.error(`Failed to load plugin for storage: ${storage}`);
+        console.error(error);
         return;
     }
 }
 
-export function* loadPlugins(command: Command<any>) {
+export async function* loadPlugins(command: Command<any>) {
     for (const storage of STORAGES) {
-        const plugin = loadPluginModule(storage);
+        const plugin = await loadPluginModule(storage);
         if (plugin) {
             const subCommand = command.command(storage);
             if (plugin.description) {

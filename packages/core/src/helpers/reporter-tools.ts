@@ -1,6 +1,6 @@
-import * as child_process from 'node:child_process';
+import child_process from 'node:child_process';
 import { promisify } from 'node:util';
-import { TestRunInfo } from '../types/test-info';
+import { TestRunInfo } from '../types/test-info.js';
 
 const exec = promisify(child_process.exec);
 

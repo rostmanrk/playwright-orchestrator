@@ -1,8 +1,8 @@
 import { test, expect } from 'vitest';
 import { promisify } from 'node:util';
-import * as child_process from 'node:child_process';
-import { TestRunInfo } from '@playwright-orchestrator/core/index';
-import * as path from 'node:path';
+import child_process from 'node:child_process';
+import { TestRunInfo } from '@playwright-orchestrator/core';
+import path from 'node:path';
 
 const exec = promisify(child_process.exec);
 

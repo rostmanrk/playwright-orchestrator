@@ -1,5 +1,5 @@
 import { FullConfig, Reporter, Suite } from '@playwright/test/reporter';
-import { RunBuilder } from './run-builder';
+import { RunBuilder } from './run-builder.js';
 
 export class TestsInfoReporter implements Reporter {
     onBegin(config: FullConfig, suite: Suite) {

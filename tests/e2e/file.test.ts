@@ -1,6 +1,6 @@
 import { test, expect, afterAll } from 'vitest';
-import { exec } from '../../e2e/test-utils';
-import { rm } from 'fs/promises';
+import { exec } from '../../e2e/test-utils.js';
+import { rm } from 'node:fs/promises';
 
 const filesFolder = 'test-runs-folder';
 const reportsFolder = './test-reports-folder';

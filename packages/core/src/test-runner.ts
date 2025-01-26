@@ -1,16 +1,18 @@
 import { createHash } from 'node:crypto';
-import { TestRunConfig } from './types/test-info';
-import { TestItem, Adapter } from './types/adapters';
+import { TestRunConfig } from './types/test-info.js';
+import { TestItem, Adapter } from './types/adapters.js';
 import child_process from 'node:child_process';
 import { promisify } from 'node:util';
 import { rm } from 'node:fs/promises';
-import { createTempConfig } from './playwright-tools/modify-config';
+import { createTempConfig } from './playwright-tools/modify-config.js';
+import { TestReporter } from './test-reporter.js';
 
 const exec = promisify(child_process.exec);
 
 export class TestRunner {
     private readonly runId: string;
     private readonly outputFolder: string;
+    private readonly reporter = new TestReporter();
     constructor(
         options: { runId: string; output: string },
         private readonly adapter: Adapter,
@@ -27,6 +29,7 @@ export class TestRunner {
             await this.runTestsUntilAvailable(config);
             await this.adapter.finishShard(this.runId);
             await this.adapter.dispose();
+            this.reporter.printSummary();
         } finally {
             if (config.configFile) await rm(config.configFile);
         }
@@ -58,13 +61,15 @@ export class TestRunner {
         const testName = `[${test.project}] > ${testPosition}`;
         const testHash = createHash('md5').update(testName).digest('hex');
         try {
-            console.log(`Running test: ${testName}`);
-            await exec(`npx playwright test ${testPosition} ${this.buildParams(test, config, testHash)}`, {
+            const run = exec(`npx playwright test ${testPosition} ${this.buildParams(test, config, testHash)}`, {
                 env: {
                     ...process.env,
                     PLAYWRIGHT_BLOB_OUTPUT_FILE: `${this.outputFolder}/${testHash}.zip`,
                 },
             });
+            this.reporter.addTest(test, run);
+            await run;
+
             await this.adapter.finishTest(this.runId, test);
         } catch (error) {
             await this.adapter.failTest(this.runId, test);

@@ -1,5 +1,5 @@
 import { TestItem, TestRunInfo, Adapter, TestRunConfig, RunStatus, TestConfig } from '@playwright-orchestrator/core';
-import { CreateArgs } from './create-args';
+import { CreateArgs } from './create-args.js';
 import {
     DynamoDBClient,
     CreateTableCommand,

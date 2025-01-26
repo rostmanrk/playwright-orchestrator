@@ -1,7 +1,7 @@
 import { tmpdir } from 'os';
-import { writeFile } from 'fs/promises';
+import { writeFile } from 'node:fs/promises';
 import * as uuid from 'uuid';
-import { program } from './program';
+import { program } from './program.js';
 
 export function withErrorHandling<T extends (...args: any[]) => Promise<any> | any>(
     target: T,

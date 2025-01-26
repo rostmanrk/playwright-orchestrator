@@ -21,9 +21,10 @@
     "devDependencies": {
         "@types/proper-lockfile": "^4.1.2"
     },
+    "main": "dist/index.js",
+    "type": "module",
     "exports": {
         ".": {
-            "types": "./dist/index.d.ts",
             "default": "./dist/index.js"
         }
     }

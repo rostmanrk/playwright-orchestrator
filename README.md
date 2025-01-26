@@ -122,9 +122,9 @@ Use PostgreSQL as storage.
 | --------------------- | -------------------- | -------- | ------------------------- | --------- |
 | `--connection-string` | Connection string    | `string` | -                         | yes       |
 | `--table-name-prefix` | Table(s) name prefix | `string` | 'playwright-orchestrator' | no        |
-| `--ssl-ca `           | SSL CA file          | `string` | -                         | no        |
-| `--ssl-cert `         | SSL certificate file | `string` | -                         | no        |
-| `--ssl-key `          | SSL key file         | `string` | -                         | no        |
+| `--ssl-ca `           | SSL CA               | `string` | -                         | no        |
+| `--ssl-cert `         | SSL certificate      | `string` | -                         | no        |
+| `--ssl-key `          | SSL key              | `string` | -                         | no        |
 
 ### `mysql`
 
@@ -135,12 +135,12 @@ Use MySQL as storage.
 | `--connection-string`             | Connection string                            | `string` | -                         | yes       |
 | `--table-name-prefix`             | Table(s) name prefix                         | `string` | 'playwright-orchestrator' | no        |
 | `--ssl-profile `                  | The SSL profile overrides other SSL options. | `string` | -                         | no        |
-| `--ssl-ca`                        | SSL CA file                                  | `string` | -                         | no        |
-| `--ssl-cert`                      | SSL certificate file                         | `string` | -                         | no        |
-| `--ssl-key`                       | SSL key file                                 | `string` | -                         | no        |
+| `--ssl-ca`                        | SSL CA                                       | `string` | -                         | no        |
+| `--ssl-cert`                      | SSL certificate                              | `string` | -                         | no        |
+| `--ssl-key`                       | SSL key                                      | `string` | -                         | no        |
 | `--ssl-passphrase`                | SSL passphrase                               | `string` | -                         | no        |
-| `--ssl-reject-unauthorized`       | SSL reject unauthorized                      | `string` | -                         | no        |
-| `--ssl-verify-server-certificate` | SSL verify server certificate                | `string` | -                         | no        |
+| `--ssl-reject-unauthorized`       | SSL reject unauthorized                      | -        | -                         | no        |
+| `--ssl-verify-server-certificate` | SSL verify server certificate                | -        | -                         | no        |
 
 ### `mongo`
 
@@ -151,7 +151,11 @@ Use MongoDB as storage.
 | `--connection-string`      | Connection string                     | `string` | -                         | yes       |
 | `--db`                     | Database name                         | `string` | -                         | yes       |
 | `--collection-name-prefix` | Table(s) name prefix                  | `string` | 'playwright-orchestrator' | no        |
-| `--tls`                    | Enable TLS                            | `string` | -                         | no        |
+| `--tls`                    | Enable TLS                            | -        | -                         | no        |
+| `--ssl-ca`                 | SSL CA                                | `string` | -                         | no        |
+| `--ssl-cert`               | SSL certificate                       | `string` | -                         | no        |
+| `--ssl-key`                | SSL key                               | `string` | -                         | no        |
+| `--ssl-passphrase`         | SSL passphrase                        | `string` |
 | `--debug`                  | Add extra fields for some collections | `string` | -                         | no        |
 
 ## 💻 Development
@@ -175,9 +179,8 @@ Licensed under the Apache License 2.0. See LICENSE.md for details.
 - ✅ ~~MySQL adapter~~
 - ✅ ~~MongoDB adapter~~
 - ✅ ~~Tests improvements~~
-- ⬜ Better Logging
+- ✅ ~~Better Logging~~
 - ⬜ More examples
-- ⬜ Use Bun as runtime?
 - ⬜ Redis adapter
 - ⬜ Even more adapters (by request)
 - ⬜ GHA reporter

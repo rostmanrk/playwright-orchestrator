@@ -3,5 +3,9 @@ export interface CreateArgs {
     db: string;
     collectionNamePrefix: string;
     tls?: boolean;
+    tlsCA?: string;
+    tlsCert?: string;
+    tlsKey?: string;
+    tlsPassphrase?: string;
     debug?: boolean;
 }

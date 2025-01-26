@@ -1,6 +1,6 @@
 import { test, expect, afterAll, beforeAll } from 'vitest';
-import { exec } from '../../e2e/test-utils';
-import { rm } from 'fs/promises';
+import { exec } from '../../e2e/test-utils.js';
+import { rm } from 'node:fs/promises';
 
 const reportsFolder = './test-reports-folder-mongo';
 const config = 'tests-playwright.config.ts';
