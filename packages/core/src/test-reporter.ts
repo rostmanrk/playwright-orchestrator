@@ -12,9 +12,9 @@ export class TestReporter {
     private spinnerInterval?: NodeJS.Timeout;
 
     constructor() {
-        process.stdout.write(cursorSavePosition);
         // disable spinner in CI
         if (process.env.CI) return;
+        process.stdout.write(cursorSavePosition);
         this.spinnerInterval = setInterval(() => {
             this.spinnerIndex = (this.spinnerIndex + 1) % this.spinner.length;
             this.redrawRunning();
@@ -40,13 +40,16 @@ export class TestReporter {
 
     private printTestResult(test: TestItem, message: string) {
         this.runningTests.splice(this.runningTests.indexOf(test), 1);
-
-        process.stdout.write(cursorRestorePosition);
-        process.stdout.write(eraseDown);
-        process.stdout.write(message);
-        process.stdout.write('\n');
-        process.stdout.write(cursorSavePosition);
-        this.redrawRunning(true);
+        if (process.env.CI) {
+            process.stdout.write(message);
+        } else {
+            process.stdout.write(cursorRestorePosition);
+            process.stdout.write(eraseDown);
+            process.stdout.write(message);
+            process.stdout.write('\n');
+            process.stdout.write(cursorSavePosition);
+            this.redrawRunning(true);
+        }
     }
 
     printSummary() {
@@ -70,6 +73,7 @@ export class TestReporter {
     }
 
     private redrawRunning(full = false) {
+        if (process.env.CI) return;
         process.stdout.write(cursorRestorePosition);
         for (let i = 0; i < this.runningTests.length; i++) {
             const spinner = chalk.yellow(process.env.CI ? '*' : this.spinner[this.spinnerIndex]);
