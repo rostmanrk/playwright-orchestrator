@@ -1,0 +1,48 @@
+name: Setup e2e Test Environment
+description: Basic setup for e2e tests
+
+inputs:
+  install-browser:
+    description: "Install Playwright browsers"
+    required: false
+    default: "true"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: "20"
+        cache: "npm"
+
+    - name: Install dependencies
+      shell: bash
+      run: npm ci
+
+    - name: Build lib locally instead of installing from npm
+      shell: bash
+      run: |
+        npm run build
+        npm run link-packages
+        npm run cli-permissions
+
+    - name: Get Playwright version
+      shell: bash
+      id: version
+      run: |
+        echo ${{ inputs.install-browser }}
+        echo "PLAYWRIGHT_VERSION=$(npm why @playwright/test --json | jq '.[0].version' -r)" >> $GITHUB_ENV
+
+    - name: Cache Playwright
+      if: ${{ inputs.install-browser == 'true' }}
+      id: cache
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/ms-playwright
+        key: playwright-${{ env.PLAYWRIGHT_VERSION }}
+
+    - name: Install Playwright browsers
+      shell: bash
+      if: ${{ steps.cache.outputs.cache-hit != 'true' && inputs.install-browser == 'true' }}
+      run: npx playwright install --with-deps
