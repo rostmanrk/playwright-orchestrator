@@ -2,6 +2,7 @@ import { Command } from '@commander-js/extra-typings';
 import init from './init.js';
 import run from './run.js';
 import create from './create.js';
+import createReport from './create-report.js';
 import { readFile } from 'node:fs/promises';
 
 export const program = new Command();
@@ -16,5 +17,6 @@ program
 await init();
 await run();
 await create();
+await createReport();
 
 program.parse();

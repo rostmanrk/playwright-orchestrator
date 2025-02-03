@@ -45,6 +45,14 @@
         "./tests-info-reporter": {
             "import": "./dist/tests-info-reporter.js",
             "require": "./dist/tests-info-reporter.js"
+        },
+        "./test-result-reporter": {
+            "import": "./dist/test-result-reporter.js",
+            "require": "./dist/test-result-reporter.js"
+        },
+        "./annotations": {
+            "import": "./dist/playwright-tools/annotations.js",
+            "require": "./dist/playwright-tools/annotations.js"
         }
     },
     "peerDependencies": {

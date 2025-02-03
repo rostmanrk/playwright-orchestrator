@@ -23,100 +23,127 @@ exports[`test custom info reporter 1`] = `
   "testRun": {
     "basic-case.spec.ts": {
       "10:9": {
+        "annotations": [],
         "projects": [
           "chromium",
           "firefox",
           "webkit",
         ],
         "timeout": 30000,
+        "title": "inside group",
       },
       "4:5": {
+        "annotations": [],
         "projects": [
           "chromium",
           "firefox",
           "webkit",
         ],
         "timeout": 30000,
+        "title": "outside of group",
       },
     },
     "constant-timeout.spec.ts": {
       "12:9": {
+        "annotations": [],
         "projects": [
           "chromium",
           "firefox",
           "webkit",
         ],
         "timeout": 45000,
+        "title": "inside group",
       },
       "16:9": {
+        "annotations": [],
         "projects": [
           "chromium",
           "firefox",
           "webkit",
         ],
         "timeout": 50000,
+        "title": "inside group override timeout",
       },
       "23:13": {
+        "annotations": [],
         "projects": [
           "chromium",
           "firefox",
           "webkit",
         ],
         "timeout": 135000,
+        "title": "inside nested group and slow",
       },
       "4:5": {
+        "annotations": [],
         "projects": [
           "chromium",
           "firefox",
           "webkit",
         ],
         "timeout": 40000,
+        "title": "timeout outside of group",
       },
     },
     "failed.spec.ts": {
       "3:5": {
+        "annotations": [],
         "projects": [
           "chromium",
           "firefox",
           "webkit",
         ],
         "timeout": 30000,
+        "title": "should failing",
       },
     },
     "serial-top-level.spec.ts": {
       "0:0": {
+        "annotations": [],
         "projects": [
           "chromium",
           "firefox",
           "webkit",
         ],
         "timeout": 60000,
+        "title": "serial-top-level.spec.ts",
       },
     },
     "serial.spec.ts": {
-      "10:9": {
+      "11:9": {
+        "annotations": [],
         "projects": [
           "chromium",
           "firefox",
           "webkit",
         ],
         "timeout": 30000,
+        "title": "inside group",
       },
-      "14:10": {
+      "15:10": {
+        "annotations": [
+          {
+            "description": "#serial_id",
+            "type": "@playwright-orchestrator/id",
+          },
+        ],
         "projects": [
           "chromium",
           "firefox",
           "webkit",
         ],
         "timeout": 85000,
+        "title": "nested group",
       },
-      "4:5": {
+      "5:5": {
+        "annotations": [],
         "projects": [
           "chromium",
           "firefox",
           "webkit",
         ],
         "timeout": 30000,
+        "title": "outside of group",
       },
     },
   },

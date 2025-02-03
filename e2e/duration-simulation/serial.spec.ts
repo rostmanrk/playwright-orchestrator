@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { wait } from '../test-utils.js';
+import { id } from '@playwright-orchestrator/core/annotations';
 
 test('outside of group', { tag: '@duration-simulation' }, async () => {
     await wait(2000);
@@ -11,7 +12,7 @@ test.describe('group', { tag: '@duration-simulation' }, () => {
         await wait(4000);
         expect(true).toBeTruthy();
     });
-    test.describe('nested group', () => {
+    test.describe('nested group', { annotation: id('#serial_id') }, () => {
         test.describe.configure({ mode: 'serial' });
         test('inside nested group 1', async () => {
             test.setTimeout(40_000);
