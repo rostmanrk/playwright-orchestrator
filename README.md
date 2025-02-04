@@ -13,8 +13,8 @@ The project provides tooling to analyze and orchestrate Playwright tests using a
 - file: Basic storage that uses a local file as storage.
 - dynamo-db: Amazon's DynamoDB adapter.
 - pg: PostgreSQL adapter.
-- mysql: MySQL adapter
-- mongo: MongoDB adapter
+- mysql: MySQL adapter.
+- mongo: MongoDB adapter.
 
 **Tests are ordered as follows:**
 
@@ -30,6 +30,42 @@ The project provides tooling to analyze and orchestrate Playwright tests using a
 
     - If the EMA of the test duration is 2 minutes and 4 of 10 tests in the window failed, the adjusted duration would be:
       `2 + 2 * 0.4 = 2.8 minutes`
+
+**Serial tests duration is a sum of all included tests.**
+
+### Test identifiers
+
+In order to keep history of tests, they need to be identified. There are multiple possible cases:
+
+1. Default id: `[{project}] {file} > {title of the test}`.
+2. Serial test id: `[{project}] {file} > {title of the parent group}`.
+3. Serial test defined at the file level: `[{project}] {file}`.
+4. Custom Id: `[{project}] {custom id}`. More on this:
+
+In case some of these attributes changed, test history would be recreated. To preserve test history between changes, you can add a **static** attribute. Adding an id to an existing test would recreate the history as well.
+
+**✅ Examples**
+
+```
+test('test', { annotation: id('#custom_id') }, () => {
+    // test code
+}
+```
+
+```
+test.describe('serial tests', { annotation: id('#custom_id') }, () => {
+    // test code
+}
+```
+
+**❌ This won't work**
+
+```
+test.describe('test', () => {
+    test.info().annotations.push(id('#custom_id'));
+    // test code
+}
+```
 
 ## 📦 Installation
 
