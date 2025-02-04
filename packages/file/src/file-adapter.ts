@@ -8,6 +8,7 @@ import {
     SaveTestRunParams,
     ReporterTestItem,
     TestStatus,
+    TestSortItem,
 } from '@playwright-orchestrator/core';
 import { CreateArgs } from './create-args.js';
 import { lock } from 'proper-lockfile';
@@ -109,10 +110,11 @@ export class FileAdapter extends Adapter {
             historyWindow,
         };
         await writeFile(file, JSON.stringify(testConfig, null, 2));
-        const tests = this.transformTestRunToItems(testRun.testRun, true);
+        let tests = this.transformTestRunToItems(testRun.testRun);
+        const testInfos = await this.loadTestInfos(tests);
+        tests = this.sortTests(tests, testInfos, { historyWindow, reverse: true });
         await writeFile(this.getRunIdFilePath(runId), JSON.stringify(tests, null, 2));
         await writeFile(this.getResultsRunPath(runId), '[]');
-        await this.seedHistory(tests);
     }
 
     async initialize(): Promise<void> {
@@ -140,7 +142,7 @@ export class FileAdapter extends Adapter {
         };
     }
 
-    private async seedHistory(test: ReporterTestItem[]) {
+    private async loadTestInfos(test: ReporterTestItem[]): Promise<Map<string, TestSortItem>> {
         const history: Record<string, TestHistoryItem> = !existsSync(this.getHistoryRunPath())
             ? {}
             : JSON.parse(await readFile(this.getHistoryRunPath(), 'utf-8'));
@@ -154,6 +156,12 @@ export class FileAdapter extends Adapter {
             }
         }
         await writeFile(this.getHistoryRunPath(), JSON.stringify(history, null, 2));
+        return new Map(
+            Object.entries(history).map(([testId, { ema, history }]) => [
+                testId,
+                { ema, fails: history.filter((h) => h.status === TestStatus.Failed).length },
+            ]),
+        );
     }
 
     private async addResult(status: TestStatus, params: ResultTestParams) {

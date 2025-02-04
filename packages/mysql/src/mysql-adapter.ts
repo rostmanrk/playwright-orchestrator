@@ -7,6 +7,7 @@ import {
     ResultTestParams,
     SaveTestRunParams,
     ReporterTestItem,
+    TestSortItem,
 } from '@playwright-orchestrator/core';
 import { CreateArgs } from './create-args.js';
 import { createPool, Pool, ResultSetHeader, RowDataPacket, SslOptions } from 'mysql2/promise';
@@ -48,6 +49,7 @@ interface TestInfo extends RowDataPacket {
     ema: number;
     created: Date;
     name: string;
+    fails: number;
 }
 
 export class MySQLAdapter extends Adapter {
@@ -145,8 +147,9 @@ export class MySQLAdapter extends Adapter {
     }
 
     async saveTestRun({ runId, testRun, args, historyWindow }: SaveTestRunParams): Promise<void> {
-        const tests = this.transformTestRunToItems(testRun.testRun);
-        await this.loadTestInfos(tests);
+        let tests = this.transformTestRunToItems(testRun.testRun);
+        const testInfos = await this.loadTestInfos(tests);
+        tests = this.sortTests(tests, testInfos, { historyWindow });
 
         const testValues = tests.map(({ position, order, file, project, timeout }) => {
             const [line, character] = position.split(':');
@@ -314,7 +317,7 @@ export class MySQLAdapter extends Adapter {
         };
     }
 
-    private async loadTestInfos(tests: ReporterTestItem[]): Promise<Map<string, TestInfo>> {
+    private async loadTestInfos(tests: ReporterTestItem[]): Promise<Map<string, TestSortItem>> {
         const [results] = await this.pool.query<TestInfo[][]>({
             sql: `CREATE TEMPORARY TABLE temp_values (
                 name TEXT NOT NULL,
@@ -331,13 +334,32 @@ export class MySQLAdapter extends Adapter {
                 WHERE name = t.name
             );
 
-            SELECT * FROM ?? WHERE name IN (SELECT name FROM temp_values);
+            SELECT
+                id,
+                name,
+                ema,
+                created,
+                (
+                    SELECT COUNT(*) FROM ?? 
+                    WHERE status = ? AND test_info_id = info.id
+                ) AS fails
+            FROM ?? info
+            WHERE name IN (SELECT name FROM temp_values);
+
             DROP TEMPORARY TABLE IF EXISTS temp_values;`,
-            values: [...tests.map((t) => t.testId), this.testInfoTable, this.testInfoTable, this.testInfoTable],
+            values: [
+                ...tests.map((t) => t.testId),
+                this.testInfoTable,
+                this.testInfoTable,
+                this.testInfoHistoryTable,
+                TestStatus.Failed,
+                this.testInfoTable,
+            ],
         });
-        const testInfoMap = new Map<string, TestInfo>();
+
+        const testInfoMap = new Map<string, TestSortItem>();
         for (const test of results[3]) {
-            testInfoMap.set(test.name, test);
+            testInfoMap.set(test.name, { ema: test.ema, fails: test.fails });
         }
         return testInfoMap;
     }

@@ -36,6 +36,16 @@ export interface GetTestIdParams {
     annotations: TestDetailsAnnotation[];
 }
 
+export interface SortTestsOptions {
+    historyWindow: number;
+    reverse?: boolean;
+}
+
+export interface TestSortItem {
+    ema: number;
+    fails: number;
+}
+
 export abstract class Adapter {
     abstract getNextTest(runId: string, config: TestRunConfig): Promise<TestItem | undefined>;
     abstract finishTest(params: ResultTestParams): Promise<void>;
@@ -47,7 +57,7 @@ export abstract class Adapter {
     abstract getReportData(runId: string): Promise<TestRunReport>;
     abstract dispose(): Promise<void>;
 
-    protected transformTestRunToItems(run: TestRun, reverse = false): ReporterTestItem[] {
+    protected transformTestRunToItems(run: TestRun): ReporterTestItem[] {
         const tests = Object.entries(run)
             .flatMap(([file, tests]) => {
                 return Object.entries(tests).flatMap(([position, { timeout, projects, title, annotations }]) => {
@@ -57,11 +67,38 @@ export abstract class Adapter {
                     });
                 });
             })
-            .sort((a, b) => (b.timeout - a.timeout) * (reverse ? -1 : 1))
             .map((test, i) => ({ ...test, order: i + 1 }));
 
         this.validateTests(tests);
         return tests;
+    }
+
+    protected sortTests(
+        tests: ReporterTestItem[],
+        testInfoMap: Map<string, TestSortItem>,
+        { historyWindow, reverse }: SortTestsOptions,
+    ): ReporterTestItem[] {
+        const extractValue = this.extractCompareValue.bind(this, testInfoMap, historyWindow);
+        return tests
+            .sort((a, b) => (extractValue(b) - extractValue(a)) * (reverse ? -1 : 1))
+            .map((test, i) => ({ ...test, order: i + 1 }));
+    }
+
+    private extractCompareValue(
+        testInfoMap: Map<string, TestSortItem>,
+        historyWindow: number,
+        test: ReporterTestItem,
+    ): number {
+        const testInfo = testInfoMap.get(test.testId);
+        let value = test.timeout;
+        if (testInfo && testInfo.ema) {
+            value = testInfo.ema;
+        }
+        const fails = testInfo?.fails ?? 0;
+        if (fails > 0) {
+            value *= fails / historyWindow + 1;
+        }
+        return value;
     }
 
     protected validateTests(tests: ReporterTestItem[]): void {

@@ -8,9 +8,6 @@ Helps to orchestrate Playwright test execution through smart sharding using exis
 
 ## 🎯 Overview
 
-**Test are ordered base on test timeout**.
-More options will be added in next versions
-
 The project provides tooling to analyze and orchestrate Playwright tests using available storage plugin options. Currently available plugin options:
 
 - file: Basic storage that uses a local file as storage.
@@ -19,9 +16,24 @@ The project provides tooling to analyze and orchestrate Playwright tests using a
 - mysql: MySQL adapter
 - mongo: MongoDB adapter
 
+**Tests are ordered as follows:**
+
+1. If there are no previous test runs, use the default timeout.
+2. Take the [EMA (Exponential Moving Average)](https://en.wikipedia.org/wiki/Moving_average#Exponential_moving_average) of the test duration. The window size can be changed in [`create`](#create) command, default value is 10.
+3. If there was a failed test in the chosen window, it is more likely to fail again. Therefore, the formula is adjusted as follows:
+
+    - Calculate the EMA of the test duration.
+    - Adjust the EMA by adding a factor based on the percentage of failed tests in the window.
+    - The final formula is: `EMA + EMA * (% of failed tests in window)`
+
+    **Example:**
+
+    - If the EMA of the test duration is 2 minutes and 4 of 10 tests in the window failed, the adjusted duration would be:
+      `2 + 2 * 0.4 = 2.8 minutes`
+
 ## 📦 Installation
 
-Make sure Playwright is installed.
+Make sure Playwright is installed by following [Playwright's installation guide](https://playwright.dev/docs/intro#installation).
 
 ```bash
 npm install @playwright-orchestrator/core --save-dev
@@ -77,6 +89,10 @@ No additional options.
 
 Creates and configures a new test run. Outputs created run ID. Supports most of [playwright's options](https://playwright.dev/docs/test-cli#reference).
 
+| Option             | Description                                                                         | Type     | Default | Required? |
+| ------------------ | ----------------------------------------------------------------------------------- | -------- | ------- | --------- |
+| `--history-window` | Count of runs history kept and window for average duration. More [here](#-overview) | `number` | 10      | no        |
+
 ### `run`
 
 Starts a test shard for the provided test run. If used with a finished run, it will only start failed tests.
@@ -109,10 +125,9 @@ Each command has corresponding subcommands for installed storages.
 
 Use as a storage locally created file
 
-| Option             | Description                                                                    | Type     | Default   | Required? |
-| ------------------ | ------------------------------------------------------------------------------ | -------- | --------- | --------- |
-| `--directory`      | Directory to store test run data                                               | `string` | test-runs | no        |
-| `--history-window` | Count of runs history kept and window for average duration. More on this later | `number` | 10        | no        |
+| Option        | Description                      | Type     | Default   | Required? |
+| ------------- | -------------------------------- | -------- | --------- | --------- |
+| `--directory` | Directory to store test run data | `string` | test-runs | no        |
 
 ### `dynamo-db`
 
@@ -178,7 +193,7 @@ Make sure podman and compose is installed. They used for tests and local develop
 
 Build or use `npm run watch`.
 
-Make sure yoy run `npm run cli-permissions` and `npm run link-packages`
+Make sure you run `npm run cli-permissions` and `npm run link-packages`
 
 See packages.json .scripts section for more commands.
 
@@ -195,13 +210,13 @@ Licensed under the Apache License 2.0. See LICENSE.md for details.
 - ✅ ~~Tests improvements~~
 - ✅ ~~Better Logging~~
 - ✅ ~~Test History statistics (test duration trends, count of test failures for past n days, etc.)~~
-- ⬜ Smarter test ordering based on previous execution duration
+- ✅ ~~Smarter test ordering based on previous execution duration~~
 - ⬜ GHA reporter
 - ⬜ More examples
 - ⬜ Redis adapter
 - ⬜ Even more adapters (by request)
 - ⬜ Create Documentation site.
-- ? Restore unfinished tests in case shard terminated
+- ? Restore unfinished tests in case shard terminated (Can be simply fixed by creating new run)
 
 ## ⚠️ Disclaimer
 

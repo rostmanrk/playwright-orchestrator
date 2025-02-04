@@ -1,4 +1,4 @@
-import { ResultTestParams, TestItem, TestReportResult, TestRunConfig, TestStatus } from '@playwright-orchestrator/core';
+import { TestItem, TestReportResult, TestSortItem, TestStatus } from '@playwright-orchestrator/core';
 import { Fields, OFFSET_STEP, StatusOffset } from './constants.js';
 import { DynamoResultTestParams, TestInfoItem, TestItemDb, TestReport } from './types.js';
 
@@ -63,4 +63,11 @@ export function idToStatus(id: number): TestStatus {
     if (id < StatusOffset.Succeed) return TestStatus.Ongoing;
     if (id < StatusOffset.Failed) return TestStatus.Passed;
     return TestStatus.Failed;
+}
+
+export function mapDbTestInfoToSortItem(item: TestInfoItem): TestSortItem {
+    return {
+        ema: item[Fields.EMA],
+        fails: item[Fields.History].filter((h) => h[Fields.Status] === TestStatus.Failed).length,
+    };
 }

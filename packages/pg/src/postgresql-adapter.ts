@@ -1,6 +1,5 @@
 import {
     TestItem,
-    TestRunInfo,
     Adapter,
     TestRunConfig,
     RunStatus,
@@ -8,17 +7,11 @@ import {
     ResultTestParams,
     SaveTestRunParams,
     ReporterTestItem,
+    TestSortItem,
 } from '@playwright-orchestrator/core';
 import { CreateArgs } from './create-args.js';
 import pg from 'pg';
 import { TestRunReport } from '../../core/dist/types/reporter.js';
-
-interface TestInfo {
-    id: number;
-    name: string;
-    ema: number;
-    created: Date;
-}
 
 export class PostgreSQLAdapter extends Adapter {
     private readonly configTable: string;
@@ -80,12 +73,13 @@ export class PostgreSQLAdapter extends Adapter {
         await this.updateTestWithResults(TestStatus.Failed, params);
     }
     async saveTestRun({ runId, args, historyWindow, testRun }: SaveTestRunParams): Promise<void> {
-        await this.loadTestInfos(this.transformTestRunToItems(testRun.testRun));
+        let tests = this.transformTestRunToItems(testRun.testRun);
+        const testInfos = await this.loadTestInfos(tests);
+        tests = this.sortTests(tests, testInfos, { historyWindow });
         await this.pool.query({
             text: `INSERT INTO ${this.configTable} (id, status, config) VALUES ($1, $2, $3)`,
             values: [runId, RunStatus.Created, JSON.stringify({ ...testRun.config, args, historyWindow })],
         });
-        const tests = this.transformTestRunToItems(testRun.testRun);
         const fields = ['order_num', 'file', 'line', 'character', 'project', 'timeout'];
         await this.pool.query({
             text: `INSERT INTO ${this.testsTable} (run_id, ${fields.join(', ')}) VALUES ${tests
@@ -311,15 +305,38 @@ export class PostgreSQLAdapter extends Adapter {
             text: `
             WITH test_names AS (
                 SELECT UNNEST($1::TEXT[]) AS name
+            ),
+            existing_tests AS (
+                SELECT id, name, ema, created FROM ${this.testInfoTable}
+                WHERE name IN (SELECT name FROM test_names)
+            ),
+            inserted_tests AS (
+                INSERT INTO ${this.testInfoTable} (name)
+                SELECT name FROM test_names
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM ${this.testInfoTable} WHERE name = test_names.name
+                )
+                RETURNING id, name, ema, created
+            ),
+            combined_tests AS (
+                SELECT * FROM existing_tests
+                UNION ALL
+                SELECT * FROM inserted_tests
             )
-            INSERT INTO ${this.testInfoTable} (name)
-            SELECT name FROM test_names
-            RETURNING *`,
+            SELECT 
+                t.id,
+                t.name,
+                t.ema,
+                t.created,
+                COUNT(CASE WHEN h.status = ${TestStatus.Failed} THEN 1 END) as fails
+            FROM combined_tests t
+            LEFT JOIN ${this.testInfoHistoryTable} h ON h.test_info_id = t.id
+            GROUP BY t.id, t.name, t.ema, t.created`,
             values: [tests.map((t) => t.testId)],
         });
-        const testInfo = new Map<string, TestInfo>();
-        for (const { id, name, ema, created } of results.rows) {
-            testInfo.set(name, { id, name, ema, created });
+        const testInfo = new Map<string, TestSortItem>();
+        for (const { name, ema, fails } of results.rows) {
+            testInfo.set(name, { ema, fails: +fails });
         }
         return testInfo;
     }

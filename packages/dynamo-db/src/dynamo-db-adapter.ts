@@ -6,6 +6,7 @@ import {
     ReporterTestItem,
     ResultTestParams,
     SaveTestRunParams,
+    TestSortItem,
 } from '@playwright-orchestrator/core';
 import { CreateArgs } from './create-args.js';
 import {
@@ -26,10 +27,16 @@ import {
     BatchGetCommand,
 } from '@aws-sdk/lib-dynamodb';
 import { TestRunReport } from '../../core/dist/types/reporter.js';
-import { idToStatus, mapDbToTestItem, mapTestInfoItemToReport, mapTestItemToDb, parseStatus } from './helpers.js';
+import {
+    idToStatus,
+    mapDbTestInfoToSortItem,
+    mapDbToTestItem,
+    mapTestInfoItemToReport,
+    mapTestItemToDb,
+    parseStatus,
+} from './helpers.js';
 import { Fields, OFFSET_STEP, StatusOffset } from './constants.js';
 import { DynamoResultTestParams, TestInfoItem, TestItemDb } from './types.js';
-import * as uuid from 'uuid';
 
 export class DynamoDbAdapter extends Adapter {
     private readonly client: DynamoDBClient;
@@ -81,9 +88,10 @@ export class DynamoDbAdapter extends Adapter {
     }
 
     async saveTestRun(params: SaveTestRunParams): Promise<void> {
-        const { runId, testRun } = params;
-        const tests = this.transformTestRunToItems(testRun.testRun);
+        const { runId, testRun, historyWindow } = params;
+        let tests = this.transformTestRunToItems(testRun.testRun);
         const historyItemMap = await this.loadTestInfoItems(tests);
+        tests = this.sortTests(tests, historyItemMap, { historyWindow });
         await this.saveConfig(params);
 
         // split the tests into batches to avoid exceeding the 25-item limit
@@ -313,22 +321,23 @@ export class DynamoDbAdapter extends Adapter {
         );
     }
 
-    private async loadTestInfoItems(tests: ReporterTestItem[]): Promise<Map<string, TestInfoItem>> {
+    private async loadTestInfoItems(tests: ReporterTestItem[]): Promise<Map<string, TestSortItem>> {
         const testInfos = await this.queryTestInfo(tests);
-        const foundTestMap = new Map<string, TestInfoItem>();
+        const foundTestMap = new Map<string, TestSortItem>();
         for (const item of testInfos) {
-            foundTestMap.set(item[Fields.Id], item as TestInfoItem);
+            foundTestMap.set(item[Fields.Id], mapDbTestInfoToSortItem(item));
         }
         for (const test of tests) {
             if (!foundTestMap.has(test.testId)) {
-                foundTestMap.set(test.testId, await this.createNewTestInfoItem(test.testId));
+                const testInfo = await this.createNewTestInfoItem(test.testId);
+                foundTestMap.set(test.testId, mapDbTestInfoToSortItem(testInfo));
             }
         }
         return foundTestMap;
     }
 
-    private async queryTestInfo(tests: ReporterTestItem[]) {
-        const testInfos = [];
+    private async queryTestInfo(tests: ReporterTestItem[]): Promise<TestInfoItem[]> {
+        const testInfos: TestInfoItem[] = [];
         for (var i = 0; i < tests.length; i += 100) {
             const { Responses } = await this.docClient.send(
                 new BatchGetCommand({
@@ -342,7 +351,7 @@ export class DynamoDbAdapter extends Adapter {
                     },
                 }),
             );
-            testInfos.push(...(Responses?.[this.testsTableName] ?? []));
+            testInfos.push(...((Responses?.[this.testsTableName] as any[]) ?? []));
         }
         return testInfos;
     }

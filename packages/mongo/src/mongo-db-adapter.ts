@@ -8,6 +8,7 @@ import {
     ResultTestParams,
     SaveTestRunParams,
     ReporterTestItem,
+    TestSortItem,
 } from '@playwright-orchestrator/core';
 import { CreateArgs } from './create-args.js';
 import { MongoClient, Db, Binary } from 'mongodb';
@@ -128,8 +129,9 @@ export class MongoDbAdapter extends Adapter {
     }
 
     async saveTestRun({ testRun, runId, args, historyWindow }: SaveTestRunParams): Promise<void> {
-        const tests = this.transformTestRunToItems(testRun.testRun);
-        await this.seedTestInfo(tests);
+        let tests = this.transformTestRunToItems(testRun.testRun);
+        const testInfos = await this.loadTestInfo(tests);
+        tests = this.sortTests(tests, testInfos, { historyWindow });
         const run = {
             _id: this.generateRunId(runId),
             status: RunStatus.Created,
@@ -158,8 +160,8 @@ export class MongoDbAdapter extends Adapter {
         );
     }
 
-    private async seedTestInfo(tests: ReporterTestItem[]): Promise<Map<string, TestInfoDocument>> {
-        const testInfoMap = new Map<string, TestInfoDocument>();
+    private async loadTestInfo(tests: ReporterTestItem[]): Promise<Map<string, TestSortItem>> {
+        const testInfoMap = new Map<string, TestSortItem>();
         for (const { testId } of tests) {
             if (!testInfoMap.has(testId)) {
                 const item = await this.testInfo.findOneAndUpdate(
@@ -172,9 +174,12 @@ export class MongoDbAdapter extends Adapter {
                             history: [],
                         },
                     },
-                    { upsert: true },
+                    { upsert: true, returnDocument: 'after' },
                 );
-                testInfoMap.set(testId, item!);
+                testInfoMap.set(testId, {
+                    ema: item!.ema,
+                    fails: item!.history.filter((h) => h.status === TestStatus.Failed).length,
+                });
             }
         }
         return testInfoMap;
