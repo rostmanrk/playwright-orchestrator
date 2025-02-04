@@ -1,5 +1,5 @@
 import config from './playwright.config';
 
-config.testDir = 'e2e/test-simulation';
+config.testDir = './e2e/test-simulation';
 
 export default config;
