@@ -9,7 +9,7 @@ const storageOptions = `mysql --connection-string mysql://root:password@localhos
 beforeAll(async () => {
     if (process.env.CI) return;
     await exec('npm run mysql-local -- up test --wait');
-});
+}, 20000);
 
 afterAll(async () => {
     if (process.env.CI) return;

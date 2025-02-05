@@ -1,6 +1,6 @@
 import { Command } from '@commander-js/extra-typings';
-import { Adapter } from '../types/adapters.js';
 import { STORAGES } from '../plugins-list.js';
+import { Adapter } from '../adapter.js';
 
 export type StorageType = (typeof STORAGES)[number];
 

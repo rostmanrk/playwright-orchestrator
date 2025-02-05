@@ -1,18 +1,21 @@
 import { createHash } from 'node:crypto';
 import { TestRunConfig } from './types/test-info.js';
-import { TestItem, Adapter } from './types/adapters.js';
+import { TestItem } from './types/adapters.js';
 import child_process from 'node:child_process';
 import { promisify } from 'node:util';
-import { rm } from 'node:fs/promises';
-import { createTempConfig } from './playwright-tools/modify-config.js';
-import { TestReporter } from './test-reporter.js';
+import { rm, writeFile } from 'node:fs/promises';
+import { TestExecutionReporter } from './reporters/test-execution-reporter.js';
+import { TestReportResult } from './types/reporter.js';
+import path from 'node:path';
+import * as uuid from 'uuid';
+import { Adapter } from './adapter.js';
 
 const exec = promisify(child_process.exec);
 
 export class TestRunner {
     private readonly runId: string;
     private readonly outputFolder: string;
-    private readonly reporter = new TestReporter();
+    private readonly reporter = new TestExecutionReporter();
     constructor(
         options: { runId: string; output: string },
         private readonly adapter: Adapter,
@@ -24,7 +27,7 @@ export class TestRunner {
     async runTests() {
         await this.removePreviousReports();
         const config = await this.adapter.startShard(this.runId);
-        config.configFile = await createTempConfig(config.configFile);
+        config.configFile = await this.createTempConfig(config.configFile);
         try {
             await this.runTestsUntilAvailable(config);
             await this.adapter.finishShard(this.runId);
@@ -67,24 +70,52 @@ export class TestRunner {
                     PLAYWRIGHT_BLOB_OUTPUT_FILE: `${this.outputFolder}/${testHash}.zip`,
                 },
             });
-            this.reporter.addTest(test, run);
-            await run;
 
-            await this.adapter.finishTest(this.runId, test);
-        } catch (error) {
-            await this.adapter.failTest(this.runId, test);
+            this.reporter.addTest(test, run);
+            const { stdout } = await run;
+            await this.adapter.finishTest({
+                runId: this.runId,
+                test,
+                testResult: this.parseTestResult(stdout),
+                config,
+            });
+        } catch (error: any) {
+            if (!error.stdout) throw error;
+            await this.adapter.failTest({
+                runId: this.runId,
+                test,
+                testResult: this.parseTestResult(error.stdout),
+                config,
+            });
         }
+    }
+
+    private parseTestResult(stdout: string): TestReportResult {
+        return JSON.parse(stdout) as TestReportResult;
     }
 
     private buildParams(test: TestItem, config: TestRunConfig, testHash: string): string {
         const args = [...config.args];
         args.push('--workers', '1');
-        args.push('--reporter', 'blob');
+        args.push('--reporter', 'blob,@playwright-orchestrator/core/test-result-reporter');
         args.push('--project', `"${test.project}"`);
         args.push('--output', `"${this.outputFolder}/${testHash}"`);
         if (config.configFile) {
             args.push('--config', `"${config.configFile}"`);
         }
         return args.join(' ');
+    }
+
+    private async createTempConfig(file: string | undefined): Promise<string | undefined> {
+        if (!file) return;
+        // Remove webServer from the config. Not supported in the orchestrator
+        const content = `
+        import config from '${path.resolve(file)}';
+        delete config.webServer;
+        export default config;`;
+
+        const tempFile = `.playwright-${uuid.v7()}.config.tmp.ts`;
+        await writeFile(tempFile, content);
+        return tempFile;
     }
 }

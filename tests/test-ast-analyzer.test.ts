@@ -19,4 +19,4 @@ test('test custom info reporter', async () => {
         project.outputDir = path.relative(process.cwd(), project.outputDir);
     }
     expect(testRunInfo).toMatchSnapshot();
-}, 30000);
+}, 60000);

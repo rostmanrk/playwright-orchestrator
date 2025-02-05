@@ -1,6 +1,9 @@
 {
     "name": "playwright-orchestrator",
-    "version": "1.1.4",
+    "version": "1.2.0",
+    "engines": {
+        "node": ">=18.0.0"
+    },
     "directories": {
         "test": "tests"
     },
@@ -34,7 +37,8 @@
     "devDependencies": {
         "@playwright/test": "^1.49.1",
         "@types/node": "^22.10.2",
+        "typescript": "^5.7.3",
         "prettier": "3.4.2",
-        "vitest": "^3.0.4"
+        "vitest": "^3.0.5"
     }
 }

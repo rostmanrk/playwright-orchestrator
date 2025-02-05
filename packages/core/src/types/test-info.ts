@@ -1,3 +1,5 @@
+import { TestDetailsAnnotation } from '@playwright/test';
+
 export interface Project {
     name: string;
     outputDir: string;
@@ -10,6 +12,7 @@ export interface TestConfig {
 }
 
 export interface TestRunConfig extends TestConfig {
+    historyWindow: number;
     args: string[];
     status: RunStatus;
     updated: number;
@@ -25,13 +28,10 @@ export interface TestRun {
         [position: string]: {
             timeout: number;
             projects: string[];
+            title: string;
+            annotations: TestDetailsAnnotation[];
         };
     };
-}
-
-export interface Annotation {
-    type: string;
-    description?: string;
 }
 
 export enum RunStatus {

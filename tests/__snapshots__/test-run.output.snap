@@ -25,15 +25,15 @@
 25  o  [firefox]   serial-top-level.spec.ts:5:5    outside of group
 26  o  [webkit]    serial-top-level.spec.ts:5:5    outside of group
 27  o  [chromium]  serial-top-level.spec.ts:5:5    outside of group
-28  o  [firefox]   serial.spec.ts:13:13            inside nested group 1
-29  o  [webkit]    serial.spec.ts:13:13            inside nested group 1
-30  o  [chromium]  serial.spec.ts:13:13            inside nested group 1
-31  o  [firefox]   serial.spec.ts:17:13            inside nested group 2
-32  o  [webkit]    serial.spec.ts:17:13            inside nested group 2
-33  o  [chromium]  serial.spec.ts:17:13            inside nested group 2
-34  o  [webkit]    serial.spec.ts:3:5              outside of group
-35  o  [firefox]   serial.spec.ts:3:5              outside of group
-36  o  [chromium]  serial.spec.ts:3:5              outside of group
-37  o  [chromium]  serial.spec.ts:8:9              inside group
-38  o  [firefox]   serial.spec.ts:8:9              inside group
-39  o  [webkit]    serial.spec.ts:8:9              inside group
+28  o  [webkit]    serial.spec.ts:14:13            inside nested group 1
+29  o  [chromium]  serial.spec.ts:14:13            inside nested group 1
+30  o  [firefox]   serial.spec.ts:14:13            inside nested group 1
+31  o  [webkit]    serial.spec.ts:18:13            inside nested group 2
+32  o  [chromium]  serial.spec.ts:18:13            inside nested group 2
+33  o  [firefox]   serial.spec.ts:18:13            inside nested group 2
+34  o  [chromium]  serial.spec.ts:4:5              outside of group
+35  o  [webkit]    serial.spec.ts:4:5              outside of group
+36  o  [firefox]   serial.spec.ts:4:5              outside of group
+37  o  [chromium]  serial.spec.ts:9:9              inside group
+38  o  [firefox]   serial.spec.ts:9:9              inside group
+39  o  [webkit]    serial.spec.ts:9:9              inside group

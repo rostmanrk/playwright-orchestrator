@@ -54,11 +54,20 @@ export class RunBuilder {
                 fileTests[position] = {
                     timeout: analyzer.getTimeout(entry),
                     projects: [project],
+                    annotations: this.getAnnotations(entry),
+                    title: entry.title,
                 };
             }
             return true;
         }
         return false;
+    }
+
+    private getAnnotations(entry: TestCase | Suite) {
+        if (entry.type === 'test') {
+            return entry.annotations;
+        }
+        return entry.allTests()[0]?.annotations;
     }
 
     private getFileTests(file: string) {

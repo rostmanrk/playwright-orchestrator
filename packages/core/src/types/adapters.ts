@@ -1,4 +1,6 @@
-import { TestRun, TestRunConfig, TestRunInfo } from './test-info.js';
+import { TestReportResult } from './reporter.js';
+import { TestRunConfig, TestRunInfo } from './test-info.js';
+import { TestDetailsAnnotation } from '@playwright/test';
 
 export interface TestItem {
     file: string;
@@ -8,25 +10,37 @@ export interface TestItem {
     timeout: number;
 }
 
-export abstract class Adapter {
-    abstract getNextTest(runId: string, config: TestRunConfig): Promise<TestItem | undefined>;
-    abstract finishTest(runId: string, test: TestItem): Promise<void>;
-    abstract failTest(runId: string, test: TestItem): Promise<void>;
-    abstract saveTestRun(runId: string, testRun: TestRunInfo, args: string[]): Promise<void>;
-    abstract initialize(): Promise<void>;
-    abstract startShard(runId: string): Promise<TestRunConfig>;
-    abstract finishShard(runId: string): Promise<void>;
-    abstract dispose(): Promise<void>;
-    protected flattenTestRun(run: TestRun, reverse = false): TestItem[] {
-        return Object.entries(run)
-            .flatMap(([file, tests]) => {
-                return Object.entries(tests).flatMap(([position, { timeout, projects }]) => {
-                    return projects.flatMap((project) => {
-                        return { file, position, project, timeout };
-                    });
-                });
-            })
-            .sort((a, b) => (b.timeout - a.timeout) * (reverse ? -1 : 1))
-            .map((test, i) => ({ ...test, order: i + 1 }));
-    }
+export interface ReporterTestItem extends TestItem {
+    testId: string;
+}
+
+export interface ResultTestParams {
+    runId: string;
+    test: TestItem;
+    testResult: TestReportResult;
+    config: TestRunConfig;
+}
+
+export interface SaveTestRunParams {
+    runId: string;
+    testRun: TestRunInfo;
+    args: string[];
+    historyWindow: number;
+}
+
+export interface GetTestIdParams {
+    project: string;
+    file: string;
+    title: string;
+    annotations: TestDetailsAnnotation[];
+}
+
+export interface SortTestsOptions {
+    historyWindow: number;
+    reverse?: boolean;
+}
+
+export interface TestSortItem {
+    ema: number;
+    fails: number;
 }

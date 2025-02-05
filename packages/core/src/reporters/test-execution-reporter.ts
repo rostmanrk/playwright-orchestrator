@@ -1,9 +1,9 @@
 import chalk from 'chalk';
 import boxen from 'boxen';
-import { TestItem } from './types/adapters.js';
+import { TestItem } from '../types/adapters.js';
 import { cursorSavePosition, cursorRestorePosition, cursorLeft, cursorDown, eraseDown } from 'ansi-escapes';
 
-export class TestReporter {
+export class TestExecutionReporter {
     private readonly failedTests: TestItem[] = [];
     private readonly succeedTests: TestItem[] = [];
     private readonly runningTests: TestItem[] = [];

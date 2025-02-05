@@ -4,7 +4,7 @@ import { TestRunInfo } from '../types/test-info.js';
 
 const exec = promisify(child_process.exec);
 
-export async function loadReporterInfo(args: string[]): Promise<TestRunInfo> {
+export async function loadRunInfo(args: string[]): Promise<TestRunInfo> {
     const { stdout, stderr } = await exec(buildCommand(args));
     if (stderr) {
         throw new Error(stderr);
