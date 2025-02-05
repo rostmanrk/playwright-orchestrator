@@ -1,7 +1,7 @@
 import { FullConfig, FullResult, Reporter, Suite, TestCase, TestResult } from '@playwright/test/reporter';
 import { TestReportResult } from '../types/reporter.js';
 
-export class TestResultReporter implements Reporter {
+export default class TestResultReporter implements Reporter {
     private testResults: TestResult[] = [];
     private testCases: TestCase[] = [];
     private commonParent: Suite | undefined;

@@ -4,6 +4,6 @@
         "outDir": "./dist",
         "rootDir": "./src"
     },
-    "include": ["./src/**/*.ts"],
+    "include": ["./src/**/*.ts", "src/playwright-tools/annotations.cts"],
     "exclude": ["dist", "package.json"]
 }

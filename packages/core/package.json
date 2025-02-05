@@ -33,6 +33,9 @@
         "uuid": "^11.0.3"
     },
     "devDependencies": {},
+    "engines": {
+        "node": ">=18.0.0"
+    },
     "type": "module",
     "main": "dist/index.js",
     "exports": {
@@ -42,18 +45,9 @@
         },
         "./cli": "./dist/cli.js",
         "./package.json": "./package.json",
-        "./tests-info-reporter": {
-            "import": "./dist/tests-info-reporter.js",
-            "require": "./dist/tests-info-reporter.js"
-        },
-        "./test-result-reporter": {
-            "import": "./dist/test-result-reporter.js",
-            "require": "./dist/test-result-reporter.js"
-        },
-        "./annotations": {
-            "import": "./dist/playwright-tools/annotations.js",
-            "require": "./dist/playwright-tools/annotations.js"
-        }
+        "./tests-info-reporter": "./dist/playwright-tools/run-info-reporter.js",
+        "./test-result-reporter": "./dist/playwright-tools/test-result-reporter.js",
+        "./annotations": "./dist/playwright-tools/annotations.cjs"
     },
     "peerDependencies": {
         "@playwright/test": "^1.44.0",
