@@ -24,6 +24,7 @@
         "dist"
     ],
     "dependencies": {
+        "@actions/core": "^1.11.1",
         "@commander-js/extra-typings": "^13.0.0",
         "ansi-escapes": "^7.0.0",
         "chalk": "^5.4.1",
