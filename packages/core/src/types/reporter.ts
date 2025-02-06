@@ -1,6 +1,6 @@
 import { TestResult } from '@playwright/test/reporter';
 import { TestDetailsAnnotation } from '@playwright/test';
-import { TestConfig, TestStatus } from './test-info.js';
+import { TestRunConfig, TestStatus } from './test-info.js';
 
 export interface TestReport {
     file: string;
@@ -16,7 +16,7 @@ export interface TestReport {
 
 export interface TestRunReport {
     runId: string;
-    config: TestConfig;
+    config: TestRunConfig;
     tests: TestReport[];
 }
 

@@ -41,7 +41,7 @@ export class TestExecutionReporter {
     private printTestResult(test: TestItem, message: string) {
         this.runningTests.splice(this.runningTests.indexOf(test), 1);
         if (process.env.CI) {
-            process.stdout.write(message);
+            console.log(message);
         } else {
             process.stdout.write(cursorRestorePosition);
             process.stdout.write(eraseDown);

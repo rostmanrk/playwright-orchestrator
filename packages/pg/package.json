@@ -1,6 +1,6 @@
 {
     "name": "@playwright-orchestrator/pg",
-    "version": "1.2.0",
+    "version": "1.2.1",
     "keywords": [],
     "author": "Rostyslav Kudrevatykh",
     "license": "Apache-2.0",

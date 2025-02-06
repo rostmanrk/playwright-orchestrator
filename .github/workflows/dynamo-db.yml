@@ -1,0 +1,86 @@
+name: E2E Tests on DynamoDB
+
+permissions:
+  id-token: write
+  contents: read
+
+on:
+  workflow_dispatch:
+
+jobs:
+  create:
+    outputs:
+      run-id: ${{ steps.create-run.outputs.run-id }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/e2e-setup
+
+      - name: configure aws credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE }}
+          role-session-name: GitHub_to_AWS_via_FederatedOIDC
+          aws-region: ${{ secrets.AWS_REGION }}
+      - name: Create run
+        id: create-run
+        run: |
+          echo "run-id=$(npx playwright-orchestrator create dynamo-db -j 2)" >> "$GITHUB_OUTPUT"
+
+  run:
+    needs: create
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        shard: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/e2e-setup
+
+      - name: configure aws credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE }}
+          role-session-name: GitHub_to_AWS_via_FederatedOIDC
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Run tests
+        run: |
+          npx playwright-orchestrator run dynamo-db --run-id ${{ needs.create.outputs.run-id }}
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: blob-results-${{ matrix.shard }}
+          path: ./blob-reports
+
+  generate-report:
+    needs: [run, create]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/e2e-setup
+        with:
+          install-browser: "false"
+
+      - name: configure aws credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE }}
+          role-session-name: GitHub_to_AWS_via_FederatedOIDC
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: blob-results-*
+          path: blob-reports
+          merge-multiple: true
+
+      - name: Generate report
+        run: |
+          npx playwright merge-reports --reporter=list,github ./blob-reports
+
+      - name: Create GHA Summary
+        run: |
+          npx playwright-orchestrator create-report dynamo-db --reporter gha --run-id ${{ needs.create.outputs.run-id }}
