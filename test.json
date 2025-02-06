@@ -1,0 +1,390 @@
+{
+    "runId": "0194dcb2-d732-7708-8d25-9654c1f32ee9",
+    "config": {
+        "args": ["-j", "2"],
+        "configFile": "/home/runner/work/playwright-orchestrator/playwright-orchestrator/playwright.config.ts",
+        "historyWindow": 10,
+        "projects": [
+            {
+                "name": "chromium",
+                "outputDir": "/home/runner/work/playwright-orchestrator/playwright-orchestrator/test-results/chromium"
+            },
+            {
+                "name": "firefox",
+                "outputDir": "/home/runner/work/playwright-orchestrator/playwright-orchestrator/test-results"
+            },
+            {
+                "name": "webkit",
+                "outputDir": "/home/runner/work/playwright-orchestrator/playwright-orchestrator/test-results"
+            }
+        ],
+        "status": 30,
+        "updated": 1738869577845,
+        "workers": 2
+    },
+    "tests": [
+        {
+            "file": "serial.spec.ts",
+            "project": "chromium",
+            "position": "15:10",
+            "status": 30,
+            "title": "nested group",
+            "fails": 0,
+            "lastSuccessfulRunTimestamp": 1738868891506,
+            "duration": 11023.67139401609,
+            "averageDuration": 11023.67139401609
+        },
+        {
+            "file": "serial.spec.ts",
+            "project": "firefox",
+            "position": "15:10",
+            "status": 30,
+            "title": "nested group",
+            "fails": 0,
+            "lastSuccessfulRunTimestamp": 1738868891747,
+            "duration": 11022.39375289517,
+            "averageDuration": 11022.39375289517
+        },
+        {
+            "file": "serial.spec.ts",
+            "project": "webkit",
+            "position": "15:10",
+            "status": 30,
+            "title": "nested group",
+            "fails": 0,
+            "lastSuccessfulRunTimestamp": 1738868904230,
+            "duration": 11021.053008053348,
+            "averageDuration": 11021.053008053348
+        },
+        {
+            "file": "constant-timeout.spec.ts",
+            "project": "chromium",
+            "position": "23:13",
+            "status": 30,
+            "title": "inside nested group and slow",
+            "fails": 0,
+            "lastSuccessfulRunTimestamp": 1738868888233,
+            "duration": 7017.78144811271,
+            "averageDuration": 7017.78144811271
+        },
+        {
+            "file": "constant-timeout.spec.ts",
+            "project": "webkit",
+            "position": "23:13",
+            "status": 30,
+            "title": "inside nested group and slow",
+            "fails": 0,
+            "lastSuccessfulRunTimestamp": 1738868896949,
+            "duration": 7017.059765935239,
+            "averageDuration": 7017.059765935239
+        },
+        {
+            "file": "constant-timeout.spec.ts",
+            "project": "firefox",
+            "position": "23:13",
+            "status": 30,
+            "title": "inside nested group and slow",
+            "fails": 0,
+            "lastSuccessfulRunTimestamp": 1738868888368,
+            "duration": 7016.0161981952115,
+            "averageDuration": 7016.0161981952115
+        },
+        {
+            "file": "serial-top-level.spec.ts",
+            "project": "chromium",
+            "position": "0:0",
+            "status": 30,
+            "title": "serial-top-level.spec.ts",
+            "fails": 0,
+            "lastSuccessfulRunTimestamp": 1738868893700,
+            "duration": 5018.836708724935,
+            "averageDuration": 5018.836708724935
+        },
+        {
+            "file": "serial-top-level.spec.ts",
+            "project": "webkit",
+            "position": "0:0",
+            "status": 30,
+            "title": "serial-top-level.spec.ts",
+            "fails": 0,
+            "lastSuccessfulRunTimestamp": 1738868895003,
+            "duration": 5018.3021288210575,
+            "averageDuration": 5018.3021288210575
+        },
+        {
+            "file": "serial-top-level.spec.ts",
+            "project": "firefox",
+            "position": "0:0",
+            "status": 30,
+            "title": "serial-top-level.spec.ts",
+            "fails": 0,
+            "lastSuccessfulRunTimestamp": 1738868895580,
+            "duration": 5018.008237316743,
+            "averageDuration": 5018.008237316743
+        },
+        {
+            "file": "constant-timeout.spec.ts",
+            "project": "webkit",
+            "position": "16:9",
+            "status": 30,
+            "title": "inside group override timeout",
+            "fails": 0,
+            "lastSuccessfulRunTimestamp": 1738868900322,
+            "duration": 5014.474283414457,
+            "averageDuration": 5014.474283414457
+        },
+        {
+            "file": "constant-timeout.spec.ts",
+            "project": "chromium",
+            "position": "16:9",
+            "status": 30,
+            "title": "inside group override timeout",
+            "fails": 0,
+            "lastSuccessfulRunTimestamp": 1738868902206,
+            "duration": 5013.759840050667,
+            "averageDuration": 5013.759840050667
+        },
+        {
+            "file": "constant-timeout.spec.ts",
+            "project": "firefox",
+            "position": "16:9",
+            "status": 30,
+            "title": "inside group override timeout",
+            "fails": 0,
+            "lastSuccessfulRunTimestamp": 1738868898540,
+            "duration": 5013.614509463687,
+            "averageDuration": 5013.614509463687
+        },
+        {
+            "file": "serial.spec.ts",
+            "project": "chromium",
+            "position": "11:9",
+            "status": 30,
+            "title": "inside group",
+            "fails": 0,
+            "lastSuccessfulRunTimestamp": 1738868904157,
+            "duration": 4014.1525884388234,
+            "averageDuration": 4014.1525884388234
+        },
+        {
+            "file": "constant-timeout.spec.ts",
+            "project": "webkit",
+            "position": "12:9",
+            "status": 30,
+            "title": "inside group",
+            "fails": 0,
+            "lastSuccessfulRunTimestamp": 1738868906037,
+            "duration": 4013.5147228912797,
+            "averageDuration": 4013.5147228912797
+        },
+        {
+            "file": "serial.spec.ts",
+            "project": "webkit",
+            "position": "11:9",
+            "status": 30,
+            "title": "inside group",
+            "fails": 0,
+            "lastSuccessfulRunTimestamp": 1738868900939,
+            "duration": 4013.4930997937045,
+            "averageDuration": 4013.4930997937045
+        },
+        {
+            "file": "constant-timeout.spec.ts",
+            "project": "firefox",
+            "position": "12:9",
+            "status": 30,
+            "title": "inside group",
+            "fails": 0,
+            "lastSuccessfulRunTimestamp": 1738868902566,
+            "duration": 4013.3421919990324,
+            "averageDuration": 4013.3421919990324
+        },
+        {
+            "file": "serial.spec.ts",
+            "project": "firefox",
+            "position": "11:9",
+            "status": 30,
+            "title": "inside group",
+            "fails": 0,
+            "lastSuccessfulRunTimestamp": 1738868908027,
+            "duration": 4012.719105559241,
+            "averageDuration": 4012.719105559241
+        },
+        {
+            "file": "constant-timeout.spec.ts",
+            "project": "chromium",
+            "position": "12:9",
+            "status": 30,
+            "title": "inside group",
+            "fails": 0,
+            "lastSuccessfulRunTimestamp": 1738868909931,
+            "duration": 4012.663483221858,
+            "averageDuration": 4012.663483221858
+        },
+        {
+            "file": "constant-timeout.spec.ts",
+            "project": "firefox",
+            "position": "4:5",
+            "status": 30,
+            "title": "timeout outside of group",
+            "fails": 0,
+            "lastSuccessfulRunTimestamp": 1738868912130,
+            "duration": 3012.548973116723,
+            "averageDuration": 3012.548973116723
+        },
+        {
+            "file": "basic-case.spec.ts",
+            "project": "webkit",
+            "position": "4:5",
+            "status": 30,
+            "title": "outside of group",
+            "fails": 0,
+            "lastSuccessfulRunTimestamp": 1738868905711,
+            "duration": 3012.3512046463793,
+            "averageDuration": 3012.3512046463793
+        },
+        {
+            "file": "basic-case.spec.ts",
+            "project": "chromium",
+            "position": "10:9",
+            "status": 30,
+            "title": "inside group",
+            "fails": 0,
+            "lastSuccessfulRunTimestamp": 1738868910487,
+            "duration": 3012.282456186175,
+            "averageDuration": 3012.282456186175
+        },
+        {
+            "file": "basic-case.spec.ts",
+            "project": "chromium",
+            "position": "4:5",
+            "status": 30,
+            "title": "outside of group",
+            "fails": 0,
+            "lastSuccessfulRunTimestamp": 1738868907361,
+            "duration": 3012.1984627732772,
+            "averageDuration": 3012.1984627732772
+        },
+        {
+            "file": "basic-case.spec.ts",
+            "project": "firefox",
+            "position": "10:9",
+            "status": 30,
+            "title": "inside group",
+            "fails": 0,
+            "lastSuccessfulRunTimestamp": 1738868915186,
+            "duration": 3012.1716008444732,
+            "averageDuration": 3012.1716008444732
+        },
+        {
+            "file": "basic-case.spec.ts",
+            "project": "webkit",
+            "position": "10:9",
+            "status": 30,
+            "title": "inside group",
+            "fails": 0,
+            "lastSuccessfulRunTimestamp": 1738868909163,
+            "duration": 3012.1260763812247,
+            "averageDuration": 3012.1260763812247
+        },
+        {
+            "file": "basic-case.spec.ts",
+            "project": "firefox",
+            "position": "4:5",
+            "status": 30,
+            "title": "outside of group",
+            "fails": 0,
+            "lastSuccessfulRunTimestamp": 1738868910840,
+            "duration": 3012.0386229483993,
+            "averageDuration": 3012.0386229483993
+        },
+        {
+            "file": "constant-timeout.spec.ts",
+            "project": "chromium",
+            "position": "4:5",
+            "status": 30,
+            "title": "timeout outside of group",
+            "fails": 0,
+            "lastSuccessfulRunTimestamp": 1738868913858,
+            "duration": 3011.872724470883,
+            "averageDuration": 3011.872724470883
+        },
+        {
+            "file": "constant-timeout.spec.ts",
+            "project": "webkit",
+            "position": "4:5",
+            "status": 30,
+            "title": "timeout outside of group",
+            "fails": 0,
+            "lastSuccessfulRunTimestamp": 1738868912777,
+            "duration": 3011.332904709462,
+            "averageDuration": 3011.332904709462
+        },
+        {
+            "file": "serial.spec.ts",
+            "project": "webkit",
+            "position": "5:5",
+            "status": 30,
+            "title": "outside of group",
+            "fails": 0,
+            "lastSuccessfulRunTimestamp": 1738868915763,
+            "duration": 2011.287580891038,
+            "averageDuration": 2011.287580891038
+        },
+        {
+            "file": "serial.spec.ts",
+            "project": "chromium",
+            "position": "5:5",
+            "status": 30,
+            "title": "outside of group",
+            "fails": 0,
+            "lastSuccessfulRunTimestamp": 1738868913614,
+            "duration": 2010.9333367578083,
+            "averageDuration": 2010.9333367578083
+        },
+        {
+            "file": "serial.spec.ts",
+            "project": "firefox",
+            "position": "5:5",
+            "status": 30,
+            "title": "outside of group",
+            "fails": 0,
+            "lastSuccessfulRunTimestamp": 1738868917241,
+            "duration": 2010.6057977322612,
+            "averageDuration": 2010.6057977322612
+        },
+        {
+            "file": "failed.spec.ts",
+            "project": "firefox",
+            "position": "3:5",
+            "status": 20,
+            "title": "should failing",
+            "fails": 8,
+            "lastSuccessfulRunTimestamp": 0,
+            "duration": 5940.84840026292,
+            "averageDuration": 5940.84840026292
+        },
+        {
+            "file": "failed.spec.ts",
+            "project": "chromium",
+            "position": "3:5",
+            "status": 20,
+            "title": "should failing",
+            "fails": 8,
+            "lastSuccessfulRunTimestamp": 0,
+            "duration": 3717.2321181971456,
+            "averageDuration": 3717.2321181971456
+        },
+        {
+            "file": "failed.spec.ts",
+            "project": "webkit",
+            "position": "3:5",
+            "status": 20,
+            "title": "should failing",
+            "fails": 8,
+            "lastSuccessfulRunTimestamp": 0,
+            "duration": 12.858038809224794,
+            "averageDuration": 12.858038809224794
+        }
+    ]
+}
