@@ -10,7 +10,7 @@ export async function generateReport(data: TestRunReport, type: ReporterType): P
             console.log(JSON.stringify(data));
             break;
         case 'gha':
-            ghaReporter(data);
+            await ghaReporter(data);
             break;
         default:
             console.error('Unknown reporter type');

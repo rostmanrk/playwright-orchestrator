@@ -52,7 +52,7 @@ jobs:
           path: ./blob-reports
 
   generate-report:
-    needs: run
+    needs: [run, create]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -69,3 +69,7 @@ jobs:
       - name: Generate report
         run: |
           npx playwright merge-reports --reporter=list,github ./blob-reports
+
+      - name: Create GHA Summary
+        run: |
+          npx playwright-orchestrator create-report dynamo-db --reporter gha --run-id ${{ needs.create.outputs.run-id }}
