@@ -40,19 +40,21 @@ In order to keep history of tests, they need to be identified. There are multipl
 1. Default id: `[{project}] {file} > {title of the test}`.
 2. Serial test id: `[{project}] {file} > {title of the parent group}`.
 3. Serial test defined at the file level: `[{project}] {file}`.
-4. Custom Id: `[{project}] {custom id}`. More on this:
+4. Custom Id: `[{project}] {custom id}`.
 
 In case some of these attributes changed, test history would be recreated. To preserve test history between changes, you can add a **static** attribute. Adding an id to an existing test would recreate the history as well.
 
 **✅ Examples**
 
 ```
+import { id } from '@playwright-orchestrator/core/annotations';
 test('test', { annotation: id('#custom_id') }, () => {
     // test code
 }
 ```
 
 ```
+import { id } from '@playwright-orchestrator/core/annotations';
 test.describe('serial tests', { annotation: id('#custom_id') }, () => {
     // test code
 }
@@ -61,6 +63,7 @@ test.describe('serial tests', { annotation: id('#custom_id') }, () => {
 **❌ This won't work**
 
 ```
+import { id } from '@playwright-orchestrator/core/annotations';
 test.describe('test', () => {
     test.info().annotations.push(id('#custom_id'));
     // test code
@@ -86,6 +89,10 @@ npx playwright-orchestrator <command> <storage_type> [options]
 ```
 
 ## 📝 Example
+
+[Mongo](/.github/workflows/mongo.yml)
+
+[DynamoDB](/.github/workflows/dynamo-db.yml)
 
 1. Run the `init` command. Required to run once to set up storage. Make sure that executing credentials have all permissions.
 
@@ -247,10 +254,10 @@ Licensed under the Apache License 2.0. See LICENSE.md for details.
 - ✅ ~~Better Logging~~
 - ✅ ~~Test History statistics (test duration trends, count of test failures for past n days, etc.)~~
 - ✅ ~~Smarter test ordering based on previous execution duration~~
-- ⬜ GHA reporter
-- ⬜ More examples
+- ✅ ~~GHA reporter~~
 - ⬜ Redis adapter
 - ⬜ Even more adapters (by request)
+- ⬜ More examples
 - ⬜ Create Documentation site.
 - ? Restore unfinished tests in case shard terminated (Can be simply fixed by creating new run)
 
