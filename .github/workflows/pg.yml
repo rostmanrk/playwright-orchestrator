@@ -1,4 +1,4 @@
-name: E2E Tests on MongoDB
+name: E2E Tests on PostgreSQL
 
 permissions:
     contents: read
@@ -7,10 +7,7 @@ on:
     workflow_dispatch:
 
 env:
-    CONNECTION_STRING: ${{ secrets.MONGO_CONN_STR }}
-    DB: tests
-    TLS: true
-    TLS_KEY: ./cert.pem
+    CONNECTION_STRING: ${{ secrets.PG_CONNECTION_STR }}
 
 jobs:
     create:
@@ -25,9 +22,7 @@ jobs:
             - name: Create run
               id: create-run
               run: |
-                  install -m 600 /dev/null ${{ env.TLS_KEY }}
-                  echo "${{ secrets.MONGO_CERT }}" > ${{ env.TLS_KEY }}
-                  echo "run-id=$(npx playwright-orchestrator create mongo -j 2)" >> "$GITHUB_OUTPUT"
+                  echo "run-id=$(npx playwright-orchestrator create pg -j 2)" >> "$GITHUB_OUTPUT"
 
     run:
         needs: create
@@ -41,9 +36,7 @@ jobs:
 
             - name: Run tests
               run: |
-                  install -m 600 /dev/null ${{ env.TLS_KEY }}
-                  echo "${{ secrets.MONGO_CERT }}" > ${{ env.TLS_KEY }}
-                  npx playwright-orchestrator run mongo --run-id ${{ needs.create.outputs.run-id }}
+                  npx playwright-orchestrator run pg --run-id ${{ needs.create.outputs.run-id }}
 
             - name: Upload test results
               uses: actions/upload-artifact@v4
@@ -72,4 +65,4 @@ jobs:
 
             - name: Create GHA Summary
               run: |
-                  npx playwright-orchestrator create-report mongo --reporter gha --run-id ${{ needs.create.outputs.run-id }}
+                  npx playwright-orchestrator create-report pg --reporter gha --run-id ${{ needs.create.outputs.run-id }}

@@ -90,9 +90,11 @@ npx playwright-orchestrator <command> <storage_type> [options]
 
 ## 📝 Example
 
-[Mongo](/.github/workflows/mongo.yml)
+- [Mongo](/.github/workflows/mongo.yml)
 
-[DynamoDB](/.github/workflows/dynamo-db.yml)
+- [DynamoDB](/.github/workflows/dynamo-db.yml)
+
+- [PostgreSQL](/.github/workflows/pg.yml)
 
 1. Run the `init` command. Required to run once to set up storage. Make sure that executing credentials have all permissions.
 
