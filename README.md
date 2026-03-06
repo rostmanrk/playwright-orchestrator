@@ -15,6 +15,7 @@ The project provides tooling to analyze and orchestrate Playwright tests using a
 - pg: PostgreSQL adapter.
 - mysql: MySQL adapter.
 - mongo: MongoDB adapter.
+- redis: Redis adapter.
 
 **Tests are ordered as follows:**
 
@@ -219,6 +220,16 @@ Use MySQL as storage.
 | `--ssl-reject-unauthorized`       | SSL reject unauthorized                      | -        | -                         | no        |
 | `--ssl-verify-server-certificate` | SSL verify server certificate                | -        | -                         | no        |
 
+### `redis`
+
+Use Redis as storage.
+
+| Option                | Description          | Type     | Default | Required? |
+| --------------------- | -------------------- | -------- | ------- | --------- |
+| `--connection-string` | Connection string    | `string` | -       | yes       |
+| `--name-prefix`       | Records name prefix  | `string` | `'pw'`  | no        |
+| `--ttl`               | TTL in days          | `number` | 60      | no        |
+
 ### `mongo`
 
 Use MongoDB as storage.
@@ -264,7 +275,7 @@ Licensed under the Apache License 2.0. See LICENSE.md for details.
 - ✅ ~~Test History statistics (test duration trends, count of test failures for past n days, etc.)~~
 - ✅ ~~Smarter test ordering based on previous execution duration~~
 - ✅ ~~GHA reporter~~
-- ⬜ Redis adapter
+- ✅ ~~Redis adapter~~
 - ⬜ Even more adapters (by request)
 - ⬜ More examples
 - ⬜ Create Documentation site.

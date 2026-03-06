@@ -8,10 +8,10 @@ import {
     SaveTestRunParams,
     ReporterTestItem,
     TestSortItem,
+    TestRunReport,
 } from '@playwright-orchestrator/core';
 import { CreateArgs } from './create-args.js';
 import pg from 'pg';
-import { TestRunReport } from '../../core/dist/types/reporter.js';
 
 export class PostgreSQLAdapter extends Adapter {
     private readonly configTable: string;
@@ -60,7 +60,8 @@ export class PostgreSQLAdapter extends Adapter {
             const { file, line, character, project, timeout, order_num } = result.rows[0];
             return { file, position: `${line}:${character}`, project, timeout, order: order_num };
         } catch (e) {
-            await this.pool.query('ROLLBACK');
+            await client.query('ROLLBACK');
+            throw e;
         } finally {
             client.release();
         }
@@ -76,27 +77,39 @@ export class PostgreSQLAdapter extends Adapter {
         let tests = this.transformTestRunToItems(testRun.testRun);
         const testInfos = await this.loadTestInfos(tests);
         tests = this.sortTests(tests, testInfos, { historyWindow });
-        await this.pool.query({
-            text: `INSERT INTO ${this.configTable} (id, status, config) VALUES ($1, $2, $3)`,
-            values: [runId, RunStatus.Created, JSON.stringify({ ...testRun.config, args, historyWindow })],
-        });
-        const fields = ['order_num', 'file', 'line', 'character', 'project', 'timeout'];
-        await this.pool.query({
-            text: `INSERT INTO ${this.testsTable} (run_id, ${fields.join(', ')}) VALUES ${tests
-                .map((_, i) => {
-                    const len = fields.length;
-                    const values = fields.map((_, j) => `$${i * len + j + 2}`).join(', ');
-                    return `($1, ${values})`;
-                })
-                .join(', ')}`,
-            values: [
-                runId,
-                ...tests.flatMap(({ position, order, file, project, timeout }) => {
-                    const [line, character] = position.split(':');
-                    return [order, file, line, character, project, timeout];
-                }),
-            ],
-        });
+        const client = await this.pool.connect();
+        try {
+            await client.query('BEGIN');
+            await client.query({
+                text: `INSERT INTO ${this.configTable} (id, status, config) VALUES ($1, $2, $3)`,
+                values: [runId, RunStatus.Created, JSON.stringify({ ...testRun.config, args, historyWindow })],
+            });
+            if (tests.length > 0) {
+                const fields = ['order_num', 'file', 'line', 'character', 'project', 'timeout'];
+                await client.query({
+                    text: `INSERT INTO ${this.testsTable} (run_id, ${fields.join(', ')}) VALUES ${tests
+                        .map((_, i) => {
+                            const len = fields.length;
+                            const values = fields.map((_, j) => `$${i * len + j + 2}`).join(', ');
+                            return `($1, ${values})`;
+                        })
+                        .join(', ')}`,
+                    values: [
+                        runId,
+                        ...tests.flatMap(({ position, order, file, project, timeout }) => {
+                            const [line, character] = position.split(':');
+                            return [order, file, line, character, project, timeout];
+                        }),
+                    ],
+                });
+            }
+            await client.query('COMMIT');
+        } catch (e) {
+            await client.query('ROLLBACK');
+            throw e;
+        } finally {
+            client.release();
+        }
     }
     async initialize(): Promise<void> {
         await this.pool.query(
@@ -221,7 +234,7 @@ export class PostgreSQLAdapter extends Adapter {
             runId,
             config: this.mapConfig(dbConfig),
             tests: rows.map(({ file, project, line, character, report }) => ({
-                averageDuration: 0,
+                averageDuration: report?.ema ?? 0,
                 duration: report?.duration ?? 0,
                 status: report?.status ?? TestStatus.Ready,
                 fails: report?.fails ?? 0,
@@ -242,16 +255,16 @@ export class PostgreSQLAdapter extends Adapter {
         const {
             rows: [testInfo],
         } = await this.pool.query({
-            text: `SELECT 
-                id, 
+            text: `SELECT
+                id,
                 ema,
                 (
-                    SELECT COUNT(*) FROM ${this.testInfoHistoryTable} 
+                    SELECT COUNT(*) FROM ${this.testInfoHistoryTable}
                     WHERE status = ${TestStatus.Failed} AND test_info_id = info.id
                 ) AS fails,
                 (
-                    SELECT updated FROM ${this.testInfoHistoryTable} 
-                    WHERE status = ${TestStatus.Passed} AND test_info_id = info.id 
+                    SELECT updated FROM ${this.testInfoHistoryTable}
+                    WHERE status = ${TestStatus.Passed} AND test_info_id = info.id
                     ORDER BY updated DESC LIMIT 1
                 ) AS last_successful_run
             FROM ${this.testInfoTable} info
@@ -268,36 +281,45 @@ export class PostgreSQLAdapter extends Adapter {
         };
 
         const newEma = this.calculateEMA(testResult.duration, testInfo.ema, config.historyWindow);
-        await this.pool.query({
-            text: `UPDATE ${this.testsTable}
-            SET 
-                status = $1,
-                updated = NOW(),
-                report = $2 
-            WHERE run_id = $3 AND order_num = $4;`,
-            values: [status, report, runId, test.order],
-        });
-        await this.pool.query({
-            text: `UPDATE ${this.testInfoTable} SET ema = $1 WHERE id = $2;`,
-            values: [newEma, testInfo.id],
-        });
-        await this.pool.query({
-            text: `INSERT INTO ${this.testInfoHistoryTable} (status, duration, updated, test_info_id)
-            VALUES ($1, $2, NOW(), $3);`,
-            values: [status, testResult.duration, testInfo.id],
-        });
-        await this.pool.query({
-            text: `DELETE FROM ${this.testInfoHistoryTable}
-            WHERE id IN (
-                SELECT id 
-                FROM ${this.testInfoHistoryTable}
-                WHERE test_info_id = $1
-                ORDER BY updated
-                LIMIT 10
-                OFFSET 10
-            )`,
-            values: [testInfo.id],
-        });
+        const client = await this.pool.connect();
+        try {
+            await client.query('BEGIN');
+            await client.query({
+                text: `UPDATE ${this.testsTable}
+                SET
+                    status = $1,
+                    updated = NOW(),
+                    report = $2
+                WHERE run_id = $3 AND order_num = $4;`,
+                values: [status, report, runId, test.order],
+            });
+            await client.query({
+                text: `UPDATE ${this.testInfoTable} SET ema = $1 WHERE id = $2;`,
+                values: [newEma, testInfo.id],
+            });
+            await client.query({
+                text: `INSERT INTO ${this.testInfoHistoryTable} (status, duration, updated, test_info_id)
+                VALUES ($1, $2, NOW(), $3);`,
+                values: [status, testResult.duration, testInfo.id],
+            });
+            await client.query({
+                text: `DELETE FROM ${this.testInfoHistoryTable}
+                WHERE id IN (
+                    SELECT id
+                    FROM ${this.testInfoHistoryTable}
+                    WHERE test_info_id = $1
+                    ORDER BY updated
+                    LIMIT GREATEST(0, (SELECT COUNT(*) FROM ${this.testInfoHistoryTable} WHERE test_info_id = $1) - $2)
+                )`,
+                values: [testInfo.id, config.historyWindow],
+            });
+            await client.query('COMMIT');
+        } catch (e) {
+            await client.query('ROLLBACK');
+            throw e;
+        } finally {
+            client.release();
+        }
     }
 
     private async loadTestInfos(tests: ReporterTestItem[]) {

@@ -23,7 +23,7 @@ export default async () => {
                     const adapter = await factory(options);
                     await adapter.saveTestRun({ runId, testRun: runInfo, args, historyWindow: +options.historyWindow });
                     await adapter.dispose();
-                    console.log(chalk.green(runId));
+                    console.log(runId);
                 }),
             );
     }

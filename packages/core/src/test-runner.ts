@@ -28,13 +28,29 @@ export class TestRunner {
         await this.removePreviousReports();
         const config = await this.adapter.startShard(this.runId);
         config.configFile = await this.createTempConfig(config.configFile);
+
+        const cleanupTempFile = () => {
+            if (config.configFile) rm(config.configFile, { force: true }).catch(() => {});
+        };
+        const signalHandler = () => {
+            cleanupTempFile();
+            process.exit(1);
+        };
+        process.once('SIGINT', signalHandler);
+        process.once('SIGTERM', signalHandler);
+
         try {
             await this.runTestsUntilAvailable(config);
-            await this.adapter.finishShard(this.runId);
-            await this.adapter.dispose();
-            this.reporter.printSummary();
         } finally {
-            if (config.configFile) await rm(config.configFile);
+            process.off('SIGINT', signalHandler);
+            process.off('SIGTERM', signalHandler);
+            this.reporter.printSummary();
+            try {
+                await this.adapter.finishShard(this.runId);
+                await this.adapter.dispose();
+            } finally {
+                cleanupTempFile();
+            }
         }
     }
 

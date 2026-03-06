@@ -6,7 +6,8 @@
         { "path": "./packages/dynamo-db" },
         { "path": "./packages/pg" },
         { "path": "./packages/mysql" },
-        { "path": "./packages/mongo" }
+        { "path": "./packages/mongo" },
+        { "path": "./packages/redis" }
     ],
     "exclude": ["**"]
 }

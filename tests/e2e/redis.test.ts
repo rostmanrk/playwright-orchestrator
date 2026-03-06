@@ -3,24 +3,21 @@ import { exec } from '../../e2e/test-utils.js';
 import { rm } from 'node:fs/promises';
 import { testStorage } from '../utils/test-storage.js';
 
-const reportsFolder = './test-reports-folder-dynamo';
+const reportsFolder = './test-reports-folder-redis';
 const config = 'tests-playwright.config.ts';
-const storageOptions = `dynamo-db --endpoint-url http://localhost:${process.env.CI ? '8000' : '8002'}`;
+const storageOptions = `redis --connection-string redis://localhost:6380`;
 
 beforeAll(async () => {
-    process.env.AWS_ACCESS_KEY_ID = 'local';
-    process.env.AWS_SECRET_ACCESS_KEY = 'local';
-    process.env.AWS_REGION = 'local';
     if (process.env.CI) return;
-    await exec('npm run dynamo-local -- up test --wait');
+    await exec('npm run redis-local -- up test --wait');
 });
 
 afterAll(async () => {
     if (process.env.CI) return;
-    await exec('npm run dynamo-local -- down test');
+    await exec('npm run redis-local -- down test');
     await rm(reportsFolder, { recursive: true, force: true });
 });
 
-test('test dynamo-db plugin', async () => {
+test('test redis plugin', async () => {
     await testStorage(storageOptions, config, reportsFolder);
 }, 60000);

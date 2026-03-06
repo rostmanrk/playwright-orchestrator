@@ -53,7 +53,7 @@ export class TestExecutionReporter {
     }
 
     printSummary() {
-        clearTimeout(this.spinnerInterval);
+        clearInterval(this.spinnerInterval);
         process.stdout.write(cursorRestorePosition);
         process.stdout.write(eraseDown);
 

@@ -1,0 +1,31 @@
+{
+    "name": "@playwright-orchestrator/redis",
+    "version": "1.2.1",
+    "keywords": [],
+    "author": "Rostyslav Kudrevatykh",
+    "license": "Apache-2.0",
+    "description": "Playwright orchestrator Redis plugin",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/rostmanrk/playwright-orchestrator.git"
+    },
+    "files": [
+        "dist"
+    ],
+    "dependencies": {
+        "@commander-js/extra-typings": "^13.0.0",
+        "@playwright-orchestrator/core": "^1.1.0",
+        "commander": "^13.0.0",
+        "redis": "^4.7.0"
+    },
+    "main": "dist/index.js",
+    "type": "module",
+    "exports": {
+        ".": {
+            "default": "./dist/index.js"
+        }
+    },
+    "scripts": {
+        "prepare": "cp ../../LICENSE.md ./"
+    }
+}
