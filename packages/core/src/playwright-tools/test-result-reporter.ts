@@ -1,5 +1,5 @@
-import { FullConfig, FullResult, Reporter, Suite, TestCase, TestResult } from '@playwright/test/reporter';
-import { TestReportResult } from '../types/reporter.js';
+import type { FullConfig, FullResult, Reporter, Suite, TestCase, TestResult } from '@playwright/test/reporter';
+import type { TestReportResult } from '../types/reporter.js';
 
 export default class TestResultReporter implements Reporter {
     private testResults: TestResult[] = [];
@@ -18,7 +18,7 @@ export default class TestResultReporter implements Reporter {
             let lastCommonParent = path.length - 1;
             for (const test of tests.slice(1)) {
                 current = test.parent;
-                while (test.parent !== this.commonParent) {
+                while (current) {
                     const index = path.indexOf(current!);
                     if (index !== -1 && index < lastCommonParent) {
                         lastCommonParent = index;
@@ -36,7 +36,7 @@ export default class TestResultReporter implements Reporter {
         this.testCases.push(test);
     }
     onEnd(result: FullResult): Promise<{ status?: FullResult['status'] } | undefined | void> | void {
-        const { status, error, retry } = this.testResults.at(-1)!;
+        const { status, error } = this.testResults.at(-1)!;
         const duration = this.testResults.reduce((acc, { duration }) => acc + duration, 0);
         const existingAnnotations = new Set<string>();
         const annotations = this.testCases
@@ -53,7 +53,7 @@ export default class TestResultReporter implements Reporter {
             error,
             title,
             annotations,
-            tests: this.testResults.map(({ status, duration, error }, i) => ({
+            tests: this.testResults.map(({ status, duration, error, retry }, i) => ({
                 status,
                 duration,
                 error,

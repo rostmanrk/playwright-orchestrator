@@ -1,6 +1,6 @@
-import { FullConfig, Suite, TestCase } from '@playwright/test/reporter';
+import type { FullConfig, Suite, TestCase } from '@playwright/test/reporter';
 import { TestASTAnalyzer } from './test-ats-analyzer.js';
-import { TestConfig, TestRun, TestRunInfo } from '../types/test-info.js';
+import type { TestConfig, TestRun, TestRunInfo } from '../types/test-info.js';
 
 export class RunBuilder {
     private readonly testRun: TestRun = {};
@@ -50,14 +50,12 @@ export class RunBuilder {
             return true;
         }
         if (entry.type === 'test' || analyzer.suiteIsSerial(entry)) {
-            if (!fileTests[position]) {
-                fileTests[position] = {
-                    timeout: analyzer.getTimeout(entry),
-                    projects: [project],
-                    annotations: this.getAnnotations(entry),
-                    title: entry.title,
-                };
-            }
+            fileTests[position] = {
+                timeout: analyzer.getTimeout(entry),
+                projects: [project],
+                annotations: this.getAnnotations(entry),
+                title: entry.title,
+            };
             return true;
         }
         return false;

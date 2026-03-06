@@ -1,6 +1,6 @@
-import { TestResult } from '@playwright/test/reporter';
-import { TestDetailsAnnotation } from '@playwright/test';
-import { TestRunConfig, TestStatus } from './test-info.js';
+import type { TestResult } from '@playwright/test/reporter';
+import type { TestDetailsAnnotation } from '@playwright/test';
+import type { TestRunConfig, TestStatus } from './test-info.js';
 
 export interface TestReport {
     file: string;

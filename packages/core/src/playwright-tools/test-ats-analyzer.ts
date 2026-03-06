@@ -1,5 +1,5 @@
 import ts from 'typescript';
-import { Location, Suite, TestCase } from '@playwright/test/reporter';
+import type { Location, Suite, TestCase } from '@playwright/test/reporter';
 
 const FILTER_PROPERTIES = ['setTimeout', 'slow', 'configure'];
 
@@ -36,7 +36,7 @@ export class TestASTAnalyzer {
             return false;
         const testNodeText = suiteNode.expression.text;
 
-        var testStatements = this.extractTestCallStatements(
+        const testStatements = this.extractTestCallStatements(
             this.extractCallStatementsTestFunc(suiteNode.parent),
             testNodeText,
         );
@@ -172,7 +172,7 @@ export class TestASTAnalyzer {
         const testNodeText = testNode.text;
 
         if (!ts.isCallExpression(testNode.parent)) return timeout;
-        var testStatements = this.extractTestCallStatements(
+        const testStatements = this.extractTestCallStatements(
             this.extractCallStatementsTestFunc(testNode.parent),
             testNodeText,
         );

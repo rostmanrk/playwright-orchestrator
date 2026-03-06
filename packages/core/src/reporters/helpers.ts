@@ -2,10 +2,12 @@ import { TestReport } from '../types/reporter.js';
 
 export function calculateTrend(test: TestReport) {
     const trend = test.averageDuration - test.duration;
+    const percentage =
+        test.averageDuration === 0 ? 'N/A' : ((trend / test.averageDuration) * 100).toFixed(1);
     return {
         trend,
         trendIcon: trend > 0 ? '📈' : '📉',
-        percentage: ((trend / test.averageDuration) * 100).toFixed(1),
+        percentage,
     };
 }
 

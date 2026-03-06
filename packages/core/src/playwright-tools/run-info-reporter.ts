@@ -1,4 +1,4 @@
-import { FullConfig, Reporter, Suite } from '@playwright/test/reporter';
+import type { FullConfig, Reporter, Suite } from '@playwright/test/reporter';
 import { RunBuilder } from './run-builder.js';
 
 export default class RunInfoReporter implements Reporter {
