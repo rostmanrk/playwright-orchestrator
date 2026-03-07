@@ -43,7 +43,7 @@ export class RedisAdapter extends Adapter {
         const key = `${this._namePrefix}:${TEST_RUN}:${runId}`;
         const statusKey = `${key}:status`;
         const updatedKey = `${key}:updated`;
-        const [dbStatus] = await client.mGet([statusKey, updatedKey]);
+        const dbStatus = await client.get(statusKey);
         if (!dbStatus) {
             throw new Error(`Run ${runId} not found`);
         }
@@ -119,18 +119,18 @@ export class RedisAdapter extends Adapter {
         const client = await this.getClient();
         const created = new Date().getTime();
         const ops = client.multi();
-        const baseKey = `${this._namePrefix}:${TEST_INFO}`;
+        const baseTestInfoKey = `${this._namePrefix}:${TEST_INFO}`;
 
         const setOptions: SetOptions = { NX: true, EX: this.ttl };
         for (const test of tests) {
-            const emaKey = `${baseKey}:${test.testId}:ema`;
-            const createdKey = `${baseKey}:${test.testId}:created`;
+            const emaKey = `${baseTestInfoKey}:${test.testId}:ema`;
+            const createdKey = `${baseTestInfoKey}:${test.testId}:created`;
             ops.set(emaKey, 0, setOptions).set(createdKey, created, setOptions);
         }
         await ops.exec();
 
-        const emaKeys = tests.map((test) => `${baseKey}:${test.testId}:ema`);
-        const failsKeys = tests.map((test) => `${baseKey}:${test.testId}:fails`);
+        const emaKeys = tests.map((test) => `${baseTestInfoKey}:${test.testId}:ema`);
+        const failsKeys = tests.map((test) => `${baseTestInfoKey}:${test.testId}:fails`);
         const [emaValues, failsValues] = await Promise.all([client.mGet(emaKeys), client.mGet(failsKeys)]);
 
         const testInfo = new Map<string, TestSortItem>();
@@ -145,13 +145,13 @@ export class RedisAdapter extends Adapter {
 
     async saveRunData(runId: string, config: object, tests: ReporterTestItem[]): Promise<void> {
         const client = await this.getClient();
-        const baseKey = `${this._namePrefix}:${TEST_RUN}:${runId}`;
+        const baseTestRunKey = `${this._namePrefix}:${TEST_RUN}:${runId}`;
         const setOptions: SetOptions = { EX: this.ttl };
         const pipeline = client
             .multi()
-            .set(`${baseKey}:config`, JSON.stringify(config), setOptions)
-            .set(`${baseKey}:status`, RunStatus.Created, setOptions)
-            .set(`${baseKey}:updated`, new Date().getTime(), setOptions);
+            .set(`${baseTestRunKey}:config`, JSON.stringify(config), setOptions)
+            .set(`${baseTestRunKey}:status`, RunStatus.Created, setOptions)
+            .set(`${baseTestRunKey}:updated`, new Date().getTime(), setOptions);
         for (const test of tests) {
             pipeline.rPush(`${this._namePrefix}:${TESTS}:${runId}:queue`, JSON.stringify(test));
         }
@@ -186,11 +186,18 @@ export class RedisAdapter extends Adapter {
             )
             .set(`${baseTestInfoKey}:updated`, item.updated, updateOptions)
             .set(`${baseTestInfoKey}:ema`, newEma, updateOptions);
-        if (item.status === TestStatus.Failed) {
-            transaction.incr(`${baseTestInfoKey}:fails`).expire(`${baseTestInfoKey}:fails`, this.ttl);
-        }
         await transaction.exec();
-        return (await client.lRange(`${baseTestInfoKey}:history`, 0, -1)).map((el) => JSON.parse(el));
+        const history: HistoryItem[] = (await client.lRange(`${baseTestInfoKey}:history`, 0, -1)).map((el) =>
+            JSON.parse(el),
+        );
+        if (item.status === TestStatus.Failed) {
+            await client
+                .multi()
+                .set(`${baseTestInfoKey}:fails`, history.filter((h) => h.status === TestStatus.Failed).length)
+                .expire(`${baseTestInfoKey}:fails`, this.ttl)
+                .exec();
+        }
+        return history;
     }
 
     async saveTestRunReport(
@@ -206,7 +213,10 @@ export class RedisAdapter extends Adapter {
         if (failed) {
             transaction.rPush(`${this._namePrefix}:${TESTS}:${runId}:failed`, JSON.stringify(test));
         }
-        await transaction.lPush(reportKey, JSON.stringify({ ...report, testId })).expire(reportKey, this.ttl).exec();
+        await transaction
+            .lPush(reportKey, JSON.stringify({ ...report, testId }))
+            .expire(reportKey, this.ttl)
+            .exec();
     }
 
     private async loadTestRunConfig(runId: string): Promise<TestRunConfig> {

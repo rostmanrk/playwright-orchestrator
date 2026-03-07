@@ -208,6 +208,9 @@ export class MongoDbAdapter extends Adapter {
             updated: new Date(),
         };
         await this.runs.insertOne(run);
+        if (tests.length === 0) {
+            return;
+        }
         await this.tests.insertMany(
             tests.map(({ file, order, position, project, timeout }) => {
                 const [line, column] = position.split(':').map(Number);

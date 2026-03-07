@@ -284,6 +284,9 @@ export class MySQLAdapter extends Adapter {
     }
 
     async loadTestInfos(tests: ReporterTestItem[]): Promise<Map<string, TestSortItem>> {
+        if (!tests.length) {
+            return new Map<string, TestSortItem>();
+        }
         const [results] = await this.pool.query<TestInfo[][]>({
             sql: `CREATE TEMPORARY TABLE temp_values (
                 name TEXT NOT NULL,
@@ -335,6 +338,7 @@ export class MySQLAdapter extends Adapter {
             const [line, character] = position.split(':');
             return [runId, order, file, +line, +character, project, timeout];
         });
+        if (!testValues.length) return;
         await this.pool.query<ResultSetHeader>({
             sql: `
             INSERT INTO ?? (id, status, config) VALUES (UUID_TO_BIN(?), ?, ?);
@@ -372,18 +376,34 @@ export class MySQLAdapter extends Adapter {
             INSERT INTO ?? (duration, status, updated, test_info_id)
             SELECT ?, ?, CURRENT_TIMESTAMP, id FROM ?? WHERE name = ?;
 
-            DELETE main FROM ?? main
+            DELETE history FROM ?? history
             INNER JOIN (
                 SELECT h.id FROM ?? h
                 JOIN ?? t ON t.id = h.test_info_id
                 WHERE t.name = ?
                 ORDER BY h.updated
-                LIMIT 10 OFFSET ${historyWindow}
-            ) d ON d.id = main.id;`,
+                OFFSET ?
+            ) d ON d.id = history.id;
+            `,
             values: [
-                this.testInfoTable, newEma, testId,
-                this.testInfoHistoryTable, item.duration, item.status, this.testInfoTable, testId,
-                this.testInfoHistoryTable, this.testInfoHistoryTable, this.testInfoTable, testId,
+                // UPDATE ?? SET ema = ? WHERE name = ?;
+                this.testInfoTable,
+                newEma,
+                testId,
+                // INSERT INTO ?? (duration, status, updated, test_info_id)
+                this.testInfoHistoryTable,
+                // SELECT ?, ?, CURRENT_TIMESTAMP, id FROM ?? WHERE name = ?;
+                item.duration,
+                item.status,
+                this.testInfoTable,
+                testId,
+                // DELETE history FROM ?? history
+                this.testInfoHistoryTable,
+                // JOIN (
+                this.testInfoHistoryTable,
+                this.testInfoTable,
+                testId,
+                historyWindow,
             ],
         });
         const [history] = await this.pool.query<HistoryRow[]>({
