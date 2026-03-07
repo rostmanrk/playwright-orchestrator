@@ -376,14 +376,18 @@ export class MySQLAdapter extends Adapter {
             INSERT INTO ?? (duration, status, updated, test_info_id)
             SELECT ?, ?, CURRENT_TIMESTAMP, id FROM ?? WHERE name = ?;
 
-            DELETE history FROM ?? history
-            INNER JOIN (
-                SELECT h.id FROM ?? h
-                JOIN ?? t ON t.id = h.test_info_id
-                WHERE t.name = ?
-                ORDER BY h.updated
-                OFFSET ?
-            ) d ON d.id = history.id;
+            DELETE h FROM ?? h
+            JOIN ?? t ON t.id = h.test_info_id
+            WHERE t.name = ?
+            AND h.id NOT IN (
+                SELECT id FROM (
+                    SELECT h2.id FROM ?? h2
+                    JOIN ?? t2 ON t2.id = h2.test_info_id
+                    WHERE t2.name = ?
+                    ORDER BY h2.updated DESC
+                    LIMIT ?
+                ) AS keep_rows
+            );
             `,
             values: [
                 // UPDATE ?? SET ema = ? WHERE name = ?;
@@ -397,9 +401,11 @@ export class MySQLAdapter extends Adapter {
                 item.status,
                 this.testInfoTable,
                 testId,
-                // DELETE history FROM ?? history
+                // DELETE h FROM ?? h JOIN ?? t ...
                 this.testInfoHistoryTable,
-                // JOIN (
+                this.testInfoTable,
+                testId,
+                // NOT IN (SELECT id FROM (SELECT h2.id FROM ?? h2 JOIN ?? t2 ...
                 this.testInfoHistoryTable,
                 this.testInfoTable,
                 testId,
