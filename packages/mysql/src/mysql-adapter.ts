@@ -338,21 +338,26 @@ export class MySQLAdapter extends Adapter {
             const [line, character] = position.split(':');
             return [runId, order, file, +line, +character, project, timeout];
         });
-        if (!testValues.length) return;
+
+        const statements: string[] = [`INSERT INTO ?? (id, status, config) VALUES (UUID_TO_BIN(?), ?, ?)`];
+        const values: (string | number | object)[] = [
+            this.configTable,
+            runId,
+            RunStatus.Created,
+            JSON.stringify(config),
+        ];
+        if (testValues.length) {
+            statements.push(
+                `INSERT INTO ?? (run_id, order_num, file, line, pos, project, timeout) VALUES ${testValues
+                    .map(() => '(UUID_TO_BIN(?), ?, ?, ?, ?, ?, ?)')
+                    .join(', ')}`,
+            );
+            values.push(this.testsTable, ...testValues.flatMap((v) => v));
+        }
         await this.pool.query<ResultSetHeader>({
             sql: `
-            INSERT INTO ?? (id, status, config) VALUES (UUID_TO_BIN(?), ?, ?);
-            INSERT INTO ?? (run_id, order_num, file, line, pos, project, timeout) VALUES ${testValues
-                .map(() => '(UUID_TO_BIN(?), ?, ?, ?, ?, ?, ?)')
-                .join(', ')}`,
-            values: [
-                this.configTable,
-                runId,
-                RunStatus.Created,
-                JSON.stringify(config),
-                this.testsTable,
-                ...testValues.flatMap((v) => v),
-            ],
+            ${statements.join(';\n')};`,
+            values,
         });
     }
 
@@ -364,8 +369,19 @@ export class MySQLAdapter extends Adapter {
         return testInfo?.ema ?? 0;
     }
 
-    async saveTestResult({ runId, testId, test, item, historyWindow, newEma, title }: SaveTestResultParams): Promise<void> {
-        await this.pool.query<ResultSetHeader>({
+    async saveTestResult({
+        runId,
+        testId,
+        test,
+        item,
+        historyWindow,
+        newEma,
+        title,
+    }: SaveTestResultParams): Promise<void> {
+        const client = await this.pool.getConnection();
+
+        await client.beginTransaction();
+        await client.query<ResultSetHeader>({
             sql: `UPDATE ?? SET ema = ? WHERE name = ?;
 
             INSERT INTO ?? (duration, status, updated, test_info_id)
@@ -407,15 +423,21 @@ export class MySQLAdapter extends Adapter {
                 historyWindow,
             ],
         });
-        const [history] = await this.pool.query<HistoryRow[]>({
+        await client.commit();
+
+        const [history] = await client.query<HistoryRow[]>({
             sql: `SELECT h.status, h.duration, UNIX_TIMESTAMP(h.updated) * 1000 AS updated
                   FROM ?? h JOIN ?? t ON t.id = h.test_info_id
                   WHERE t.name = ? ORDER BY h.updated`,
             values: [this.testInfoHistoryTable, this.testInfoTable, testId],
         });
-        const historyItems = history.map((h) => ({ status: h.status as TestStatus, duration: h.duration, updated: h.updated }));
+        const historyItems = history.map((h) => ({
+            status: h.status as TestStatus,
+            duration: h.duration,
+            updated: h.updated,
+        }));
         const report = this.buildReport(test, item, title, newEma, historyItems);
-        await this.pool.query<ResultSetHeader>({
+        await client.query<ResultSetHeader>({
             sql: `UPDATE ??
             SET
                 status = ?,
@@ -443,6 +465,7 @@ export class MySQLAdapter extends Adapter {
                 test.order,
             ],
         });
+        await client.release();
     }
 
     private mapConfig(dbValue: any): TestRunConfig {
