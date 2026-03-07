@@ -170,7 +170,7 @@ export class DynamoDbAdapter extends Adapter {
                 duration: h[Fields.Duration],
                 updated: h[Fields.Updated],
             }));
-            const report = this.buildReport(test, item.status, item.duration, title, newEma, historyItems);
+            const report = this.buildReport(test, item, title, newEma, historyItems);
             const status = item.status === TestStatus.Failed ? StatusOffset.Failed : StatusOffset.Succeed;
             await this.docClient.send(
                 new TransactWriteCommand({
@@ -344,30 +344,6 @@ export class DynamoDbAdapter extends Adapter {
             }),
         );
         return Items as TestItemDb[];
-    }
-
-    private async saveTestInfoItem(item: TestInfoItem): Promise<void> {
-        await this.docClient.send(
-            new UpdateCommand({
-                TableName: this.testsTableName,
-                Key: { [Fields.Id]: item[Fields.Id], [Fields.Order]: item[Fields.Order] },
-                UpdateExpression: 'SET #h = :h, #ttl = :ttl, #v = #v + :inc, #ema = :ema',
-                ExpressionAttributeNames: {
-                    '#h': Fields.History,
-                    '#ttl': Fields.Ttl,
-                    '#v': Fields.Version,
-                    '#ema': Fields.EMA,
-                },
-                ExpressionAttributeValues: {
-                    ':h': item[Fields.History],
-                    ':ttl': this.getTtl(),
-                    ':ema': item[Fields.EMA],
-                    ':v': item[Fields.Version],
-                    ':inc': 1,
-                },
-                ConditionExpression: '#v = :v',
-            }),
-        );
     }
 
     private async saveTestsBatch(runId: string, tests: TestItem[]): Promise<void> {

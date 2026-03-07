@@ -254,7 +254,7 @@ export class MongoDbAdapter extends Adapter {
             duration: h.duration,
             updated: h.updated instanceof Date ? h.updated.getTime() : (h.updated as number),
         }));
-        const report = this.buildReport(test, item.status, item.duration, title, newEma, history);
+        const report = this.buildReport(test, item, title, newEma, history);
         const testDocId = this.generateTestId(runId, test.order);
         await this.tests.updateOne(
             { _id: testDocId },

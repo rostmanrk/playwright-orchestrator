@@ -183,7 +183,7 @@ export class FileAdapter extends Adapter {
             duration: h.duration,
             updated: h.updated,
         }));
-        const report = this.buildReport(test, item.status, item.duration, title, newEma, historyItems);
+        const report = this.buildReport(test, item, title, newEma, historyItems);
         const resultsFile = this.getResultsRunPath(runId);
         const releaseResults = await lock(resultsFile, { retries: 100 });
         const results = JSON.parse(await readFile(resultsFile, 'utf-8')) as ResultTestItem[];

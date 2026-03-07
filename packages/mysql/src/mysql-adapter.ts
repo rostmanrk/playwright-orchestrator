@@ -414,7 +414,7 @@ export class MySQLAdapter extends Adapter {
             values: [this.testInfoHistoryTable, this.testInfoTable, testId],
         });
         const historyItems = history.map((h) => ({ status: h.status as TestStatus, duration: h.duration, updated: h.updated }));
-        const report = this.buildReport(test, item.status, item.duration, title, newEma, historyItems);
+        const report = this.buildReport(test, item, title, newEma, historyItems);
         await this.pool.query<ResultSetHeader>({
             sql: `UPDATE ??
             SET

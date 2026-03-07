@@ -327,7 +327,7 @@ export class PostgreSQLAdapter extends Adapter {
                 duration,
                 updated: +updated,
             }));
-            const report = this.buildReport(test, item.status, item.duration, title, newEma, history);
+            const report = this.buildReport(test, item, title, newEma, history);
             await client.query({
                 text: `UPDATE ${this.testsTable}
                 SET status = $1, updated = NOW(), report = $2

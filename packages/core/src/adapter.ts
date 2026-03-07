@@ -67,8 +67,7 @@ export abstract class Adapter {
 
     protected buildReport(
         test: TestItem,
-        status: TestStatus,
-        duration: number,
+        item: HistoryItem,
         title: string,
         newEma: number,
         history: HistoryItem[],
@@ -77,8 +76,8 @@ export abstract class Adapter {
             file: test.file,
             position: test.position,
             project: test.project,
-            status,
-            duration,
+            status: item.status,
+            duration: item.duration,
             averageDuration: newEma,
             title,
             fails: history.filter((h) => h.status === TestStatus.Failed).length,

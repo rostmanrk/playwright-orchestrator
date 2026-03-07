@@ -185,11 +185,11 @@ export class RedisAdapter extends Adapter {
         const history: HistoryItem[] = (await client.lRange(`${baseTestInfoKey}:history`, 0, -1)).map((el) =>
             JSON.parse(el),
         );
-        const report = this.buildReport(test, item.status, item.duration, title, newEma, history);
+        const report = this.buildReport(test, item, title, newEma, history);
         const reportKey = `${this._namePrefix}:${TEST_RUN}:${runId}:report`;
         const pipeline = client
             .multi()
-            .set(`${baseTestInfoKey}:fails`, history.filter((h) => h.status === TestStatus.Failed).length)
+            .set(`${baseTestInfoKey}:fails`, report.fails)
             .expire(`${baseTestInfoKey}:fails`, this.ttl)
             .lPush(reportKey, JSON.stringify({ ...report, testId }))
             .expire(reportKey, this.ttl);
