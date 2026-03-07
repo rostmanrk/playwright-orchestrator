@@ -50,3 +50,13 @@ export interface HistoryItem {
     duration: number;
     updated: number;
 }
+
+export interface SaveTestResultParams {
+    runId: string;
+    testId: string;
+    test: TestItem;
+    item: HistoryItem;
+    historyWindow: number;
+    newEma: number;
+    title: string;
+}

@@ -8,8 +8,8 @@ import {
     TestStatus,
     TestSortItem,
     HistoryItem,
+    SaveTestResultParams,
 } from '@playwright-orchestrator/core';
-import { TestReport } from '@playwright-orchestrator/core';
 import { CreateArgs } from './create-args.js';
 import { lock } from 'proper-lockfile';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
@@ -159,40 +159,34 @@ export class FileAdapter extends Adapter {
 
     async getTestEma(testId: string): Promise<number> {
         if (!existsSync(this.getHistoryRunPath())) return 0;
-        const history = JSON.parse(await readFile(this.getHistoryRunPath(), 'utf-8')) as Record<string, TestHistoryItem>;
+        const history = JSON.parse(await readFile(this.getHistoryRunPath(), 'utf-8')) as Record<
+            string,
+            TestHistoryItem
+        >;
         return history[testId]?.ema ?? 0;
     }
 
-    async saveTestHistory(
-        testId: string,
-        item: HistoryItem,
-        historyWindow: number,
-        newEma: number,
-    ): Promise<HistoryItem[]> {
-        const file = this.getHistoryRunPath();
-        const release = await lock(file, { retries: 100 });
-        const history = JSON.parse(await readFile(file, 'utf-8')) as Record<string, TestHistoryItem>;
+    async saveTestResult({ runId, testId, test, item, historyWindow, newEma, title }: SaveTestResultParams): Promise<void> {
+        const historyFile = this.getHistoryRunPath();
+        const releaseHistory = await lock(historyFile, { retries: 100 });
+        const history = JSON.parse(await readFile(historyFile, 'utf-8')) as Record<string, TestHistoryItem>;
         const testItem = history[testId];
         testItem.history.push({ duration: item.duration, status: item.status, updated: item.updated });
         if (testItem.history.length > historyWindow) {
             testItem.history.splice(0, testItem.history.length - historyWindow);
         }
         testItem.ema = newEma;
-        await writeFile(file, JSON.stringify(history, null, 2));
-        await release();
-        return testItem.history.map((h) => ({ status: h.status, duration: h.duration, updated: h.updated }));
-    }
-
-    async saveTestRunReport(
-        runId: string,
-        testId: string,
-        test: TestItem,
-        report: TestReport,
-        failed: boolean,
-    ): Promise<void> {
-        const file = this.getResultsRunPath(runId);
-        const release = await lock(file, { retries: 100 });
-        const results = JSON.parse(await readFile(file, 'utf-8')) as ResultTestItem[];
+        await writeFile(historyFile, JSON.stringify(history, null, 2));
+        await releaseHistory();
+        const historyItems: HistoryItem[] = testItem.history.map((h) => ({
+            status: h.status,
+            duration: h.duration,
+            updated: h.updated,
+        }));
+        const report = this.buildReport(test, item.status, item.duration, title, newEma, historyItems);
+        const resultsFile = this.getResultsRunPath(runId);
+        const releaseResults = await lock(resultsFile, { retries: 100 });
+        const results = JSON.parse(await readFile(resultsFile, 'utf-8')) as ResultTestItem[];
         results.push({
             testId,
             ...test,
@@ -205,8 +199,8 @@ export class FileAdapter extends Adapter {
                 lastSuccessfulRunTimestamp: report.lastSuccessfulRunTimestamp,
             },
         });
-        await writeFile(file, JSON.stringify(results, null, 2));
-        await release();
+        await writeFile(resultsFile, JSON.stringify(results, null, 2));
+        await releaseResults();
     }
 
     private getRunIdFilePath(runId: string) {

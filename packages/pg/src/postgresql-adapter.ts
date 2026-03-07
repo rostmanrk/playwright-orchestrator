@@ -8,7 +8,7 @@ import {
     TestSortItem,
     TestRunReport,
     HistoryItem,
-    TestReport,
+    SaveTestResultParams,
 } from '@playwright-orchestrator/core';
 import { CreateArgs } from './create-args.js';
 import pg from 'pg';
@@ -292,12 +292,7 @@ export class PostgreSQLAdapter extends Adapter {
         return testInfo?.ema ?? 0;
     }
 
-    async saveTestHistory(
-        testId: string,
-        item: HistoryItem,
-        historyWindow: number,
-        newEma: number,
-    ): Promise<HistoryItem[]> {
+    async saveTestResult({ runId, testId, test, item, historyWindow, newEma, title }: SaveTestResultParams): Promise<void> {
         const client = await this.pool.connect();
         try {
             await client.query('BEGIN');
@@ -327,41 +322,37 @@ export class PostgreSQLAdapter extends Adapter {
                        FROM ${this.testInfoHistoryTable} WHERE test_info_id = $1 ORDER BY updated`,
                 values: [id],
             });
+            const history: HistoryItem[] = rows.map(({ status, duration, updated }) => ({
+                status: +status as TestStatus,
+                duration,
+                updated: +updated,
+            }));
+            const report = this.buildReport(test, item.status, item.duration, title, newEma, history);
+            await client.query({
+                text: `UPDATE ${this.testsTable}
+                SET status = $1, updated = NOW(), report = $2
+                WHERE run_id = $3 AND order_num = $4`,
+                values: [
+                    report.status,
+                    {
+                        title: report.title,
+                        status: report.status,
+                        duration: report.duration,
+                        ema: report.averageDuration,
+                        fails: report.fails,
+                        lastSuccessfulRun: report.lastSuccessfulRunTimestamp,
+                    },
+                    runId,
+                    test.order,
+                ],
+            });
             await client.query('COMMIT');
-            return rows.map(({ status, duration, updated }) => ({ status: +status as TestStatus, duration, updated: +updated }));
         } catch (e) {
             await client.query('ROLLBACK');
             throw e;
         } finally {
             client.release();
         }
-    }
-
-    async saveTestRunReport(
-        runId: string,
-        testId: string,
-        test: TestItem,
-        report: TestReport,
-        failed: boolean,
-    ): Promise<void> {
-        await this.pool.query({
-            text: `UPDATE ${this.testsTable}
-            SET status = $1, updated = NOW(), report = $2
-            WHERE run_id = $3 AND order_num = $4`,
-            values: [
-                report.status,
-                {
-                    title: report.title,
-                    status: report.status,
-                    duration: report.duration,
-                    ema: report.averageDuration,
-                    fails: report.fails,
-                    lastSuccessfulRun: report.lastSuccessfulRunTimestamp,
-                },
-                runId,
-                test.order,
-            ],
-        });
     }
 
     private mapConfig(dbConfig: any): TestRunConfig {

@@ -8,7 +8,7 @@ import {
     TestSortItem,
     TestRunReport,
     HistoryItem,
-    TestReport,
+    SaveTestResultParams,
 } from '@playwright-orchestrator/core';
 import { CreateArgs } from './create-args.js';
 import { createPool, Pool, ResultSetHeader, RowDataPacket, SslOptions } from 'mysql2/promise';
@@ -364,12 +364,7 @@ export class MySQLAdapter extends Adapter {
         return testInfo?.ema ?? 0;
     }
 
-    async saveTestHistory(
-        testId: string,
-        item: HistoryItem,
-        historyWindow: number,
-        newEma: number,
-    ): Promise<HistoryItem[]> {
+    async saveTestResult({ runId, testId, test, item, historyWindow, newEma, title }: SaveTestResultParams): Promise<void> {
         await this.pool.query<ResultSetHeader>({
             sql: `UPDATE ?? SET ema = ? WHERE name = ?;
 
@@ -418,16 +413,8 @@ export class MySQLAdapter extends Adapter {
                   WHERE t.name = ? ORDER BY h.updated`,
             values: [this.testInfoHistoryTable, this.testInfoTable, testId],
         });
-        return history.map((h) => ({ status: h.status as TestStatus, duration: h.duration, updated: h.updated }));
-    }
-
-    async saveTestRunReport(
-        runId: string,
-        testId: string,
-        test: TestItem,
-        report: TestReport,
-        failed: boolean,
-    ): Promise<void> {
+        const historyItems = history.map((h) => ({ status: h.status as TestStatus, duration: h.duration, updated: h.updated }));
+        const report = this.buildReport(test, item.status, item.duration, title, newEma, historyItems);
         await this.pool.query<ResultSetHeader>({
             sql: `UPDATE ??
             SET

@@ -8,7 +8,7 @@ import {
     ReporterTestItem,
     TestSortItem,
     HistoryItem,
-    TestReport,
+    SaveTestResultParams,
 } from '@playwright-orchestrator/core';
 import { CreateArgs } from './create-args.js';
 import { MongoClient, Db, Binary } from 'mongodb';
@@ -234,12 +234,7 @@ export class MongoDbAdapter extends Adapter {
         return doc?.ema ?? 0;
     }
 
-    async saveTestHistory(
-        testId: string,
-        item: HistoryItem,
-        historyWindow: number,
-        newEma: number,
-    ): Promise<HistoryItem[]> {
+    async saveTestResult({ runId, testId, test, item, historyWindow, newEma, title }: SaveTestResultParams): Promise<void> {
         const updatedDoc = await this.testInfo.findOneAndUpdate(
             { _id: testId },
             {
@@ -254,20 +249,12 @@ export class MongoDbAdapter extends Adapter {
             },
             { returnDocument: 'after' },
         );
-        return (updatedDoc?.history ?? []).map((h) => ({
+        const history: HistoryItem[] = (updatedDoc?.history ?? []).map((h) => ({
             status: h.status,
             duration: h.duration,
             updated: h.updated instanceof Date ? h.updated.getTime() : (h.updated as number),
         }));
-    }
-
-    async saveTestRunReport(
-        runId: string,
-        testId: string,
-        test: TestItem,
-        report: TestReport,
-        failed: boolean,
-    ): Promise<void> {
+        const report = this.buildReport(test, item.status, item.duration, title, newEma, history);
         const testDocId = this.generateTestId(runId, test.order);
         await this.tests.updateOne(
             { _id: testDocId },

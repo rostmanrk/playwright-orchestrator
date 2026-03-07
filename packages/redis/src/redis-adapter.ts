@@ -8,7 +8,7 @@ import {
     TestSortItem,
     TestRunReport,
     HistoryItem,
-    TestReport,
+    SaveTestResultParams,
 } from '@playwright-orchestrator/core';
 import { CreateArgs } from './create-args.js';
 import { createClient, RedisClientType, SetOptions } from 'redis';
@@ -163,16 +163,11 @@ export class RedisAdapter extends Adapter {
         return +((await client.get(`${this._namePrefix}:${TEST_INFO}:${testId}:ema`)) ?? 0);
     }
 
-    async saveTestHistory(
-        testId: string,
-        item: HistoryItem,
-        historyWindow: number,
-        newEma: number,
-    ): Promise<HistoryItem[]> {
+    async saveTestResult({ runId, testId, test, item, historyWindow, newEma, title }: SaveTestResultParams): Promise<void> {
         const client = await this.getClient();
         const baseTestInfoKey = `${this._namePrefix}:${TEST_INFO}:${testId}`;
         const updateOptions: SetOptions = { EX: this.ttl };
-        const transaction = client
+        await client
             .multi()
             .rPush(`${baseTestInfoKey}:history`, JSON.stringify(item))
             .expire(`${baseTestInfoKey}:history`, this.ttl)
@@ -185,38 +180,23 @@ export class RedisAdapter extends Adapter {
                 { keys: [`${baseTestInfoKey}:history`], arguments: [historyWindow.toString()] },
             )
             .set(`${baseTestInfoKey}:updated`, item.updated, updateOptions)
-            .set(`${baseTestInfoKey}:ema`, newEma, updateOptions);
-        await transaction.exec();
+            .set(`${baseTestInfoKey}:ema`, newEma, updateOptions)
+            .exec();
         const history: HistoryItem[] = (await client.lRange(`${baseTestInfoKey}:history`, 0, -1)).map((el) =>
             JSON.parse(el),
         );
-        if (item.status === TestStatus.Failed) {
-            await client
-                .multi()
-                .set(`${baseTestInfoKey}:fails`, history.filter((h) => h.status === TestStatus.Failed).length)
-                .expire(`${baseTestInfoKey}:fails`, this.ttl)
-                .exec();
-        }
-        return history;
-    }
-
-    async saveTestRunReport(
-        runId: string,
-        testId: string,
-        test: TestItem,
-        report: TestReport,
-        failed: boolean,
-    ): Promise<void> {
-        const client = await this.getClient();
+        const report = this.buildReport(test, item.status, item.duration, title, newEma, history);
         const reportKey = `${this._namePrefix}:${TEST_RUN}:${runId}:report`;
-        const transaction = client.multi();
-        if (failed) {
-            transaction.rPush(`${this._namePrefix}:${TESTS}:${runId}:failed`, JSON.stringify(test));
-        }
-        await transaction
+        const pipeline = client
+            .multi()
+            .set(`${baseTestInfoKey}:fails`, history.filter((h) => h.status === TestStatus.Failed).length)
+            .expire(`${baseTestInfoKey}:fails`, this.ttl)
             .lPush(reportKey, JSON.stringify({ ...report, testId }))
-            .expire(reportKey, this.ttl)
-            .exec();
+            .expire(reportKey, this.ttl);
+        if (item.status === TestStatus.Failed) {
+            pipeline.rPush(`${this._namePrefix}:${TESTS}:${runId}:failed`, JSON.stringify(test));
+        }
+        await pipeline.exec();
     }
 
     private async loadTestRunConfig(runId: string): Promise<TestRunConfig> {

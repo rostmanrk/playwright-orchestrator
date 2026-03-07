@@ -8,7 +8,7 @@ import {
     TestSortItem,
     TestRunReport,
     HistoryItem,
-    TestReport,
+    SaveTestResultParams,
 } from '@playwright-orchestrator/core';
 import { CreateArgs } from './create-args.js';
 import {
@@ -16,7 +16,7 @@ import {
     CreateTableCommand,
     DescribeTableCommand,
     UpdateTimeToLiveCommand,
-    ConditionalCheckFailedException,
+    TransactionCanceledException,
 } from '@aws-sdk/client-dynamodb';
 import {
     DynamoDBDocumentClient,
@@ -27,6 +27,7 @@ import {
     GetCommand,
     UpdateCommand,
     BatchGetCommand,
+    TransactWriteCommand,
 } from '@aws-sdk/lib-dynamodb';
 import { idToStatus, mapDbTestInfoToSortItem, mapDbToTestItem, mapTestItemToDb } from './helpers.js';
 import { Fields, OFFSET_STEP, StatusOffset } from './constants.js';
@@ -146,50 +147,15 @@ export class DynamoDbAdapter extends Adapter {
         return stats?.[Fields.EMA] ?? 0;
     }
 
-    async saveTestHistory(
-        testId: string,
-        item: HistoryItem,
-        historyWindow: number,
-        newEma: number,
-    ): Promise<HistoryItem[]> {
-        return this.saveTestHistoryWithRetry(testId, item, historyWindow, newEma, 0);
+    async saveTestResult(params: SaveTestResultParams): Promise<void> {
+        return this.saveTestResultWithRetry(params, 0);
     }
 
-    async saveTestRunReport(
-        runId: string,
-        testId: string,
-        test: TestItem,
-        report: TestReport,
-        failed: boolean,
-    ): Promise<void> {
-        const status = failed ? StatusOffset.Failed : StatusOffset.Succeed;
-        await this.docClient.send(
-            new PutCommand({
-                TableName: this.testsTableName,
-                Item: {
-                    ...mapTestItemToDb(runId, this.getTtl(), test, status),
-                    [Fields.Report]: {
-                        [Fields.Duration]: report.duration,
-                        [Fields.EMA]: report.averageDuration,
-                        [Fields.Title]: report.title,
-                        [Fields.Fails]: report.fails,
-                        [Fields.LastSuccess]: report.lastSuccessfulRunTimestamp ?? 0,
-                    },
-                },
-            }),
-        );
-    }
-
-    private async saveTestHistoryWithRetry(
-        testId: string,
-        item: HistoryItem,
-        historyWindow: number,
-        newEma: number,
-        retry: number,
-    ): Promise<HistoryItem[]> {
+    private async saveTestResultWithRetry(params: SaveTestResultParams, retry: number): Promise<void> {
+        const { runId, testId, test, item, historyWindow, newEma, title } = params;
         try {
             const stats = await this.getTestInfo(testId);
-            if (!stats) return [];
+            if (!stats) return;
             const history = [
                 ...stats[Fields.History],
                 {
@@ -199,15 +165,61 @@ export class DynamoDbAdapter extends Adapter {
                 },
             ];
             if (history.length > historyWindow) history.splice(0, history.length - historyWindow);
-            await this.saveTestInfoItem({ ...stats, [Fields.History]: history, [Fields.EMA]: newEma });
-            return history.map((h) => ({
+            const historyItems: HistoryItem[] = history.map((h) => ({
                 status: h[Fields.Status] as TestStatus,
                 duration: h[Fields.Duration],
                 updated: h[Fields.Updated],
             }));
+            const report = this.buildReport(test, item.status, item.duration, title, newEma, historyItems);
+            const status = item.status === TestStatus.Failed ? StatusOffset.Failed : StatusOffset.Succeed;
+            await this.docClient.send(
+                new TransactWriteCommand({
+                    TransactItems: [
+                        {
+                            Update: {
+                                TableName: this.testsTableName,
+                                Key: { [Fields.Id]: stats[Fields.Id], [Fields.Order]: stats[Fields.Order] },
+                                UpdateExpression: 'SET #h = :h, #ttl = :ttl, #v = #v + :inc, #ema = :ema',
+                                ConditionExpression: '#v = :v',
+                                ExpressionAttributeNames: {
+                                    '#h': Fields.History,
+                                    '#ttl': Fields.Ttl,
+                                    '#v': Fields.Version,
+                                    '#ema': Fields.EMA,
+                                },
+                                ExpressionAttributeValues: {
+                                    ':h': history,
+                                    ':ttl': this.getTtl(),
+                                    ':ema': newEma,
+                                    ':v': stats[Fields.Version],
+                                    ':inc': 1,
+                                },
+                            },
+                        },
+                        {
+                            Put: {
+                                TableName: this.testsTableName,
+                                Item: {
+                                    ...mapTestItemToDb(runId, this.getTtl(), test, status),
+                                    [Fields.Report]: {
+                                        [Fields.Duration]: report.duration,
+                                        [Fields.EMA]: report.averageDuration,
+                                        [Fields.Title]: report.title,
+                                        [Fields.Fails]: report.fails,
+                                        [Fields.LastSuccess]: report.lastSuccessfulRunTimestamp ?? 0,
+                                    },
+                                },
+                            },
+                        },
+                    ],
+                }),
+            );
         } catch (error) {
-            if (!(error instanceof ConditionalCheckFailedException) || retry >= 5) throw error;
-            return this.saveTestHistoryWithRetry(testId, item, historyWindow, newEma, retry + 1);
+            const isVersionConflict =
+                error instanceof TransactionCanceledException &&
+                error.CancellationReasons?.some((r) => r.Code === 'ConditionalCheckFailed');
+            if (!isVersionConflict || retry >= 5) throw error;
+            return this.saveTestResultWithRetry(params, retry + 1);
         }
     }
 

@@ -8,6 +8,7 @@ import {
     SortTestsOptions,
     GetTestIdParams,
     HistoryItem,
+    SaveTestResultParams,
 } from './types/adapters.js';
 import { TestReport, TestRunReport } from './types/reporter.js';
 import { TestRunConfig, TestRun, TestStatus } from './types/test-info.js';
@@ -24,19 +25,7 @@ export abstract class Adapter {
     abstract loadTestInfos(tests: ReporterTestItem[]): Promise<Map<string, TestSortItem>>;
     abstract saveRunData(runId: string, config: object, tests: ReporterTestItem[]): Promise<void>;
     abstract getTestEma(testId: string): Promise<number>;
-    abstract saveTestHistory(
-        testId: string,
-        item: HistoryItem,
-        historyWindow: number,
-        newEma: number,
-    ): Promise<HistoryItem[]>;
-    abstract saveTestRunReport(
-        runId: string,
-        testId: string,
-        test: TestItem,
-        report: TestReport,
-        failed: boolean,
-    ): Promise<void>;
+    abstract saveTestResult(params: SaveTestResultParams): Promise<void>;
 
     // Override to true for adapters that pop from the end of the queue (e.g. file)
     protected get reverseSortOrder(): boolean {
@@ -65,24 +54,36 @@ export abstract class Adapter {
         const testId = this.getTestId({ ...test, ...testResult });
         const ema = await this.getTestEma(testId);
         const newEma = this.calculateEMA(testResult.duration, ema, config.historyWindow);
-        const history = await this.saveTestHistory(
+        await this.saveTestResult({
+            runId,
             testId,
-            { status, duration: testResult.duration, updated: Date.now() },
-            config.historyWindow,
+            test,
+            item: { status, duration: testResult.duration, updated: Date.now() },
+            historyWindow: config.historyWindow,
             newEma,
-        );
-        const report: TestReport = {
+            title: testResult.title,
+        });
+    }
+
+    protected buildReport(
+        test: TestItem,
+        status: TestStatus,
+        duration: number,
+        title: string,
+        newEma: number,
+        history: HistoryItem[],
+    ): TestReport {
+        return {
             file: test.file,
             position: test.position,
             project: test.project,
             status,
-            duration: testResult.duration,
+            duration,
             averageDuration: newEma,
-            title: testResult.title,
+            title,
             fails: history.filter((h) => h.status === TestStatus.Failed).length,
             lastSuccessfulRunTimestamp: history.findLast((h) => h.status === TestStatus.Passed)?.updated,
         };
-        await this.saveTestRunReport(runId, testId, test, report, status === TestStatus.Failed);
     }
 
     protected transformTestRunToItems(run: TestRun): ReporterTestItem[] {
