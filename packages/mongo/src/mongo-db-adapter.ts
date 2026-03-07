@@ -5,10 +5,10 @@ import {
     RunStatus,
     TestStatus,
     TestRunReport,
-    ResultTestParams,
-    SaveTestRunParams,
     ReporterTestItem,
     TestSortItem,
+    HistoryItem,
+    TestReport,
 } from '@playwright-orchestrator/core';
 import { CreateArgs } from './create-args.js';
 import { MongoClient, Db, Binary } from 'mongodb';
@@ -75,115 +75,6 @@ export class MongoDbAdapter extends Adapter {
             order,
         };
     }
-    async finishTest(params: ResultTestParams): Promise<void> {
-        await this.updateTest(TestStatus.Passed, params);
-    }
-    async failTest(params: ResultTestParams): Promise<void> {
-        await this.updateTest(TestStatus.Failed, params);
-    }
-
-    private async updateTest(status: TestStatus, { test, runId, testResult, config }: ResultTestParams): Promise<void> {
-        const { order } = test;
-        const { duration, title } = testResult;
-        const testId = this.generateTestId(runId, order);
-        const testInfoId = this.getTestId({ ...test, ...testResult });
-        const testInfo = (await this.testInfo.findOne({ _id: testInfoId }))!;
-        this.testInfo.updateOne(
-            { _id: testInfoId },
-            {
-                $set: {
-                    ema: this.calculateEMA(duration, testInfo.ema, config.historyWindow),
-                },
-                // @ts-ignore
-                $push: {
-                    history: {
-                        $each: [
-                            {
-                                duration,
-                                status,
-                                updated: new Date(),
-                            },
-                        ],
-                        $slice: -config.historyWindow,
-                    },
-                },
-            },
-        );
-
-        await this.tests.updateOne(
-            { _id: testId },
-            {
-                $set: {
-                    status,
-                    updated: new Date(),
-                    report: {
-                        duration: duration,
-                        title: title,
-                        ema: testInfo.ema,
-                        fails: testInfo.history.filter((h) => h.status === TestStatus.Failed).length,
-                        lastSuccessfulRun: testInfo.history.findLast((h) => h.status === TestStatus.Passed)?.updated,
-                    },
-                },
-            },
-        );
-    }
-
-    async saveTestRun({ testRun, runId, args, historyWindow }: SaveTestRunParams): Promise<void> {
-        let tests = this.transformTestRunToItems(testRun.testRun);
-        const testInfos = await this.loadTestInfo(tests);
-        tests = this.sortTests(tests, testInfos, { historyWindow });
-        const run = {
-            _id: this.generateRunId(runId),
-            status: RunStatus.Created,
-            config: testRun.config,
-            args,
-            historyWindow,
-            updated: new Date(),
-        };
-
-        await this.runs.insertOne(run);
-        await this.tests.insertMany(
-            tests.map(({ file, order, position, project, timeout }) => {
-                const [line, column] = position.split(':').map(Number);
-                return {
-                    _id: this.generateTestId(runId, order),
-                    file,
-                    project,
-                    timeout,
-                    line,
-                    column,
-                    status: TestStatus.Ready,
-                    updated: new Date(),
-                    ...(this.debug ? { runId, order } : {}),
-                };
-            }),
-        );
-    }
-
-    private async loadTestInfo(tests: ReporterTestItem[]): Promise<Map<string, TestSortItem>> {
-        const testInfoMap = new Map<string, TestSortItem>();
-        for (const { testId } of tests) {
-            if (!testInfoMap.has(testId)) {
-                const item = await this.testInfo.findOneAndUpdate(
-                    { _id: testId },
-                    {
-                        $setOnInsert: {
-                            _id: testId,
-                            create: new Date(),
-                            ema: 0,
-                            history: [],
-                        },
-                    },
-                    { upsert: true, returnDocument: 'after' },
-                );
-                testInfoMap.set(testId, {
-                    ema: item!.ema,
-                    fails: item!.history.filter((h) => h.status === TestStatus.Failed).length,
-                });
-            }
-        }
-        return testInfoMap;
-    }
 
     async initialize(): Promise<void> {
         const collections = await this.db.collections();
@@ -235,21 +126,6 @@ export class MongoDbAdapter extends Adapter {
         return this.mapDbToTestRunConfig(run);
     }
 
-    private generateTestIdQuery(runId: string, ...statuses: TestStatus[]) {
-        return {
-            _id: {
-                $gte: this.generateTestId(runId, 0),
-                $lt: this.generateTestId(runId, MAX_ORDER),
-            },
-            status: { $in: statuses },
-        };
-    }
-
-    private mapDbToTestRunConfig(run: TestRunDocument): TestRunConfig {
-        const { args, config, status, updated, historyWindow } = run;
-        return { ...config, args, historyWindow, status, updated: updated.getTime() };
-    }
-
     async finishShard(runId: string): Promise<void> {
         await this.runs.updateOne(
             { _id: uuid.parse(runId) },
@@ -296,6 +172,120 @@ export class MongoDbAdapter extends Adapter {
         };
     }
 
+    async loadTestInfos(tests: ReporterTestItem[]): Promise<Map<string, TestSortItem>> {
+        const testInfoMap = new Map<string, TestSortItem>();
+        for (const { testId } of tests) {
+            if (!testInfoMap.has(testId)) {
+                const item = await this.testInfo.findOneAndUpdate(
+                    { _id: testId },
+                    {
+                        $setOnInsert: {
+                            _id: testId,
+                            create: new Date(),
+                            ema: 0,
+                            history: [],
+                        },
+                    },
+                    { upsert: true, returnDocument: 'after' },
+                );
+                testInfoMap.set(testId, {
+                    ema: item!.ema,
+                    fails: item!.history.filter((h) => h.status === TestStatus.Failed).length,
+                });
+            }
+        }
+        return testInfoMap;
+    }
+
+    async saveRunData(runId: string, config: object, tests: ReporterTestItem[]): Promise<void> {
+        const { args, historyWindow, ...testRunConfig } = config as any;
+        const run = {
+            _id: this.generateRunId(runId),
+            status: RunStatus.Created,
+            config: testRunConfig,
+            args,
+            historyWindow,
+            updated: new Date(),
+        };
+        await this.runs.insertOne(run);
+        await this.tests.insertMany(
+            tests.map(({ file, order, position, project, timeout }) => {
+                const [line, column] = position.split(':').map(Number);
+                return {
+                    _id: this.generateTestId(runId, order),
+                    file,
+                    project,
+                    timeout,
+                    line,
+                    column,
+                    status: TestStatus.Ready,
+                    updated: new Date(),
+                    ...(this.debug ? { runId, order } : {}),
+                };
+            }),
+        );
+    }
+
+    async getTestEma(testId: string): Promise<number> {
+        const doc = await this.testInfo.findOne({ _id: testId });
+        return doc?.ema ?? 0;
+    }
+
+    async saveTestHistory(
+        testId: string,
+        item: HistoryItem,
+        historyWindow: number,
+        newEma: number,
+    ): Promise<HistoryItem[]> {
+        const updatedDoc = await this.testInfo.findOneAndUpdate(
+            { _id: testId },
+            {
+                $set: { ema: newEma },
+                // @ts-ignore
+                $push: {
+                    history: {
+                        $each: [{ duration: item.duration, status: item.status, updated: new Date(item.updated) }],
+                        $slice: -historyWindow,
+                    },
+                },
+            },
+            { returnDocument: 'after' },
+        );
+        return (updatedDoc?.history ?? []).map((h) => ({
+            status: h.status,
+            duration: h.duration,
+            updated: h.updated instanceof Date ? h.updated.getTime() : (h.updated as number),
+        }));
+    }
+
+    async saveTestRunReport(
+        runId: string,
+        testId: string,
+        test: TestItem,
+        report: TestReport,
+        failed: boolean,
+    ): Promise<void> {
+        const testDocId = this.generateTestId(runId, test.order);
+        await this.tests.updateOne(
+            { _id: testDocId },
+            {
+                $set: {
+                    status: report.status,
+                    updated: new Date(),
+                    report: {
+                        duration: report.duration,
+                        title: report.title,
+                        ema: report.averageDuration,
+                        fails: report.fails,
+                        lastSuccessfulRun: report.lastSuccessfulRunTimestamp
+                            ? new Date(report.lastSuccessfulRunTimestamp)
+                            : undefined,
+                    },
+                },
+            },
+        );
+    }
+
     private get runs() {
         return this.db.collection<TestRunDocument>(this.runsCollection);
     }
@@ -306,6 +296,21 @@ export class MongoDbAdapter extends Adapter {
 
     private get testInfo() {
         return this.db.collection<TestInfoDocument>(this.testsInfoCollection);
+    }
+
+    private generateTestIdQuery(runId: string, ...statuses: TestStatus[]) {
+        return {
+            _id: {
+                $gte: this.generateTestId(runId, 0),
+                $lt: this.generateTestId(runId, MAX_ORDER),
+            },
+            status: { $in: statuses },
+        };
+    }
+
+    private mapDbToTestRunConfig(run: TestRunDocument): TestRunConfig {
+        const { args, config, status, updated, historyWindow } = run;
+        return { ...config, args, historyWindow, status, updated: updated.getTime() };
     }
 
     private generateTestId(runId: string, order: number) {

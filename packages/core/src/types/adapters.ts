@@ -1,5 +1,5 @@
 import type { TestReportResult } from './reporter.js';
-import type { TestRunConfig, TestRunInfo } from './test-info.js';
+import type { TestRunConfig, TestRunInfo, TestStatus } from './test-info.js';
 import type { TestDetailsAnnotation } from '@playwright/test';
 
 export interface TestItem {
@@ -43,4 +43,10 @@ export interface SortTestsOptions {
 export interface TestSortItem {
     ema: number;
     fails: number;
+}
+
+export interface HistoryItem {
+    status: TestStatus;
+    duration: number;
+    updated: number;
 }

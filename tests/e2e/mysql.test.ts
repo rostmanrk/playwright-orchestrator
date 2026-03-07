@@ -1,4 +1,4 @@
-import { test, expect, afterAll, beforeAll } from 'vitest';
+import { test, afterAll, beforeAll } from 'vitest';
 import { exec } from '../../e2e/test-utils.js';
 import { rm } from 'node:fs/promises';
 import { testStorage } from '../utils/test-storage.js';

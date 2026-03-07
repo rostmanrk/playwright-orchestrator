@@ -4,14 +4,14 @@ import {
     TestRunConfig,
     RunStatus,
     TestStatus,
-    ResultTestParams,
-    SaveTestRunParams,
     ReporterTestItem,
     TestSortItem,
+    TestRunReport,
+    HistoryItem,
+    TestReport,
 } from '@playwright-orchestrator/core';
 import { CreateArgs } from './create-args.js';
 import { createPool, Pool, ResultSetHeader, RowDataPacket, SslOptions } from 'mysql2/promise';
-import { TestRunReport } from '../../core/dist/types/reporter.js';
 
 interface Test extends RowDataPacket {
     order_num: number;
@@ -37,19 +37,18 @@ interface Run extends RowDataPacket {
     config: any;
 }
 
-interface TestHistoryInfo extends RowDataPacket {
-    id: number;
-    ema: number;
-    fails: number;
-    lastSuccessfulRun: Date;
-}
-
 interface TestInfo extends RowDataPacket {
     id: number;
     ema: number;
     created: Date;
     name: string;
     fails: number;
+}
+
+interface HistoryRow extends RowDataPacket {
+    status: number;
+    duration: number;
+    updated: number;
 }
 
 export class MySQLAdapter extends Adapter {
@@ -113,7 +112,7 @@ export class MySQLAdapter extends Adapter {
                 UPDATE ??
                 SET status = ?, updated = CURRENT_TIMESTAMP
                 WHERE run_id = UUID_TO_BIN(?) AND order_num = @order_num;
-                
+
                 SELECT * FROM ??
                 WHERE run_id = UUID_TO_BIN(?) AND order_num = @order_num`,
                 [
@@ -137,40 +136,6 @@ export class MySQLAdapter extends Adapter {
         } finally {
             client.release();
         }
-    }
-    async finishTest(params: ResultTestParams): Promise<void> {
-        await this.updateTestWithResult(TestStatus.Passed, params);
-    }
-
-    async failTest(params: ResultTestParams): Promise<void> {
-        await this.updateTestWithResult(TestStatus.Failed, params);
-    }
-
-    async saveTestRun({ runId, testRun, args, historyWindow }: SaveTestRunParams): Promise<void> {
-        let tests = this.transformTestRunToItems(testRun.testRun);
-        const testInfos = await this.loadTestInfos(tests);
-        tests = this.sortTests(tests, testInfos, { historyWindow });
-
-        const testValues = tests.map(({ position, order, file, project, timeout }) => {
-            const [line, character] = position.split(':');
-            return [runId, order, file, +line, +character, project, timeout];
-        });
-        const values = [
-            this.configTable,
-            runId,
-            RunStatus.Created,
-            JSON.stringify({ ...testRun.config, args, historyWindow: historyWindow }),
-            this.testsTable,
-            ...testValues.flatMap((v) => v),
-        ];
-        await this.pool.query({
-            sql: `
-            INSERT INTO ?? (id, status, config) VALUES (UUID_TO_BIN(?), ?, ?);
-            INSERT INTO ?? (run_id, order_num, file, line, pos, project, timeout) VALUES ${testValues
-                .map(() => '(UUID_TO_BIN(?), ?, ?, ?, ?, ?, ?)')
-                .join(', ')}`,
-            values: values,
-        });
     }
 
     async initialize(): Promise<void> {
@@ -223,6 +188,7 @@ export class MySQLAdapter extends Adapter {
             ],
         });
     }
+
     async startShard(runId: string): Promise<TestRunConfig> {
         const client = await this.pool.getConnection();
         let [result] = await client.query<Run[]>(
@@ -248,7 +214,7 @@ export class MySQLAdapter extends Adapter {
                 await client.query({
                     sql: `UPDATE ??
                     SET updated = CURRENT_TIMESTAMP,
-                    status = CASE 
+                    status = CASE
                         WHEN status = ? THEN ?
                         ELSE ?
                         END
@@ -317,7 +283,7 @@ export class MySQLAdapter extends Adapter {
         };
     }
 
-    private async loadTestInfos(tests: ReporterTestItem[]): Promise<Map<string, TestSortItem>> {
+    async loadTestInfos(tests: ReporterTestItem[]): Promise<Map<string, TestSortItem>> {
         const [results] = await this.pool.query<TestInfo[][]>({
             sql: `CREATE TEMPORARY TABLE temp_values (
                 name TEXT NOT NULL,
@@ -340,7 +306,7 @@ export class MySQLAdapter extends Adapter {
                 ema,
                 created,
                 (
-                    SELECT COUNT(*) FROM ?? 
+                    SELECT COUNT(*) FROM ??
                     WHERE status = ? AND test_info_id = info.id
                 ) AS fails
             FROM ?? info
@@ -364,41 +330,82 @@ export class MySQLAdapter extends Adapter {
         return testInfoMap;
     }
 
-    private async updateTestWithResult(
-        status: TestStatus,
-        { runId, test, testResult, config }: ResultTestParams,
-    ): Promise<void> {
-        const testId = this.getTestId({ ...test, ...testResult });
-        const [[testInfo]] = await this.pool.query<TestHistoryInfo[]>({
-            sql: `SELECT 
-                id,
-                ema,
-                (
-                    SELECT COUNT(*) FROM ?? 
-                    WHERE status = ? AND test_info_id = info.id
-                ) AS fails,
-                (
-                    SELECT updated FROM ?? 
-                    WHERE status = ? AND test_info_id = info.id 
-                    ORDER BY updated DESC LIMIT 1
-                ) AS lastSuccessfulRun
-            FROM ?? info
-            WHERE info.name = ?`,
+    async saveRunData(runId: string, config: object, tests: ReporterTestItem[]): Promise<void> {
+        const testValues = tests.map(({ position, order, file, project, timeout }) => {
+            const [line, character] = position.split(':');
+            return [runId, order, file, +line, +character, project, timeout];
+        });
+        await this.pool.query<ResultSetHeader>({
+            sql: `
+            INSERT INTO ?? (id, status, config) VALUES (UUID_TO_BIN(?), ?, ?);
+            INSERT INTO ?? (run_id, order_num, file, line, pos, project, timeout) VALUES ${testValues
+                .map(() => '(UUID_TO_BIN(?), ?, ?, ?, ?, ?, ?)')
+                .join(', ')}`,
             values: [
-                this.testInfoHistoryTable,
-                TestStatus.Failed,
-                this.testInfoHistoryTable,
-                TestStatus.Passed,
-                this.testInfoTable,
-                testId,
+                this.configTable,
+                runId,
+                RunStatus.Created,
+                JSON.stringify(config),
+                this.testsTable,
+                ...testValues.flatMap((v) => v),
             ],
         });
-        const nextEma = this.calculateEMA(testResult.duration, testInfo.ema, config.historyWindow);
+    }
 
+    async getTestEma(testId: string): Promise<number> {
+        const [[testInfo]] = await this.pool.query<TestInfo[]>({
+            sql: `SELECT ema FROM ?? WHERE name = ?`,
+            values: [this.testInfoTable, testId],
+        });
+        return testInfo?.ema ?? 0;
+    }
+
+    async saveTestHistory(
+        testId: string,
+        item: HistoryItem,
+        historyWindow: number,
+        newEma: number,
+    ): Promise<HistoryItem[]> {
+        await this.pool.query<ResultSetHeader>({
+            sql: `UPDATE ?? SET ema = ? WHERE name = ?;
+
+            INSERT INTO ?? (duration, status, updated, test_info_id)
+            SELECT ?, ?, CURRENT_TIMESTAMP, id FROM ?? WHERE name = ?;
+
+            DELETE main FROM ?? main
+            INNER JOIN (
+                SELECT h.id FROM ?? h
+                JOIN ?? t ON t.id = h.test_info_id
+                WHERE t.name = ?
+                ORDER BY h.updated
+                LIMIT 10 OFFSET ${historyWindow}
+            ) d ON d.id = main.id;`,
+            values: [
+                this.testInfoTable, newEma, testId,
+                this.testInfoHistoryTable, item.duration, item.status, this.testInfoTable, testId,
+                this.testInfoHistoryTable, this.testInfoHistoryTable, this.testInfoTable, testId,
+            ],
+        });
+        const [history] = await this.pool.query<HistoryRow[]>({
+            sql: `SELECT h.status, h.duration, UNIX_TIMESTAMP(h.updated) * 1000 AS updated
+                  FROM ?? h JOIN ?? t ON t.id = h.test_info_id
+                  WHERE t.name = ? ORDER BY h.updated`,
+            values: [this.testInfoHistoryTable, this.testInfoTable, testId],
+        });
+        return history.map((h) => ({ status: h.status as TestStatus, duration: h.duration, updated: h.updated }));
+    }
+
+    async saveTestRunReport(
+        runId: string,
+        testId: string,
+        test: TestItem,
+        report: TestReport,
+        failed: boolean,
+    ): Promise<void> {
         await this.pool.query<ResultSetHeader>({
             sql: `UPDATE ??
-            SET 
-                status = ?, 
+            SET
+                status = ?,
                 updated = CURRENT_TIMESTAMP,
                 report = JSON_SET(
                     COALESCE(report, '{}'),
@@ -409,47 +416,24 @@ export class MySQLAdapter extends Adapter {
                     '$.lastSuccessfulRun', ?,
                     '$.status', ?
                 )
-            WHERE run_id = UUID_TO_BIN(?) AND order_num = ?;
-
-            UPDATE ?? SET ema = ? WHERE id = ?;
-
-            INSERT INTO ?? (duration, status, updated, test_info_id)
-            VALUES (?, ?, CURRENT_TIMESTAMP, ?);
-            
-            DELETE main FROM ?? main
-            INNER JOIN (
-                SELECT id FROM ?? 
-                WHERE test_info_id = ? 
-                ORDER BY updated 
-                LIMIT 10 OFFSET ${config.historyWindow}
-            ) d ON d.id = main.id;`,
+            WHERE run_id = UUID_TO_BIN(?) AND order_num = ?`,
             values: [
                 this.testsTable,
-                status,
-                testResult.title,
-                testResult.duration,
-                testInfo.fails,
-                testInfo.ema,
-                testInfo.lastSuccessfulRun?.getTime?.(),
-                status,
+                report.status,
+                report.title,
+                report.duration,
+                report.fails,
+                report.averageDuration,
+                report.lastSuccessfulRunTimestamp,
+                report.status,
                 runId,
                 test.order,
-                this.testInfoTable,
-                nextEma,
-                testInfo.id,
-                this.testInfoHistoryTable,
-                testResult.duration,
-                status,
-                testInfo.id,
-                this.testInfoHistoryTable,
-                this.testInfoHistoryTable,
-                testInfo.id,
             ],
         });
     }
 
     private mapConfig(dbValue: any): TestRunConfig {
         const { updated, status, config } = dbValue;
-        return { ...config, updated: updated.getDate(), status } as TestRunConfig;
+        return { ...config, updated: updated.getTime(), status } as TestRunConfig;
     }
 }

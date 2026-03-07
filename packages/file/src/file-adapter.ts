@@ -4,12 +4,12 @@ import {
     TestRunConfig,
     RunStatus,
     TestRunReport,
-    ResultTestParams,
-    SaveTestRunParams,
     ReporterTestItem,
     TestStatus,
     TestSortItem,
+    HistoryItem,
 } from '@playwright-orchestrator/core';
+import { TestReport } from '@playwright-orchestrator/core';
 import { CreateArgs } from './create-args.js';
 import { lock } from 'proper-lockfile';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
@@ -44,6 +44,10 @@ export class FileAdapter extends Adapter {
         this.dir = createArgs.directory;
     }
 
+    protected override get reverseSortOrder(): boolean {
+        return true;
+    }
+
     async startShard(runId: string): Promise<TestRunConfig> {
         const file = this.getRunConfigPath(runId);
         const release = await lock(file, { retries: 100 });
@@ -72,6 +76,7 @@ export class FileAdapter extends Adapter {
         await release();
         return config;
     }
+
     async finishShard(runId: string): Promise<void> {
         const file = this.getRunConfigPath(runId);
         const release = await lock(file, { retries: 100 });
@@ -92,34 +97,10 @@ export class FileAdapter extends Adapter {
         return test;
     }
 
-    async failTest(params: ResultTestParams): Promise<void> {
-        await this.addResult(TestStatus.Failed, params);
-    }
-    async finishTest(params: ResultTestParams): Promise<void> {
-        await this.addResult(TestStatus.Passed, params);
-    }
-
-    async saveTestRun({ runId, testRun, args, historyWindow }: SaveTestRunParams): Promise<void> {
-        const file = this.getRunConfigPath(runId);
-        await mkdir(this.dir, { recursive: true });
-        const testConfig: TestRunConfig = {
-            ...testRun.config,
-            args: args,
-            status: 0,
-            updated: Date.now(),
-            historyWindow,
-        };
-        await writeFile(file, JSON.stringify(testConfig, null, 2));
-        let tests = this.transformTestRunToItems(testRun.testRun);
-        const testInfos = await this.loadTestInfos(tests);
-        tests = this.sortTests(tests, testInfos, { historyWindow, reverse: true });
-        await writeFile(this.getRunIdFilePath(runId), JSON.stringify(tests, null, 2));
-        await writeFile(this.getResultsRunPath(runId), '[]');
-    }
-
     async initialize(): Promise<void> {
         return;
     }
+
     async dispose(): Promise<void> {}
 
     async getReportData(runId: string): Promise<TestRunReport> {
@@ -142,11 +123,12 @@ export class FileAdapter extends Adapter {
         };
     }
 
-    private async loadTestInfos(test: ReporterTestItem[]): Promise<Map<string, TestSortItem>> {
+    async loadTestInfos(tests: ReporterTestItem[]): Promise<Map<string, TestSortItem>> {
+        await mkdir(this.dir, { recursive: true });
         const history: Record<string, TestHistoryItem> = !existsSync(this.getHistoryRunPath())
             ? {}
             : JSON.parse(await readFile(this.getHistoryRunPath(), 'utf-8'));
-        for (const t of test) {
+        for (const t of tests) {
             if (!history[t.testId]) {
                 history[t.testId] = {
                     ema: 0,
@@ -164,48 +146,67 @@ export class FileAdapter extends Adapter {
         );
     }
 
-    private async addResult(status: TestStatus, params: ResultTestParams) {
-        const { runId, test, testResult } = params;
+    async saveRunData(runId: string, config: object, tests: ReporterTestItem[]): Promise<void> {
+        const testConfig: TestRunConfig = {
+            ...(config as TestRunConfig),
+            status: RunStatus.Created,
+            updated: Date.now(),
+        };
+        await writeFile(this.getRunConfigPath(runId), JSON.stringify(testConfig, null, 2));
+        await writeFile(this.getRunIdFilePath(runId), JSON.stringify(tests, null, 2));
+        await writeFile(this.getResultsRunPath(runId), '[]');
+    }
+
+    async getTestEma(testId: string): Promise<number> {
+        if (!existsSync(this.getHistoryRunPath())) return 0;
+        const history = JSON.parse(await readFile(this.getHistoryRunPath(), 'utf-8')) as Record<string, TestHistoryItem>;
+        return history[testId]?.ema ?? 0;
+    }
+
+    async saveTestHistory(
+        testId: string,
+        item: HistoryItem,
+        historyWindow: number,
+        newEma: number,
+    ): Promise<HistoryItem[]> {
+        const file = this.getHistoryRunPath();
+        const release = await lock(file, { retries: 100 });
+        const history = JSON.parse(await readFile(file, 'utf-8')) as Record<string, TestHistoryItem>;
+        const testItem = history[testId];
+        testItem.history.push({ duration: item.duration, status: item.status, updated: item.updated });
+        if (testItem.history.length > historyWindow) {
+            testItem.history.splice(0, testItem.history.length - historyWindow);
+        }
+        testItem.ema = newEma;
+        await writeFile(file, JSON.stringify(history, null, 2));
+        await release();
+        return testItem.history.map((h) => ({ status: h.status, duration: h.duration, updated: h.updated }));
+    }
+
+    async saveTestRunReport(
+        runId: string,
+        testId: string,
+        test: TestItem,
+        report: TestReport,
+        failed: boolean,
+    ): Promise<void> {
         const file = this.getResultsRunPath(runId);
         const release = await lock(file, { retries: 100 });
         const results = JSON.parse(await readFile(file, 'utf-8')) as ResultTestItem[];
-        const testId = this.getTestId({ ...test, ...testResult });
-        const stats = await this.updateHistory(status, params);
         results.push({
             testId,
             ...test,
-            status,
+            status: report.status,
             report: {
-                duration: testResult.duration,
-                ema: stats.ema,
-                fails: stats.history.filter((h) => h.status === TestStatus.Failed).length,
-                title: testResult.title,
-                lastSuccessfulRunTimestamp: stats.history.findLast((h) => h.status === TestStatus.Passed)?.updated,
+                duration: report.duration,
+                ema: report.averageDuration,
+                fails: report.fails,
+                title: report.title,
+                lastSuccessfulRunTimestamp: report.lastSuccessfulRunTimestamp,
             },
         });
         await writeFile(file, JSON.stringify(results, null, 2));
         await release();
-    }
-
-    private async updateHistory(status: TestStatus, { test, testResult, config }: ResultTestParams) {
-        const file = this.getHistoryRunPath();
-        const release = await lock(file, { retries: 100 });
-        const history = JSON.parse(await readFile(file, 'utf-8')) as Record<string, TestHistoryItem>;
-        const id = this.getTestId({ ...test, ...testResult });
-        const item = history[id];
-        const itemCopy = structuredClone(item);
-        item.history.push({
-            duration: testResult.duration,
-            status,
-            updated: Date.now(),
-        });
-        if (item.history.length > config.historyWindow) {
-            item.history.splice(0, item.history.length - config.historyWindow);
-        }
-        item.ema = this.calculateEMA(testResult.duration, item.ema, config.historyWindow);
-        await writeFile(file, JSON.stringify(history, null, 2));
-        await release();
-        return itemCopy;
     }
 
     private getRunIdFilePath(runId: string) {

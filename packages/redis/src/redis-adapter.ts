@@ -4,14 +4,14 @@ import {
     TestRunConfig,
     RunStatus,
     TestStatus,
-    ResultTestParams,
-    SaveTestRunParams,
     ReporterTestItem,
     TestSortItem,
+    TestRunReport,
+    HistoryItem,
+    TestReport,
 } from '@playwright-orchestrator/core';
 import { CreateArgs } from './create-args.js';
 import { createClient, RedisClientType, SetOptions } from 'redis';
-import { TestReport, TestRunReport } from '../../core/dist/types/reporter.js';
 
 const TEST_INFO = 'TI';
 const TESTS = 'T';
@@ -20,7 +20,7 @@ const TEST_RUN = 'TR';
 export class RedisAdapter extends Adapter {
     private readonly _client: RedisClientType;
     private readonly _namePrefix: string;
-    private ttl: number;
+    private readonly ttl: number;
     constructor({ connectionString, namePrefix, ttl }: CreateArgs) {
         super();
         this._namePrefix = namePrefix;
@@ -29,39 +29,21 @@ export class RedisAdapter extends Adapter {
         });
         this.ttl = ttl * 24 * 60 * 60;
     }
+
     async getNextTest(runId: string, config: TestRunConfig): Promise<TestItem | undefined> {
         const client = await this.getClient();
         const res = await client.lPop(`${this._namePrefix}:${TESTS}:${runId}:queue`);
         return res ? JSON.parse(res) : undefined;
     }
 
-    async finishTest(params: ResultTestParams): Promise<void> {
-        await this.updateTestWithResults(TestStatus.Passed, params);
-    }
-
-    async failTest(params: ResultTestParams): Promise<void> {
-        await this.updateTestWithResults(TestStatus.Failed, params);
-    }
-
-    async saveTestRun({ runId, args, historyWindow, testRun }: SaveTestRunParams): Promise<void> {
-        const client = await this.getClient();
-        let tests = this.transformTestRunToItems(testRun.testRun);
-        const testInfos = await this.loadTestInfos(tests);
-        tests = this.sortTests(tests, testInfos, { historyWindow });
-        await this.saveConfig(runId, { ...testRun.config, args, historyWindow });
-        for (const test of tests) {
-            client.rPush(`${this._namePrefix}:${TESTS}:${runId}:queue`, JSON.stringify(test));
-        }
-    }
-
     async initialize(): Promise<void> {}
 
     async startShard(runId: string): Promise<TestRunConfig> {
         const client = await this.getClient();
-        var key = `${this._namePrefix}:${TEST_RUN}:${runId}`;
+        const key = `${this._namePrefix}:${TEST_RUN}:${runId}`;
         const statusKey = `${key}:status`;
         const updatedKey = `${key}:updated`;
-        const [dbStatus, dpUpdated] = await client.mGet([statusKey, updatedKey]);
+        const [dbStatus] = await client.mGet([statusKey, updatedKey]);
         if (!dbStatus) {
             throw new Error(`Run ${runId} not found`);
         }
@@ -93,7 +75,7 @@ export class RedisAdapter extends Adapter {
     }
 
     async finishShard(runId: string): Promise<void> {
-        var key = `${this._namePrefix}:${TEST_RUN}:${runId}`;
+        const key = `${this._namePrefix}:${TEST_RUN}:${runId}`;
         const client = await this.getClient();
         // set 'updated' field to current time as test run exhausted all tests
         // update 'updated' field until last shard set correct finish time
@@ -117,7 +99,7 @@ export class RedisAdapter extends Adapter {
             JSON.parse(el),
         );
 
-        var reportTests = new Set<string>();
+        const reportTests = new Set<string>();
         reports = reports.filter((report) => {
             if (reportTests.has(report.testId)) {
                 return false;
@@ -133,20 +115,66 @@ export class RedisAdapter extends Adapter {
         };
     }
 
-    private async updateTestWithResults(
-        status: TestStatus,
-        { runId, test, config, testResult }: ResultTestParams,
-    ): Promise<void> {
+    async loadTestInfos(tests: ReporterTestItem[]): Promise<Map<string, TestSortItem>> {
         const client = await this.getClient();
-        const updated = new Date().getTime();
-        const testId = this.getTestId({ ...test, ...testResult });
-        const baseTestInfoKey = `${this._namePrefix}:${TEST_INFO}:${testId}`;
-        const ema = +((await this._client.get(`${baseTestInfoKey}:ema`)) ?? 0);
-        const newEma = this.calculateEMA(testResult.duration, ema, config.historyWindow);
-        const updateOptions: SetOptions = { EX: this.ttl };
-        await client
+        const created = new Date().getTime();
+        const ops = client.multi();
+        const baseKey = `${this._namePrefix}:${TEST_INFO}`;
+
+        const setOptions: SetOptions = { NX: true, EX: this.ttl };
+        for (const test of tests) {
+            const emaKey = `${baseKey}:${test.testId}:ema`;
+            const createdKey = `${baseKey}:${test.testId}:created`;
+            ops.set(emaKey, 0, setOptions).set(createdKey, created, setOptions);
+        }
+        await ops.exec();
+
+        const emaKeys = tests.map((test) => `${baseKey}:${test.testId}:ema`);
+        const failsKeys = tests.map((test) => `${baseKey}:${test.testId}:fails`);
+        const [emaValues, failsValues] = await Promise.all([client.mGet(emaKeys), client.mGet(failsKeys)]);
+
+        const testInfo = new Map<string, TestSortItem>();
+        tests.forEach((test, i) => {
+            testInfo.set(test.testId, {
+                ema: +(emaValues[i] ?? 0),
+                fails: +(failsValues[i] ?? 0),
+            });
+        });
+        return testInfo;
+    }
+
+    async saveRunData(runId: string, config: object, tests: ReporterTestItem[]): Promise<void> {
+        const client = await this.getClient();
+        const baseKey = `${this._namePrefix}:${TEST_RUN}:${runId}`;
+        const setOptions: SetOptions = { EX: this.ttl };
+        const pipeline = client
             .multi()
-            .rPush(`${baseTestInfoKey}:history`, JSON.stringify({ status, duration: testResult.duration, updated }))
+            .set(`${baseKey}:config`, JSON.stringify(config), setOptions)
+            .set(`${baseKey}:status`, RunStatus.Created, setOptions)
+            .set(`${baseKey}:updated`, new Date().getTime(), setOptions);
+        for (const test of tests) {
+            pipeline.rPush(`${this._namePrefix}:${TESTS}:${runId}:queue`, JSON.stringify(test));
+        }
+        await pipeline.exec();
+    }
+
+    async getTestEma(testId: string): Promise<number> {
+        const client = await this.getClient();
+        return +((await client.get(`${this._namePrefix}:${TEST_INFO}:${testId}:ema`)) ?? 0);
+    }
+
+    async saveTestHistory(
+        testId: string,
+        item: HistoryItem,
+        historyWindow: number,
+        newEma: number,
+    ): Promise<HistoryItem[]> {
+        const client = await this.getClient();
+        const baseTestInfoKey = `${this._namePrefix}:${TEST_INFO}:${testId}`;
+        const updateOptions: SetOptions = { EX: this.ttl };
+        const transaction = client
+            .multi()
+            .rPush(`${baseTestInfoKey}:history`, JSON.stringify(item))
             .expire(`${baseTestInfoKey}:history`, this.ttl)
             .eval(
                 `local length = redis.call('LLEN', KEYS[1])
@@ -154,44 +182,31 @@ export class RedisAdapter extends Adapter {
                 if length > maxItems then
                     redis.call('LPOP', KEYS[1], length - maxItems)
                 end`,
-                { keys: [`${baseTestInfoKey}:history`], arguments: [config.historyWindow.toString()] },
+                { keys: [`${baseTestInfoKey}:history`], arguments: [historyWindow.toString()] },
             )
-            .set(`${baseTestInfoKey}:updated`, updated, updateOptions)
-            .set(`${baseTestInfoKey}:ema`, newEma, updateOptions)
-            .exec();
-
-        const history = (await client.lRange(`${baseTestInfoKey}:history`, 0, -1)).map((el) => JSON.parse(el));
-        const reportKey = `${this._namePrefix}:${TEST_RUN}:${runId}:report`;
-
-        const report = {
-            testId,
-            file: test.file,
-            position: test.position,
-            project: test.project,
-            status,
-            title: testResult.title,
-            duration: testResult.duration,
-            fails: history.filter((el) => el.status === TestStatus.Failed).length,
-            averageDuration: newEma,
-            lastSuccessfulRunTimestamp: history.findLast((el) => el.status === TestStatus.Passed)?.updated,
-        };
-        const transaction = client.multi();
-        if (status === TestStatus.Failed) {
-            transaction.rPush(`${this._namePrefix}:${TESTS}:${runId}:failed`, JSON.stringify(test));
+            .set(`${baseTestInfoKey}:updated`, item.updated, updateOptions)
+            .set(`${baseTestInfoKey}:ema`, newEma, updateOptions);
+        if (item.status === TestStatus.Failed) {
+            transaction.incr(`${baseTestInfoKey}:fails`).expire(`${baseTestInfoKey}:fails`, this.ttl);
         }
-        await transaction.lPush(reportKey, JSON.stringify(report)).expire(reportKey, this.ttl).exec();
+        await transaction.exec();
+        return (await client.lRange(`${baseTestInfoKey}:history`, 0, -1)).map((el) => JSON.parse(el));
     }
 
-    private async saveConfig(runId: string, config: any) {
+    async saveTestRunReport(
+        runId: string,
+        testId: string,
+        test: TestItem,
+        report: TestReport,
+        failed: boolean,
+    ): Promise<void> {
         const client = await this.getClient();
-        const baseKey = `${this._namePrefix}:${TEST_RUN}:${runId}`;
-        const setOptions: SetOptions = { EX: this.ttl };
-        await client
-            .multi()
-            .set(`${baseKey}:config`, JSON.stringify(config), setOptions)
-            .set(`${baseKey}:status`, RunStatus.Created, setOptions)
-            .set(`${baseKey}:updated`, new Date().getTime(), setOptions)
-            .exec();
+        const reportKey = `${this._namePrefix}:${TEST_RUN}:${runId}:report`;
+        const transaction = client.multi();
+        if (failed) {
+            transaction.rPush(`${this._namePrefix}:${TESTS}:${runId}:failed`, JSON.stringify(test));
+        }
+        await transaction.lPush(reportKey, JSON.stringify({ ...report, testId })).expire(reportKey, this.ttl).exec();
     }
 
     private async loadTestRunConfig(runId: string): Promise<TestRunConfig> {
@@ -212,43 +227,10 @@ export class RedisAdapter extends Adapter {
         };
     }
 
-    private async loadTestInfos(tests: ReporterTestItem[]) {
-        const client = await this.getClient();
-        const created = new Date().getTime();
-        const ops = await client.multi();
-        const baseKey = `${this._namePrefix}:${TEST_INFO}`;
-
-        const setOptions: SetOptions = { NX: true, EX: this.ttl };
-        for (const test of tests) {
-            const emaKey = `${baseKey}:${test.testId}:ema`;
-            const createdKey = `${baseKey}:${test.testId}:created`;
-            ops.set(emaKey, 0, setOptions).set(createdKey, created, setOptions);
-        }
-        await ops.exec();
-        const testInfo = new Map<string, TestSortItem>();
-        for (const test of tests) {
-            const emaKey = `${baseKey}:${test.testId}:ema`;
-            const failsKey = `${baseKey}:${test.testId}:fails`;
-            testInfo.set(test.testId, {
-                ema: +((await client.get(emaKey)) ?? 0),
-                fails: +((await client.lLen(failsKey)) ?? 0),
-            });
-        }
-        return testInfo;
-    }
-
     private async getClient(): Promise<RedisClientType> {
         if (!this._client.isOpen) {
             await this._client.connect();
         }
         return this._client;
-    }
-
-    private mapConfig(dbConfig: any): TestRunConfig {
-        return {
-            ...dbConfig.config,
-            updated: dbConfig.updated.getTime(),
-            status: dbConfig.status,
-        };
     }
 }

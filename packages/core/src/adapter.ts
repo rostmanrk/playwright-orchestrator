@@ -7,20 +7,83 @@ import {
     TestSortItem,
     SortTestsOptions,
     GetTestIdParams,
+    HistoryItem,
 } from './types/adapters.js';
-import { TestRunReport } from './types/reporter.js';
-import { TestRunConfig, TestRun } from './types/test-info.js';
+import { TestReport, TestRunReport } from './types/reporter.js';
+import { TestRunConfig, TestRun, TestStatus } from './types/test-info.js';
 
 export abstract class Adapter {
     abstract getNextTest(runId: string, config: TestRunConfig): Promise<TestItem | undefined>;
-    abstract finishTest(params: ResultTestParams): Promise<void>;
-    abstract failTest(params: ResultTestParams): Promise<void>;
-    abstract saveTestRun(params: SaveTestRunParams): Promise<void>;
-    abstract initialize(): Promise<void>;
     abstract startShard(runId: string): Promise<TestRunConfig>;
     abstract finishShard(runId: string): Promise<void>;
-    abstract getReportData(runId: string): Promise<TestRunReport>;
+    abstract initialize(): Promise<void>;
     abstract dispose(): Promise<void>;
+    abstract getReportData(runId: string): Promise<TestRunReport>;
+
+    // Storage primitives — implemented per adapter
+    abstract loadTestInfos(tests: ReporterTestItem[]): Promise<Map<string, TestSortItem>>;
+    abstract saveRunData(runId: string, config: object, tests: ReporterTestItem[]): Promise<void>;
+    abstract getTestEma(testId: string): Promise<number>;
+    abstract saveTestHistory(
+        testId: string,
+        item: HistoryItem,
+        historyWindow: number,
+        newEma: number,
+    ): Promise<HistoryItem[]>;
+    abstract saveTestRunReport(
+        runId: string,
+        testId: string,
+        test: TestItem,
+        report: TestReport,
+        failed: boolean,
+    ): Promise<void>;
+
+    // Override to true for adapters that pop from the end of the queue (e.g. file)
+    protected get reverseSortOrder(): boolean {
+        return false;
+    }
+
+    async saveTestRun({ runId, args, historyWindow, testRun }: SaveTestRunParams): Promise<void> {
+        let tests = this.transformTestRunToItems(testRun.testRun);
+        const testInfos = await this.loadTestInfos(tests);
+        tests = this.sortTests(tests, testInfos, { historyWindow, reverse: this.reverseSortOrder });
+        await this.saveRunData(runId, { ...testRun.config, args, historyWindow }, tests);
+    }
+
+    async finishTest(params: ResultTestParams): Promise<void> {
+        await this.updateTestWithResults(TestStatus.Passed, params);
+    }
+
+    async failTest(params: ResultTestParams): Promise<void> {
+        await this.updateTestWithResults(TestStatus.Failed, params);
+    }
+
+    protected async updateTestWithResults(
+        status: TestStatus,
+        { runId, test, testResult, config }: ResultTestParams,
+    ): Promise<void> {
+        const testId = this.getTestId({ ...test, ...testResult });
+        const ema = await this.getTestEma(testId);
+        const newEma = this.calculateEMA(testResult.duration, ema, config.historyWindow);
+        const history = await this.saveTestHistory(
+            testId,
+            { status, duration: testResult.duration, updated: Date.now() },
+            config.historyWindow,
+            newEma,
+        );
+        const report: TestReport = {
+            file: test.file,
+            position: test.position,
+            project: test.project,
+            status,
+            duration: testResult.duration,
+            averageDuration: newEma,
+            title: testResult.title,
+            fails: history.filter((h) => h.status === TestStatus.Failed).length,
+            lastSuccessfulRunTimestamp: history.findLast((h) => h.status === TestStatus.Passed)?.updated,
+        };
+        await this.saveTestRunReport(runId, testId, test, report, status === TestStatus.Failed);
+    }
 
     protected transformTestRunToItems(run: TestRun): ReporterTestItem[] {
         const tests = Object.entries(run)

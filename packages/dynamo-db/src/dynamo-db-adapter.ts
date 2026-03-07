@@ -3,10 +3,12 @@ import {
     Adapter,
     TestRunConfig,
     RunStatus,
+    TestStatus,
     ReporterTestItem,
-    ResultTestParams,
-    SaveTestRunParams,
     TestSortItem,
+    TestRunReport,
+    HistoryItem,
+    TestReport,
 } from '@playwright-orchestrator/core';
 import { CreateArgs } from './create-args.js';
 import {
@@ -26,17 +28,9 @@ import {
     UpdateCommand,
     BatchGetCommand,
 } from '@aws-sdk/lib-dynamodb';
-import { TestRunReport } from '../../core/dist/types/reporter.js';
-import {
-    idToStatus,
-    mapDbTestInfoToSortItem,
-    mapDbToTestItem,
-    mapTestInfoItemToReport,
-    mapTestItemToDb,
-    parseStatus,
-} from './helpers.js';
+import { idToStatus, mapDbTestInfoToSortItem, mapDbToTestItem, mapTestItemToDb } from './helpers.js';
 import { Fields, OFFSET_STEP, StatusOffset } from './constants.js';
-import { DynamoResultTestParams, TestInfoItem, TestItemDb } from './types.js';
+import { TestInfoItem, TestItemDb } from './types.js';
 
 export class DynamoDbAdapter extends Adapter {
     private readonly client: DynamoDBClient;
@@ -79,27 +73,6 @@ export class DynamoDbAdapter extends Adapter {
         return await this.getNextTestByStatus(runId, StatusOffset.Pending);
     }
 
-    async finishTest(params: ResultTestParams): Promise<void> {
-        await this.addTestItem(StatusOffset.Succeed, params);
-    }
-
-    async failTest(params: ResultTestParams): Promise<void> {
-        await this.addTestItem(StatusOffset.Failed, params);
-    }
-
-    async saveTestRun(params: SaveTestRunParams): Promise<void> {
-        const { runId, testRun, historyWindow } = params;
-        let tests = this.transformTestRunToItems(testRun.testRun);
-        const historyItemMap = await this.loadTestInfoItems(tests);
-        tests = this.sortTests(tests, historyItemMap, { historyWindow });
-        await this.saveConfig(params);
-
-        // split the tests into batches to avoid exceeding the 25-item limit
-        for (let i = 0; i < tests.length; i += 25) {
-            await this.saveTestsBatch(runId, tests.slice(i, i + 25));
-        }
-    }
-
     async initialize(): Promise<void> {
         await this.createTestsTable();
         await this.enableTtl();
@@ -132,6 +105,112 @@ export class DynamoDbAdapter extends Adapter {
         };
     }
 
+    async loadTestInfos(tests: ReporterTestItem[]): Promise<Map<string, TestSortItem>> {
+        const testInfos = await this.queryTestInfo(tests);
+        const foundTestMap = new Map<string, TestSortItem>();
+        for (const item of testInfos) {
+            foundTestMap.set(item[Fields.Id], mapDbTestInfoToSortItem(item));
+        }
+        for (const test of tests) {
+            if (!foundTestMap.has(test.testId)) {
+                const testInfo = await this.createNewTestInfoItem(test.testId);
+                foundTestMap.set(test.testId, mapDbTestInfoToSortItem(testInfo));
+            }
+        }
+        return foundTestMap;
+    }
+
+    async saveRunData(runId: string, config: object, tests: ReporterTestItem[]): Promise<void> {
+        await this.docClient.send(
+            new PutCommand({
+                TableName: this.testsTableName,
+                Item: {
+                    [Fields.Id]: runId,
+                    [Fields.Order]: 0,
+                    [Fields.Config]: {
+                        ...config,
+                        status: RunStatus.Created,
+                        updated: Date.now(),
+                    },
+                    [Fields.Ttl]: this.getTtl(),
+                },
+            }),
+        );
+        for (let i = 0; i < tests.length; i += 25) {
+            await this.saveTestsBatch(runId, tests.slice(i, i + 25));
+        }
+    }
+
+    async getTestEma(testId: string): Promise<number> {
+        const stats = await this.getTestInfo(testId);
+        return stats?.[Fields.EMA] ?? 0;
+    }
+
+    async saveTestHistory(
+        testId: string,
+        item: HistoryItem,
+        historyWindow: number,
+        newEma: number,
+    ): Promise<HistoryItem[]> {
+        return this.saveTestHistoryWithRetry(testId, item, historyWindow, newEma, 0);
+    }
+
+    async saveTestRunReport(
+        runId: string,
+        testId: string,
+        test: TestItem,
+        report: TestReport,
+        failed: boolean,
+    ): Promise<void> {
+        const status = failed ? StatusOffset.Failed : StatusOffset.Succeed;
+        await this.docClient.send(
+            new PutCommand({
+                TableName: this.testsTableName,
+                Item: {
+                    ...mapTestItemToDb(runId, this.getTtl(), test, status),
+                    [Fields.Report]: {
+                        [Fields.Duration]: report.duration,
+                        [Fields.EMA]: report.averageDuration,
+                        [Fields.Title]: report.title,
+                        [Fields.Fails]: report.fails,
+                        [Fields.LastSuccess]: report.lastSuccessfulRunTimestamp ?? 0,
+                    },
+                },
+            }),
+        );
+    }
+
+    private async saveTestHistoryWithRetry(
+        testId: string,
+        item: HistoryItem,
+        historyWindow: number,
+        newEma: number,
+        retry: number,
+    ): Promise<HistoryItem[]> {
+        try {
+            const stats = await this.getTestInfo(testId);
+            if (!stats) return [];
+            const history = [
+                ...stats[Fields.History],
+                {
+                    [Fields.Duration]: item.duration,
+                    [Fields.Updated]: item.updated,
+                    [Fields.Status]: item.status,
+                },
+            ];
+            if (history.length > historyWindow) history.splice(0, history.length - historyWindow);
+            await this.saveTestInfoItem({ ...stats, [Fields.History]: history, [Fields.EMA]: newEma });
+            return history.map((h) => ({
+                status: h[Fields.Status] as TestStatus,
+                duration: h[Fields.Duration],
+                updated: h[Fields.Updated],
+            }));
+        } catch (error) {
+            if (!(error instanceof ConditionalCheckFailedException) || retry >= 5) throw error;
+            return this.saveTestHistoryWithRetry(testId, item, historyWindow, newEma, retry + 1);
+        }
+    }
+
     private async getConfig(runId: string): Promise<TestRunConfig> {
         const configRequest = await this.docClient.send(
             new GetCommand({
@@ -159,9 +238,18 @@ export class DynamoDbAdapter extends Adapter {
     private async updateFailedTests(runId: string, config: TestRunConfig): Promise<void> {
         let test = await this.getNextTestByStatus(runId, StatusOffset.Failed);
         while (test) {
-            await this.addTestItem(StatusOffset.Pending, { runId, test, config });
+            await this.addPendingTestItem(runId, test);
             test = await this.getNextTestByStatus(runId, StatusOffset.Failed);
         }
+    }
+
+    private async addPendingTestItem(runId: string, test: TestItem): Promise<void> {
+        await this.docClient.send(
+            new PutCommand({
+                TableName: this.testsTableName,
+                Item: mapTestItemToDb(runId, this.getTtl(), test, StatusOffset.Pending),
+            }),
+        );
     }
 
     private async queryNextTest(runId: string, start: number): Promise<TestItem | undefined> {
@@ -217,45 +305,6 @@ export class DynamoDbAdapter extends Adapter {
             return true;
         } catch (error) {
             return false;
-        }
-    }
-
-    private async addTestItem(status: StatusOffset, params: DynamoResultTestParams): Promise<void> {
-        const { runId, test } = params;
-        const stats = await this.updateTestInfo(params);
-        await this.docClient.send(
-            new PutCommand({
-                TableName: this.testsTableName,
-                Item: {
-                    ...mapTestItemToDb(runId, this.getTtl(), test, status),
-                    [Fields.Report]: mapTestInfoItemToReport(stats, params),
-                },
-            }),
-        );
-    }
-
-    private async updateTestInfo(args: DynamoResultTestParams, retry = 0): Promise<TestInfoItem | undefined> {
-        const { test, testResult, config } = args;
-        try {
-            if (!testResult) return;
-            const id = this.getTestId({ ...test, ...testResult });
-            const stats = await this.getTestInfo(id);
-            if (!stats) return;
-            const history = [...stats[Fields.History]];
-            history.push({
-                [Fields.Duration]: testResult.duration,
-                [Fields.Updated]: Date.now(),
-                [Fields.Status]: parseStatus(testResult.status),
-            });
-            if (history.length > config.historyWindow) history.splice(0, history.length - config.historyWindow);
-            const ema = this.calculateEMA(testResult.duration, stats[Fields.EMA], config.historyWindow);
-            await this.saveTestInfoItem({ ...stats, [Fields.History]: history, [Fields.EMA]: ema });
-            return stats;
-        } catch (error: any) {
-            if (!(error instanceof ConditionalCheckFailedException) || retry >= 5) {
-                throw error;
-            }
-            return this.updateTestInfo(args, retry + 1);
         }
     }
 
@@ -321,21 +370,6 @@ export class DynamoDbAdapter extends Adapter {
         );
     }
 
-    private async loadTestInfoItems(tests: ReporterTestItem[]): Promise<Map<string, TestSortItem>> {
-        const testInfos = await this.queryTestInfo(tests);
-        const foundTestMap = new Map<string, TestSortItem>();
-        for (const item of testInfos) {
-            foundTestMap.set(item[Fields.Id], mapDbTestInfoToSortItem(item));
-        }
-        for (const test of tests) {
-            if (!foundTestMap.has(test.testId)) {
-                const testInfo = await this.createNewTestInfoItem(test.testId);
-                foundTestMap.set(test.testId, mapDbTestInfoToSortItem(testInfo));
-            }
-        }
-        return foundTestMap;
-    }
-
     private async queryTestInfo(tests: ReporterTestItem[]): Promise<TestInfoItem[]> {
         const testInfos: TestInfoItem[] = [];
         for (var i = 0; i < tests.length; i += 100) {
@@ -373,26 +407,6 @@ export class DynamoDbAdapter extends Adapter {
             }),
         );
         return item;
-    }
-
-    private async saveConfig({ runId, args, historyWindow, testRun }: SaveTestRunParams): Promise<void> {
-        await this.docClient.send(
-            new PutCommand({
-                TableName: this.testsTableName,
-                Item: {
-                    [Fields.Id]: runId,
-                    [Fields.Order]: 0,
-                    [Fields.Config]: {
-                        ...testRun.config,
-                        args,
-                        status: RunStatus.Created,
-                        updated: Date.now(),
-                        historyWindow,
-                    },
-                    [Fields.Ttl]: this.getTtl(),
-                },
-            }),
-        );
     }
 
     private async enableTtl(): Promise<void> {

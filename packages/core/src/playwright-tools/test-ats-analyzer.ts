@@ -23,7 +23,7 @@ export class TestASTAnalyzer {
     }
 
     suiteIsSerial(suite: Suite) {
-        if (!suite.location || (suite.location.line === 0 && suite.location.column == 0)) {
+        if (!suite.location || (suite.location.line === 0 && suite.location.column === 0)) {
             return this.checkFileSerialStatement();
         }
         const suiteNode = this.findNodeAtLocation(suite.location);

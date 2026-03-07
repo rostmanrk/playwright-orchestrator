@@ -4,11 +4,11 @@ import {
     TestRunConfig,
     RunStatus,
     TestStatus,
-    ResultTestParams,
-    SaveTestRunParams,
     ReporterTestItem,
     TestSortItem,
     TestRunReport,
+    HistoryItem,
+    TestReport,
 } from '@playwright-orchestrator/core';
 import { CreateArgs } from './create-args.js';
 import pg from 'pg';
@@ -36,6 +36,7 @@ export class PostgreSQLAdapter extends Adapter {
         this.testInfoTable = pg.escapeIdentifier(`${tableNamePrefix}_test_info`);
         this.testInfoHistoryTable = pg.escapeIdentifier(`${tableNamePrefix}_test_info_history`);
     }
+
     async getNextTest(runId: string, config: TestRunConfig): Promise<TestItem | undefined> {
         const client = await this.pool.connect();
         try {
@@ -67,50 +68,6 @@ export class PostgreSQLAdapter extends Adapter {
         }
     }
 
-    async finishTest(params: ResultTestParams): Promise<void> {
-        await this.updateTestWithResults(TestStatus.Passed, params);
-    }
-    async failTest(params: ResultTestParams): Promise<void> {
-        await this.updateTestWithResults(TestStatus.Failed, params);
-    }
-    async saveTestRun({ runId, args, historyWindow, testRun }: SaveTestRunParams): Promise<void> {
-        let tests = this.transformTestRunToItems(testRun.testRun);
-        const testInfos = await this.loadTestInfos(tests);
-        tests = this.sortTests(tests, testInfos, { historyWindow });
-        const client = await this.pool.connect();
-        try {
-            await client.query('BEGIN');
-            await client.query({
-                text: `INSERT INTO ${this.configTable} (id, status, config) VALUES ($1, $2, $3)`,
-                values: [runId, RunStatus.Created, JSON.stringify({ ...testRun.config, args, historyWindow })],
-            });
-            if (tests.length > 0) {
-                const fields = ['order_num', 'file', 'line', 'character', 'project', 'timeout'];
-                await client.query({
-                    text: `INSERT INTO ${this.testsTable} (run_id, ${fields.join(', ')}) VALUES ${tests
-                        .map((_, i) => {
-                            const len = fields.length;
-                            const values = fields.map((_, j) => `$${i * len + j + 2}`).join(', ');
-                            return `($1, ${values})`;
-                        })
-                        .join(', ')}`,
-                    values: [
-                        runId,
-                        ...tests.flatMap(({ position, order, file, project, timeout }) => {
-                            const [line, character] = position.split(':');
-                            return [order, file, line, character, project, timeout];
-                        }),
-                    ],
-                });
-            }
-            await client.query('COMMIT');
-        } catch (e) {
-            await client.query('ROLLBACK');
-            throw e;
-        } finally {
-            client.release();
-        }
-    }
     async initialize(): Promise<void> {
         await this.pool.query(
             `CREATE TABLE IF NOT EXISTS ${this.configTable} (
@@ -152,6 +109,7 @@ export class PostgreSQLAdapter extends Adapter {
             CREATE INDEX IF NOT EXISTS test_info_id_idx ON ${this.testInfoHistoryTable}(test_info_id);`,
         );
     }
+
     async startShard(runId: string): Promise<TestRunConfig> {
         const client = await this.pool.connect();
         try {
@@ -247,82 +205,7 @@ export class PostgreSQLAdapter extends Adapter {
         };
     }
 
-    private async updateTestWithResults(
-        status: TestStatus,
-        { runId, test, config, testResult }: ResultTestParams,
-    ): Promise<void> {
-        const testId = this.getTestId({ ...test, ...testResult });
-        const {
-            rows: [testInfo],
-        } = await this.pool.query({
-            text: `SELECT
-                id,
-                ema,
-                (
-                    SELECT COUNT(*) FROM ${this.testInfoHistoryTable}
-                    WHERE status = ${TestStatus.Failed} AND test_info_id = info.id
-                ) AS fails,
-                (
-                    SELECT updated FROM ${this.testInfoHistoryTable}
-                    WHERE status = ${TestStatus.Passed} AND test_info_id = info.id
-                    ORDER BY updated DESC LIMIT 1
-                ) AS last_successful_run
-            FROM ${this.testInfoTable} info
-            WHERE name = $1`,
-            values: [testId],
-        });
-        const report = {
-            title: testResult.title,
-            status,
-            duration: testResult.duration,
-            ema: testInfo.ema,
-            fails: +testInfo.fails,
-            lastSuccessfulRun: testInfo.last_successful_run?.getTime?.(),
-        };
-
-        const newEma = this.calculateEMA(testResult.duration, testInfo.ema, config.historyWindow);
-        const client = await this.pool.connect();
-        try {
-            await client.query('BEGIN');
-            await client.query({
-                text: `UPDATE ${this.testsTable}
-                SET
-                    status = $1,
-                    updated = NOW(),
-                    report = $2
-                WHERE run_id = $3 AND order_num = $4;`,
-                values: [status, report, runId, test.order],
-            });
-            await client.query({
-                text: `UPDATE ${this.testInfoTable} SET ema = $1 WHERE id = $2;`,
-                values: [newEma, testInfo.id],
-            });
-            await client.query({
-                text: `INSERT INTO ${this.testInfoHistoryTable} (status, duration, updated, test_info_id)
-                VALUES ($1, $2, NOW(), $3);`,
-                values: [status, testResult.duration, testInfo.id],
-            });
-            await client.query({
-                text: `DELETE FROM ${this.testInfoHistoryTable}
-                WHERE id IN (
-                    SELECT id
-                    FROM ${this.testInfoHistoryTable}
-                    WHERE test_info_id = $1
-                    ORDER BY updated
-                    LIMIT GREATEST(0, (SELECT COUNT(*) FROM ${this.testInfoHistoryTable} WHERE test_info_id = $1) - $2)
-                )`,
-                values: [testInfo.id, config.historyWindow],
-            });
-            await client.query('COMMIT');
-        } catch (e) {
-            await client.query('ROLLBACK');
-            throw e;
-        } finally {
-            client.release();
-        }
-    }
-
-    private async loadTestInfos(tests: ReporterTestItem[]) {
+    async loadTestInfos(tests: ReporterTestItem[]): Promise<Map<string, TestSortItem>> {
         const results = await this.pool.query({
             text: `
             WITH test_names AS (
@@ -345,7 +228,7 @@ export class PostgreSQLAdapter extends Adapter {
                 UNION ALL
                 SELECT * FROM inserted_tests
             )
-            SELECT 
+            SELECT
                 t.id,
                 t.name,
                 t.ema,
@@ -361,6 +244,124 @@ export class PostgreSQLAdapter extends Adapter {
             testInfo.set(name, { ema, fails: +fails });
         }
         return testInfo;
+    }
+
+    async saveRunData(runId: string, config: object, tests: ReporterTestItem[]): Promise<void> {
+        const client = await this.pool.connect();
+        try {
+            await client.query('BEGIN');
+            await client.query({
+                text: `INSERT INTO ${this.configTable} (id, status, config) VALUES ($1, $2, $3)`,
+                values: [runId, RunStatus.Created, JSON.stringify(config)],
+            });
+            if (tests.length > 0) {
+                const fields = ['order_num', 'file', 'line', 'character', 'project', 'timeout'];
+                await client.query({
+                    text: `INSERT INTO ${this.testsTable} (run_id, ${fields.join(', ')}) VALUES ${tests
+                        .map((_, i) => {
+                            const len = fields.length;
+                            const values = fields.map((_, j) => `$${i * len + j + 2}`).join(', ');
+                            return `($1, ${values})`;
+                        })
+                        .join(', ')}`,
+                    values: [
+                        runId,
+                        ...tests.flatMap(({ position, order, file, project, timeout }) => {
+                            const [line, character] = position.split(':');
+                            return [order, file, line, character, project, timeout];
+                        }),
+                    ],
+                });
+            }
+            await client.query('COMMIT');
+        } catch (e) {
+            await client.query('ROLLBACK');
+            throw e;
+        } finally {
+            client.release();
+        }
+    }
+
+    async getTestEma(testId: string): Promise<number> {
+        const {
+            rows: [testInfo],
+        } = await this.pool.query({
+            text: `SELECT ema FROM ${this.testInfoTable} WHERE name = $1`,
+            values: [testId],
+        });
+        return testInfo?.ema ?? 0;
+    }
+
+    async saveTestHistory(
+        testId: string,
+        item: HistoryItem,
+        historyWindow: number,
+        newEma: number,
+    ): Promise<HistoryItem[]> {
+        const client = await this.pool.connect();
+        try {
+            await client.query('BEGIN');
+            const {
+                rows: [{ id }],
+            } = await client.query({
+                text: `UPDATE ${this.testInfoTable} SET ema = $1 WHERE name = $2 RETURNING id`,
+                values: [newEma, testId],
+            });
+            await client.query({
+                text: `INSERT INTO ${this.testInfoHistoryTable} (status, duration, updated, test_info_id) VALUES ($1, $2, NOW(), $3)`,
+                values: [item.status, item.duration, id],
+            });
+            await client.query({
+                text: `DELETE FROM ${this.testInfoHistoryTable}
+                WHERE id IN (
+                    SELECT id
+                    FROM ${this.testInfoHistoryTable}
+                    WHERE test_info_id = $1
+                    ORDER BY updated
+                    LIMIT GREATEST(0, (SELECT COUNT(*) FROM ${this.testInfoHistoryTable} WHERE test_info_id = $1) - $2)
+                )`,
+                values: [id, historyWindow],
+            });
+            const { rows } = await client.query({
+                text: `SELECT status, duration, EXTRACT(EPOCH FROM updated) * 1000 AS updated
+                       FROM ${this.testInfoHistoryTable} WHERE test_info_id = $1 ORDER BY updated`,
+                values: [id],
+            });
+            await client.query('COMMIT');
+            return rows.map(({ status, duration, updated }) => ({ status: +status as TestStatus, duration, updated: +updated }));
+        } catch (e) {
+            await client.query('ROLLBACK');
+            throw e;
+        } finally {
+            client.release();
+        }
+    }
+
+    async saveTestRunReport(
+        runId: string,
+        testId: string,
+        test: TestItem,
+        report: TestReport,
+        failed: boolean,
+    ): Promise<void> {
+        await this.pool.query({
+            text: `UPDATE ${this.testsTable}
+            SET status = $1, updated = NOW(), report = $2
+            WHERE run_id = $3 AND order_num = $4`,
+            values: [
+                report.status,
+                {
+                    title: report.title,
+                    status: report.status,
+                    duration: report.duration,
+                    ema: report.averageDuration,
+                    fails: report.fails,
+                    lastSuccessfulRun: report.lastSuccessfulRunTimestamp,
+                },
+                runId,
+                test.order,
+            ],
+        });
     }
 
     private mapConfig(dbConfig: any): TestRunConfig {
