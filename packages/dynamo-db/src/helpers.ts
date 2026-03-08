@@ -71,3 +71,7 @@ export function mapDbTestInfoToSortItem(item: TestInfoItem): TestSortItem {
         fails: item[Fields.History].filter((h) => h[Fields.Status] === TestStatus.Failed).length,
     };
 }
+
+export function getTtl(ttl: number): number {
+    return Math.floor(Date.now() / 1000) + ttl;
+}

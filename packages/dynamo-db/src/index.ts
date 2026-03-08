@@ -1,9 +1,21 @@
 import { Command, Option } from '@commander-js/extra-typings';
-import { CreateArgs } from './create-args.js';
+import { Container } from 'inversify';
+import { SYMBOLS } from '@playwright-orchestrator/core';
+import type { CreateArgs } from './create-args.js';
 import { DynamoDbAdapter } from './dynamo-db-adapter.js';
+import { DynamoDbShardHandler } from './dynamo-db-shard-handler.js';
+import { DynamoDbInitializer } from './dynamo-db-initializer.js';
+import { DynamoDbTestRunCreator } from './dynamo-db-test-run-creator.js';
+import { DynamoDbConnection } from './dynamo-db-connection.js';
+import { DYNAMO_CONFIG, DYNAMO_CONNECTION } from './symbols.js';
 
-export async function factory(args: CreateArgs) {
-    return new DynamoDbAdapter(args);
+export function register(container: Container, options: CreateArgs): void {
+    container.bind(DYNAMO_CONFIG).toConstantValue(options);
+    container.bind(DYNAMO_CONNECTION).to(DynamoDbConnection).inSingletonScope();
+    container.bind(SYMBOLS.Adapter).to(DynamoDbAdapter).inSingletonScope();
+    container.bind(SYMBOLS.ShardHandler).to(DynamoDbShardHandler).inSingletonScope();
+    container.bind(SYMBOLS.Initializer).to(DynamoDbInitializer).inSingletonScope();
+    container.bind(SYMBOLS.TestRunCreator).to(DynamoDbTestRunCreator).inSingletonScope();
 }
 
 export function createOptions(command: Command) {

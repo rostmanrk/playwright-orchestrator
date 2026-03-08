@@ -1,9 +1,21 @@
 import { Command, Option } from '@commander-js/extra-typings';
-import { CreateArgs } from './create-args.js';
+import { Container } from 'inversify';
+import { SYMBOLS } from '@playwright-orchestrator/core';
+import type { CreateArgs } from './create-args.js';
 import { RedisAdapter } from './redis-adapter.js';
+import { RedisShardHandler } from './redis-shard-handler.js';
+import { RedisInitializer } from './redis-initializer.js';
+import { RedisTestRunCreator } from './redis-test-run-creator.js';
+import { RedisConnection } from './redis-connection.js';
+import { REDIS_CONFIG, REDIS_CONNECTION } from './symbols.js';
 
-export async function factory(args: CreateArgs) {
-    return new RedisAdapter(args);
+export function register(container: Container, options: CreateArgs): void {
+    container.bind(REDIS_CONFIG).toConstantValue(options);
+    container.bind(REDIS_CONNECTION).to(RedisConnection).inSingletonScope();
+    container.bind(SYMBOLS.Adapter).to(RedisAdapter).inSingletonScope();
+    container.bind(SYMBOLS.ShardHandler).to(RedisShardHandler).inSingletonScope();
+    container.bind(SYMBOLS.Initializer).to(RedisInitializer).inSingletonScope();
+    container.bind(SYMBOLS.TestRunCreator).to(RedisTestRunCreator).inSingletonScope();
 }
 
 export function createOptions(command: Command) {

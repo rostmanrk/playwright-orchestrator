@@ -8,25 +8,27 @@ import { TestExecutionReporter } from './reporters/test-execution-reporter.js';
 import { TestReportResult } from './types/reporter.js';
 import path from 'node:path';
 import * as uuid from 'uuid';
-import { Adapter } from './adapter.js';
+import { injectable, inject } from 'inversify';
+import type { Adapter } from './adapters/adapter.js';
+import type { ShardHandler } from './adapters/shard-handler.js';
+import { SYMBOLS } from './container.js';
 
 const exec = promisify(child_process.exec);
 
+@injectable()
 export class TestRunner {
-    private readonly runId: string;
-    private readonly outputFolder: string;
     private readonly reporter = new TestExecutionReporter();
+
     constructor(
-        options: { runId: string; output: string },
-        private readonly adapter: Adapter,
-    ) {
-        this.runId = options.runId;
-        this.outputFolder = options.output;
-    }
+        @inject(SYMBOLS.RunId) private readonly runId: string,
+        @inject(SYMBOLS.OutputFolder) private readonly outputFolder: string,
+        @inject(SYMBOLS.Adapter) private readonly adapter: Adapter,
+        @inject(SYMBOLS.ShardHandler) private readonly shardHandler: ShardHandler,
+    ) {}
 
     async runTests() {
         await this.removePreviousReports();
-        const config = await this.adapter.startShard(this.runId);
+        const config = await this.shardHandler.startShard(this.runId);
         config.configFile = await this.createTempConfig(config.configFile);
 
         const cleanupTempFile = () => {
@@ -46,8 +48,7 @@ export class TestRunner {
             process.off('SIGTERM', signalHandler);
             this.reporter.printSummary();
             try {
-                await this.adapter.finishShard(this.runId);
-                await this.adapter.dispose();
+                await this.shardHandler.finishShard(this.runId);
             } finally {
                 cleanupTempFile();
             }
@@ -56,14 +57,14 @@ export class TestRunner {
 
     private async runTestsUntilAvailable(config: TestRunConfig) {
         const runningTests = new Set<Promise<void>>();
-        let next = await this.adapter.getNextTest(this.runId, config);
+        let next = await this.shardHandler.getNextTest(this.runId, config);
         while (next || runningTests.size > 0) {
             if (next && runningTests.size < config.workers) {
                 const testPromise = this.runTest(next, config).then(() => {
                     runningTests.delete(testPromise);
                 });
                 runningTests.add(testPromise);
-                next = await this.adapter.getNextTest(this.runId, config);
+                next = await this.shardHandler.getNextTest(this.runId, config);
             } else {
                 await Promise.race(runningTests);
             }
