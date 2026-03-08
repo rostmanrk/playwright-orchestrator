@@ -2,7 +2,6 @@ import { injectable, inject } from 'inversify';
 import { BaseTestRunCreator, TestStatus, RunStatus } from '@playwright-orchestrator/core';
 import type { ReporterTestItem, TestSortItem, TestRunConfig } from '@playwright-orchestrator/core';
 import type { CreateArgs } from './create-args.js';
-import { lock } from 'proper-lockfile';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { FILE_CONFIG } from './symbols.js';
@@ -64,5 +63,4 @@ export class FileTestRunCreator extends BaseTestRunCreator {
         await writeFile(getRunIdFilePath(this.dir, runId), JSON.stringify(tests, null, 2));
         await writeFile(getResultsRunPath(this.dir, runId), '[]');
     }
-
 }

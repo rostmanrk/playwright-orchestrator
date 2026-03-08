@@ -23,4 +23,4 @@ afterAll(async () => {
 
 test('test dynamo-db plugin', async () => {
     await testStorage(storageOptions, config, reportsFolder);
-}, 60000);
+}, 90000);

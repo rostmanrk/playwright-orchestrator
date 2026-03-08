@@ -205,6 +205,9 @@ export class MySQLAdapter extends BaseAdapter {
             ],
         });
         await client.commit();
+        } catch (err) {
+            await client.rollback();
+            throw err;
         } finally {
             client.release();
         }

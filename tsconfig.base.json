@@ -13,8 +13,6 @@
         "resolveJsonModule": true,
         "declaration": true,
         "sourceMap": true,
-        "composite": true,
-        "experimentalDecorators": true,
-        "emitDecoratorMetadata": true
+        "composite": true
     }
 }

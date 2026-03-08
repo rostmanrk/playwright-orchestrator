@@ -62,10 +62,8 @@ export class RunBuilder {
     }
 
     private getAnnotations(entry: TestCase | Suite) {
-        if (entry.type === 'test') {
-            return entry.annotations;
-        }
-        return entry.allTests()[0]?.annotations;
+        const annotations = entry.type === 'test' ? entry.annotations : entry.allTests()[0]?.annotations;
+        return annotations?.map(({ type, description }) => ({ type, description }));
     }
 
     private getFileTests(file: string) {

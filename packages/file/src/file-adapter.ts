@@ -72,18 +72,30 @@ export class FileAdapter extends BaseAdapter {
         return history[testId]?.ema ?? 0;
     }
 
-    async saveTestResult({ runId, testId, test, item, historyWindow, newEma, title }: SaveTestResultParams): Promise<void> {
+    async saveTestResult({
+        runId,
+        testId,
+        test,
+        item,
+        historyWindow,
+        newEma,
+        title,
+    }: SaveTestResultParams): Promise<void> {
         const historyFile = getHistoryRunPath(this.dir);
+        let testItem: TestHistoryItem;
         const releaseHistory = await lock(historyFile, { retries: 100 });
-        const history = JSON.parse(await readFile(historyFile, 'utf-8')) as Record<string, TestHistoryItem>;
-        const testItem = history[testId];
-        testItem.history.push({ duration: item.duration, status: item.status, updated: item.updated });
-        if (testItem.history.length > historyWindow) {
-            testItem.history.splice(0, testItem.history.length - historyWindow);
+        try {
+            const history = JSON.parse(await readFile(historyFile, 'utf-8')) as Record<string, TestHistoryItem>;
+            testItem = history[testId];
+            testItem.history.push({ duration: item.duration, status: item.status, updated: item.updated });
+            if (testItem.history.length > historyWindow) {
+                testItem.history.splice(0, testItem.history.length - historyWindow);
+            }
+            testItem.ema = newEma;
+            await writeFile(historyFile, JSON.stringify(history, null, 2));
+        } finally {
+            await releaseHistory();
         }
-        testItem.ema = newEma;
-        await writeFile(historyFile, JSON.stringify(history, null, 2));
-        await releaseHistory();
         const historyItems: HistoryItem[] = testItem.history.map((h) => ({
             status: h.status,
             duration: h.duration,
@@ -92,21 +104,23 @@ export class FileAdapter extends BaseAdapter {
         const report = this.buildReport(test, item, title, newEma, historyItems);
         const resultsFile = getResultsRunPath(this.dir, runId);
         const releaseResults = await lock(resultsFile, { retries: 100 });
-        const results = JSON.parse(await readFile(resultsFile, 'utf-8')) as ResultTestItem[];
-        results.push({
-            testId,
-            ...test,
-            status: report.status,
-            report: {
-                duration: report.duration,
-                ema: report.averageDuration,
-                fails: report.fails,
-                title: report.title,
-                lastSuccessfulRunTimestamp: report.lastSuccessfulRunTimestamp,
-            },
-        });
-        await writeFile(resultsFile, JSON.stringify(results, null, 2));
-        await releaseResults();
+        try {
+            const results = JSON.parse(await readFile(resultsFile, 'utf-8')) as ResultTestItem[];
+            results.push({
+                testId,
+                ...test,
+                status: report.status,
+                report: {
+                    duration: report.duration,
+                    ema: report.averageDuration,
+                    fails: report.fails,
+                    title: report.title,
+                    lastSuccessfulRunTimestamp: report.lastSuccessfulRunTimestamp,
+                },
+            });
+            await writeFile(resultsFile, JSON.stringify(results, null, 2));
+        } finally {
+            await releaseResults();
+        }
     }
-
 }

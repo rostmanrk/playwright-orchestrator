@@ -1,4 +1,4 @@
-import type { ResultTestParams, SaveTestResultParams } from '../types/adapters.js';
+import type { ResultTestParams } from '../types/adapters.js';
 import type { TestRunReport } from '../types/reporter.js';
 
 export interface Adapter {

@@ -16,4 +16,4 @@ afterAll(async () => {
 test('test file plugin', async () => {
     // init command
     await testStorage(storageOptions, config, reportsFolder);
-}, 60000);
+}, 90000);

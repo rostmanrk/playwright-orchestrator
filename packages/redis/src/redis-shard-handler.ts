@@ -5,6 +5,7 @@ import type { TestItem, TestRunConfig } from '@playwright-orchestrator/core';
 import type { CreateArgs } from './create-args.js';
 import { RedisConnection } from './redis-connection.js';
 import { REDIS_CONFIG, REDIS_CONNECTION } from './symbols.js';
+import { exec } from 'child_process';
 
 const TESTS = 'T';
 const TEST_RUN = 'TR';
@@ -13,13 +14,15 @@ const TEST_RUN = 'TR';
 export class RedisShardHandler implements ShardHandler {
     private readonly _namePrefix: string;
     private readonly connection: RedisConnection;
+    private readonly ttl: number;
 
     constructor(
-        @inject(REDIS_CONFIG) { namePrefix }: CreateArgs,
+        @inject(REDIS_CONFIG) { namePrefix, ttl }: CreateArgs,
         @inject(REDIS_CONNECTION) connection: RedisConnection,
     ) {
         this._namePrefix = namePrefix;
         this.connection = connection;
+        this.ttl = ttl * 24 * 60 * 60;
     }
 
     async getNextTest(runId: string, _config: TestRunConfig): Promise<TestItem | undefined> {
@@ -53,8 +56,10 @@ export class RedisShardHandler implements ShardHandler {
                     transaction.rPush(`${queueKey}:queue`, JSON.stringify(el));
                 }
             }
-            transaction.set(statusKey, status === RunStatus.Created ? RunStatus.Run : RunStatus.RepeatRun);
-            transaction.set(updatedKey, new Date().getTime());
+            transaction.set(statusKey, status === RunStatus.Created ? RunStatus.Run : RunStatus.RepeatRun, {
+                EX: this.ttl,
+            });
+            transaction.set(updatedKey, new Date().getTime(), { EX: this.ttl });
             await transaction.exec();
         }
         return this.loadTestRunConfig(runId);
@@ -63,10 +68,11 @@ export class RedisShardHandler implements ShardHandler {
     async finishShard(runId: string): Promise<void> {
         const key = `${this._namePrefix}:${TEST_RUN}:${runId}`;
         const client = await this.connection.getClient();
-        await Promise.all([
-            client.set(`${key}:status`, RunStatus.Finished),
-            client.set(`${key}:updated`, new Date().getTime()),
-        ]);
+        await client
+            .multi()
+            .set(`${key}:status`, RunStatus.Finished, { EX: this.ttl })
+            .set(`${key}:updated`, new Date().getTime(), { EX: this.ttl })
+            .exec();
     }
 
     private async loadTestRunConfig(runId: string): Promise<TestRunConfig> {

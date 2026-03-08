@@ -61,7 +61,15 @@ export class RedisAdapter extends BaseAdapter {
         return +((await client.get(`${this._namePrefix}:${TEST_INFO}:${testId}:ema`)) ?? 0);
     }
 
-    async saveTestResult({ runId, testId, test, item, historyWindow, newEma, title }: SaveTestResultParams): Promise<void> {
+    async saveTestResult({
+        runId,
+        testId,
+        test,
+        item,
+        historyWindow,
+        newEma,
+        title,
+    }: SaveTestResultParams): Promise<void> {
         const client = await this.connection.getClient();
         const baseTestInfoKey = `${this._namePrefix}:${TEST_INFO}:${testId}`;
         const updateOptions: SetOptions = { EX: this.ttl };
@@ -87,8 +95,7 @@ export class RedisAdapter extends BaseAdapter {
         const reportKey = `${this._namePrefix}:${TEST_RUN}:${runId}:report`;
         const pipeline = client
             .multi()
-            .set(`${baseTestInfoKey}:fails`, report.fails)
-            .expire(`${baseTestInfoKey}:fails`, this.ttl)
+            .set(`${baseTestInfoKey}:fails`, report.fails, updateOptions)
             .lPush(reportKey, JSON.stringify({ ...report, testId }))
             .expire(reportKey, this.ttl);
         if (item.status === TestStatus.Failed) {

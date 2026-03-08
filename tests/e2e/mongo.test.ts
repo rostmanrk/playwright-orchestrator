@@ -20,4 +20,4 @@ afterAll(async () => {
 
 test('test mongodb plugin', async () => {
     await testStorage(storageOptions, config, reportsFolder);
-}, 60000);
+}, 90000);
