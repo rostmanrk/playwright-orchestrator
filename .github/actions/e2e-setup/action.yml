@@ -13,7 +13,7 @@ runs:
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: "20"
+        node-version: "22"
         cache: "npm"
 
     - name: Install dependencies
@@ -32,7 +32,7 @@ runs:
       id: version
       run: |
         echo ${{ inputs.install-browser }}
-        echo "PLAYWRIGHT_VERSION=$(npm why @playwright/test --json | jq '.[0].version' -r)" >> $GITHUB_ENV
+        echo "PLAYWRIGHT_VERSION=$(npm why @playwright/test --json | jq '.[0].version' -r)" >> $GITHUB_OUTPUT
 
     - name: Cache Playwright
       if: ${{ inputs.install-browser == 'true' }}
@@ -40,7 +40,7 @@ runs:
       uses: actions/cache@v4
       with:
         path: ~/.cache/ms-playwright
-        key: playwright-${{ env.PLAYWRIGHT_VERSION }}
+        key: playwright-${{ runner.os }}-${{ steps.version.outputs.PLAYWRIGHT_VERSION }}
 
     - name: Install Playwright browsers
       shell: bash

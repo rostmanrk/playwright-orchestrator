@@ -16,11 +16,14 @@ export async function spawnAsync(command: string, args: string[] = [], options?:
         });
 
         child.on('close', (code) => {
+            if (code !== 0) {
+                return reject({ stdout, stderr, error: new Error(`Process exited with code ${code}`) });
+            }
             resolve({ stdout, stderr });
         });
 
         child.on('error', (err) => {
-            reject(err);
+            reject({ stdout, stderr, error: err });
         });
     });
 }

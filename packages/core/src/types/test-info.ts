@@ -1,8 +1,11 @@
-import type { TestDetailsAnnotation } from '@playwright/test';
+import type { TestDetailsAnnotation, FullConfig } from '@playwright/test';
+
+export type UseOptions = FullConfig['projects'][number]['use'];
 
 export interface Project {
     name: string;
     outputDir: string;
+    use: UseOptions;
 }
 
 export interface TestConfig {

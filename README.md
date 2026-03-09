@@ -224,11 +224,11 @@ Use MySQL as storage.
 
 Use Redis as storage.
 
-| Option                | Description          | Type     | Default | Required? |
-| --------------------- | -------------------- | -------- | ------- | --------- |
-| `--connection-string` | Connection string    | `string` | -       | yes       |
-| `--name-prefix`       | Records name prefix  | `string` | `'pw'`  | no        |
-| `--ttl`               | TTL in days          | `number` | 60      | no        |
+| Option                | Description         | Type     | Default | Required? |
+| --------------------- | ------------------- | -------- | ------- | --------- |
+| `--connection-string` | Connection string   | `string` | -       | yes       |
+| `--name-prefix`       | Records name prefix | `string` | `'pw'`  | no        |
+| `--ttl`               | TTL in days         | `number` | 30      | no        |
 
 ### `mongo`
 
@@ -276,6 +276,8 @@ Licensed under the Apache License 2.0. See LICENSE.md for details.
 - ✅ ~~Smarter test ordering based on previous execution duration~~
 - ✅ ~~GHA reporter~~
 - ✅ ~~Redis adapter~~
+- ✅ ~~Browser reuse (performance improvement)~~
+- ⬜ Test batching (performance improvement)
 - ⬜ Even more adapters (by request)
 - ⬜ More examples
 - ⬜ Create Documentation site.

@@ -59,7 +59,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: ./.github/actions/test-setup
+      - uses: ./.github/actions/e2e-setup
       - name: Run tests
         run: npm test -- file.test.ts
 
@@ -89,7 +89,7 @@ jobs:
           nohup java -Djava.library.path=./DynamoDBLocal_lib -jar DynamoDBLocal.jar -sharedDb &
           sleep 2
 
-      - uses: ./.github/actions/test-setup
+      - uses: ./.github/actions/e2e-setup
       - name: Run tests
         run: npm test -- dynamo-db.test.ts
 
@@ -111,7 +111,7 @@ jobs:
           --health-retries 5
     steps:
       - uses: actions/checkout@v4
-      - uses: ./.github/actions/test-setup
+      - uses: ./.github/actions/e2e-setup
       - name: Run tests
         run: npm test -- pg.test.ts
 
@@ -134,7 +134,7 @@ jobs:
           --health-retries 5
     steps:
       - uses: actions/checkout@v4
-      - uses: ./.github/actions/test-setup
+      - uses: ./.github/actions/e2e-setup
       - name: Run tests
         run: npm test -- mysql.test.ts
 
@@ -152,9 +152,29 @@ jobs:
           MONGO_INITDB_ROOT_PASSWORD: password
     steps:
       - uses: actions/checkout@v4
-      - uses: ./.github/actions/test-setup
+      - uses: ./.github/actions/e2e-setup
       - name: Run tests
         run: npm test -- mongo.test.ts
+
+  test-redis:
+    needs: check-changes
+    if: contains(needs.check-changes.outputs.projects, 'core') || contains(needs.check-changes.outputs.projects, 'redis')
+    runs-on: ubuntu-latest
+    services:
+      test:
+        image: redis
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/e2e-setup
+      - name: Run tests
+        run: npm test -- redis.test.ts
 
   test-passed:
     runs-on: ubuntu-latest
@@ -165,6 +185,7 @@ jobs:
       - "test-pg"
       - "test-mysql"
       - "test-mongo"
+      - "test-redis"
     if: always()
     steps:
       - name: Check if all tests passed

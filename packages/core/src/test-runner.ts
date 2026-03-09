@@ -11,6 +11,7 @@ import type { Adapter } from './adapters/adapter.js';
 import type { ShardHandler } from './adapters/shard-handler.js';
 import { SYMBOLS } from './container.js';
 import { spawnAsync } from './helpers/spawn.js';
+import { BrowserManager } from './browser-manager.js';
 
 @injectable()
 export class TestRunner {
@@ -21,12 +22,14 @@ export class TestRunner {
         @inject(SYMBOLS.OutputFolder) private readonly outputFolder: string,
         @inject(SYMBOLS.Adapter) private readonly adapter: Adapter,
         @inject(SYMBOLS.ShardHandler) private readonly shardHandler: ShardHandler,
+        @inject(SYMBOLS.BrowserManager) private readonly browserManager: BrowserManager,
     ) {}
 
     async runTests() {
         await this.removePreviousReports();
         const config = await this.shardHandler.startShard(this.runId);
-        config.configFile = await this.createTempConfig(config.configFile);
+        const browserLinks = await this.browserManager.runBrowsers(config);
+        config.configFile = await this.createTempConfig(config.configFile, browserLinks);
 
         const cleanupTempFile = () => {
             if (config.configFile) rm(config.configFile, { force: true }).catch(() => {});
@@ -124,13 +127,31 @@ export class TestRunner {
         return args;
     }
 
-    private async createTempConfig(file: string | undefined): Promise<string | undefined> {
+    private async createTempConfig(
+        file: string | undefined,
+        browsers: Record<string, string>,
+    ): Promise<string | undefined> {
         if (!file) return;
         // Remove webServer from the config. Not supported in the orchestrator
         const content = `
-        import config from '${path.resolve(file)}';
-        delete config.webServer;
-        export default config;`;
+import config from '${path.resolve(file)}';
+
+const browsers = ${JSON.stringify(browsers)};
+
+config.webServer = undefined;
+for (const project of config?.projects ?? []) {
+    if (!project.use) {
+        project.use = {};
+    }
+    if (!project.use.connectOptions) {
+        project.use.connectOptions = {};
+    }
+    if(!project.use.connectOptions.wsEndpoint) {
+        project.use.connectOptions.wsEndpoint = browsers[project.name];
+    }
+}
+
+export default config;`;
 
         const tempFile = `.playwright-${uuid.v7()}.config.tmp.ts`;
         await writeFile(tempFile, content);
