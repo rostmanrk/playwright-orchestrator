@@ -22,8 +22,3 @@ runs:
     - name: Build
       shell: bash
       run: pnpm run build
-
-    - name: link packages
-      shell: bash
-      run: |
-        pnpm run link-packages

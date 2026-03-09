@@ -1,8 +1,17 @@
 lockfileVersion: '9.0'
 
 settings:
-  autoInstallPeers: false
+  autoInstallPeers: true
   excludeLinksFromLockfile: false
+
+overrides:
+  '@playwright-orchestrator/core': workspace:*
+  '@playwright-orchestrator/dynamo-db': workspace:*
+  '@playwright-orchestrator/file': workspace:*
+  '@playwright-orchestrator/mongo': workspace:*
+  '@playwright-orchestrator/mysql': workspace:*
+  '@playwright-orchestrator/pg': workspace:*
+  '@playwright-orchestrator/redis': workspace:*
 
 importers:
 
@@ -56,6 +65,27 @@ importers:
       '@commander-js/extra-typings':
         specifier: ^13.0.0
         version: 13.1.0(commander@13.1.0)
+      '@playwright-orchestrator/dynamo-db':
+        specifier: workspace:*
+        version: link:../dynamo-db
+      '@playwright-orchestrator/file':
+        specifier: workspace:*
+        version: link:../file
+      '@playwright-orchestrator/mongo':
+        specifier: workspace:*
+        version: link:../mongo
+      '@playwright-orchestrator/mysql':
+        specifier: workspace:*
+        version: link:../mysql
+      '@playwright-orchestrator/pg':
+        specifier: workspace:*
+        version: link:../pg
+      '@playwright-orchestrator/redis':
+        specifier: workspace:*
+        version: link:../redis
+      '@playwright/test':
+        specifier: ^1.44.0
+        version: 1.58.2
       ansi-escapes:
         specifier: ^7.0.0
         version: 7.3.0
@@ -71,6 +101,9 @@ importers:
       inversify:
         specifier: ^8.0.0-beta.0
         version: 8.0.0-beta.0(reflect-metadata@0.2.2)
+      playwright:
+        specifier: ^1.44.0
+        version: 1.58.2
       reflect-metadata:
         specifier: ^0.2.2
         version: 0.2.2

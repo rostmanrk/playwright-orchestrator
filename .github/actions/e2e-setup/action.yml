@@ -29,8 +29,6 @@ runs:
       shell: bash
       run: |
         pnpm run build
-        pnpm run link-packages
-        pnpm run cli-permissions
 
     - name: Get Playwright version
       shell: bash
