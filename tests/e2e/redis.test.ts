@@ -14,12 +14,12 @@ const storageOptions = [
 
 beforeAll(async () => {
     if (process.env.CI) return;
-    await spawnAsync('npm', ['run', 'redis-local', '--', 'up', 'test', '--wait']);
+    await spawnAsync('pnpm', ['redis-local', 'up', 'test', '--wait']);
 });
 
 afterAll(async () => {
     if (process.env.CI) return;
-    await spawnAsync('npm', ['run', 'redis-local', '--', 'down', 'test']);
+    await spawnAsync('pnpm', ['redis-local', 'down', 'test']);
     await rm(reportsFolder, { recursive: true, force: true });
 });
 

@@ -13,12 +13,12 @@ beforeAll(async () => {
     process.env.AWS_SECRET_ACCESS_KEY = 'local';
     process.env.AWS_REGION = 'local';
     if (process.env.CI) return;
-    await spawnAsync('npm', ['run', 'dynamo-local', '--', 'up', 'test', '--wait']);
+    await spawnAsync('pnpm', ['dynamo-local', 'up', 'test', '--wait']);
 });
 
 afterAll(async () => {
     if (process.env.CI) return;
-    await spawnAsync('npm', ['run', 'dynamo-local', '--', 'down', 'test']);
+    await spawnAsync('pnpm', ['dynamo-local', 'down', 'test']);
     await rm(reportsFolder, { recursive: true, force: true });
 });
 

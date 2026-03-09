@@ -10,12 +10,12 @@ const storageOptions = ['pg', '--connection-string', 'postgres://postgres:passwo
 
 beforeAll(async () => {
     if (process.env.CI) return;
-    await spawnAsync('npm', ['run', 'pg-local', '--', 'up', 'test', '--wait']);
+    await spawnAsync('pnpm', ['pg-local', 'up', 'test', '--wait']);
 });
 
 afterAll(async () => {
     if (process.env.CI) return;
-    await spawnAsync('npm', ['run', 'pg-local', '--', 'down', 'test']);
+    await spawnAsync('pnpm', ['pg-local', 'down', 'test']);
     await rm(reportsFolder, { recursive: true, force: true });
 });
 

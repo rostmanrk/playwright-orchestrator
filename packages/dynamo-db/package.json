@@ -14,7 +14,7 @@
     ],
     "dependencies": {
         "@commander-js/extra-typings": "^13.0.0",
-        "@playwright-orchestrator/core": "^1.1.0",
+        "@playwright-orchestrator/core": "workspace:*",
         "commander": "^13.0.0",
         "@aws-sdk/client-dynamodb": "^3.724.0",
         "inversify": "^8.0.0-beta.0",

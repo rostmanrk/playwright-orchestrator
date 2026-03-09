@@ -4,7 +4,8 @@ import path from 'node:path';
 import { spawnAsync } from '../packages/core/src/helpers/spawn.js';
 
 test('test custom info reporter', async () => {
-    const commandResult = await spawnAsync('npx', [
+    const commandResult = await spawnAsync('pnpm', [
+        'exec',
         'playwright',
         'test',
         '--list',

@@ -4,30 +4,26 @@
     "engines": {
         "node": ">=18.0.0"
     },
+    "packageManager": "pnpm@10.28.0",
     "directories": {
         "test": "tests"
     },
-    "workspaces": [
-        "packages/*"
-    ],
     "scripts": {
         "watch": "tsc -b -w",
         "test": "vitest run --pool threads",
         "build": "tsc -b --clean && tsc -b --sourceMap false",
-        "build:dev": "npm run build && npm run link-packages && npm run cli-permissions",
         "test-update": "vitest -u",
         "start": "node --inspect packages/core/dist/cli",
-        "cli-permissions": "chmod +x ./packages/core/dist/cli.js",
-        "link-packages": "chmod +x ./scripts/link-packages.sh && ./scripts/link-packages.sh",
         "dynamo-local": "podman compose -f ./packages/dynamo-db/compose.yml",
         "pg-local": "podman compose -f ./packages/pg/compose.yml",
         "mysql-local": "podman compose -f ./packages/mysql/compose.yml",
         "mongo-local": "podman compose -f ./packages/mongo/compose.yml",
         "redis-local": "podman compose -f ./packages/redis/compose.yml",
-        "version:patch": "npm version patch --workspaces && npm version patch --git-tag-version false",
-        "version:minor": "npm version minor --workspaces && npm version minor --git-tag-version false",
-        "version:major": "npm version major --workspaces && npm version major --git-tag-version false"
+        "version:patch": "pnpm -r exec -- npm version patch --no-git-tag-version && npm version patch --git-tag-version false",
+        "version:minor": "pnpm -r exec -- npm version minor --no-git-tag-version && npm version minor --git-tag-version false",
+        "version:major": "pnpm -r exec -- npm version major --no-git-tag-version && npm version major --git-tag-version false"
     },
+    "private": true,
     "keywords": [],
     "author": "Rostyslav Kudrevatykh",
     "license": "Apache-2.0",
@@ -37,8 +33,16 @@
         "url": "git+https://github.com/rostmanrk/playwright-orchestrator.git"
     },
     "devDependencies": {
+        "@playwright-orchestrator/core": "workspace:*",
+        "@playwright-orchestrator/dynamo-db": "workspace:*",
+        "@playwright-orchestrator/file": "workspace:*",
+        "@playwright-orchestrator/mongo": "workspace:*",
+        "@playwright-orchestrator/mysql": "workspace:*",
+        "@playwright-orchestrator/pg": "workspace:*",
+        "@playwright-orchestrator/redis": "workspace:*",
         "@playwright/test": "^1.49.1",
         "@types/node": "^22.10.2",
+        "playwright": "^1.49.1",
         "typescript": "^5.7.3",
         "prettier": "3.4.2",
         "vitest": "^3.0.5"

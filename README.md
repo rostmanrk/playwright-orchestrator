@@ -254,9 +254,7 @@ Use MongoDB as storage.
 
 Make sure podman and compose is installed. They used for tests and local development.
 
-Build or use `npm run watch`.
-
-Make sure you run `npm run cli-permissions` and `npm run link-packages`
+Build with `pnpm build` or use `pnpm watch`.
 
 See packages.json .scripts section for more commands.
 
