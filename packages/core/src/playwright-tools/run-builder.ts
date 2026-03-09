@@ -18,6 +18,7 @@ export class RunBuilder {
             projects: config.projects.map((project) => ({
                 name: project.name,
                 outputDir: project.outputDir,
+                use: project.use,
             })),
         };
         return this;

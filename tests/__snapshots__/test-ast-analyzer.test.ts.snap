@@ -8,14 +8,42 @@ exports[`test custom info reporter 1`] = `
       {
         "name": "chromium",
         "outputDir": "test-results/chromium",
+        "use": {
+          "defaultBrowserType": "chromium",
+          "deviceScaleFactor": 1,
+          "hasTouch": false,
+          "isMobile": false,
+          "screen": {
+            "height": 1080,
+            "width": 1920,
+          },
+          "trace": "on-first-retry",
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.7632.6 Safari/537.36",
+          "viewport": {
+            "height": 720,
+            "width": 1280,
+          },
+        },
       },
       {
         "name": "firefox",
         "outputDir": "test-results",
-      },
-      {
-        "name": "webkit",
-        "outputDir": "test-results",
+        "use": {
+          "defaultBrowserType": "firefox",
+          "deviceScaleFactor": 1,
+          "hasTouch": false,
+          "isMobile": false,
+          "screen": {
+            "height": 1080,
+            "width": 1920,
+          },
+          "trace": "on-first-retry",
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:146.0.1) Gecko/20100101 Firefox/146.0.1",
+          "viewport": {
+            "height": 720,
+            "width": 1280,
+          },
+        },
       },
     ],
     "workers": 2,
@@ -27,7 +55,6 @@ exports[`test custom info reporter 1`] = `
         "projects": [
           "chromium",
           "firefox",
-          "webkit",
         ],
         "timeout": 30000,
         "title": "inside group",
@@ -37,7 +64,6 @@ exports[`test custom info reporter 1`] = `
         "projects": [
           "chromium",
           "firefox",
-          "webkit",
         ],
         "timeout": 30000,
         "title": "outside of group",
@@ -49,7 +75,6 @@ exports[`test custom info reporter 1`] = `
         "projects": [
           "chromium",
           "firefox",
-          "webkit",
         ],
         "timeout": 45000,
         "title": "inside group",
@@ -59,7 +84,6 @@ exports[`test custom info reporter 1`] = `
         "projects": [
           "chromium",
           "firefox",
-          "webkit",
         ],
         "timeout": 50000,
         "title": "inside group override timeout",
@@ -69,7 +93,6 @@ exports[`test custom info reporter 1`] = `
         "projects": [
           "chromium",
           "firefox",
-          "webkit",
         ],
         "timeout": 135000,
         "title": "inside nested group and slow",
@@ -79,7 +102,6 @@ exports[`test custom info reporter 1`] = `
         "projects": [
           "chromium",
           "firefox",
-          "webkit",
         ],
         "timeout": 40000,
         "title": "timeout outside of group",
@@ -91,7 +113,6 @@ exports[`test custom info reporter 1`] = `
         "projects": [
           "chromium",
           "firefox",
-          "webkit",
         ],
         "timeout": 30000,
         "title": "should failing",
@@ -103,7 +124,6 @@ exports[`test custom info reporter 1`] = `
         "projects": [
           "chromium",
           "firefox",
-          "webkit",
         ],
         "timeout": 60000,
         "title": "serial-top-level.spec.ts",
@@ -115,7 +135,6 @@ exports[`test custom info reporter 1`] = `
         "projects": [
           "chromium",
           "firefox",
-          "webkit",
         ],
         "timeout": 30000,
         "title": "inside group",
@@ -130,7 +149,6 @@ exports[`test custom info reporter 1`] = `
         "projects": [
           "chromium",
           "firefox",
-          "webkit",
         ],
         "timeout": 85000,
         "title": "nested group",
@@ -140,7 +158,6 @@ exports[`test custom info reporter 1`] = `
         "projects": [
           "chromium",
           "firefox",
-          "webkit",
         ],
         "timeout": 30000,
         "title": "outside of group",

@@ -1,6 +1,7 @@
 import { test, afterAll } from 'vitest';
 import { rm } from 'node:fs/promises';
 import { testStorage } from '../utils/test-storage.js';
+import { TEST_TIMEOUT } from '../utils/constants.js';
 
 const filesFolder = 'test-runs-folder';
 const reportsFolder = './test-reports-folder';
@@ -13,7 +14,11 @@ afterAll(async () => {
     await rm(reportsFolder, { recursive: true, force: true });
 });
 
-test('test file plugin', async () => {
-    // init command
-    await testStorage(storageOptions, config, reportsFolder);
-}, 90000);
+test(
+    'test file plugin',
+    async () => {
+        // init command
+        await testStorage(storageOptions, config, reportsFolder);
+    },
+    TEST_TIMEOUT,
+);
