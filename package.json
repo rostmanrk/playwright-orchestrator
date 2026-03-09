@@ -10,7 +10,9 @@
     },
     "scripts": {
         "watch": "tsc -b -w",
-        "test": "vitest run --pool threads",
+        "test": "vitest run --pool=threads",
+        "test:unit": "vitest run --pool=threads --exclude=**/e2e/**",
+        "test:e2e": "vitest run **/e2e/** --pool=threads --poolOptions.threads.maxThreads=2",
         "build": "tsc -b --clean && tsc -b --sourceMap false",
         "test-update": "vitest -u",
         "start": "node --inspect packages/core/dist/cli",

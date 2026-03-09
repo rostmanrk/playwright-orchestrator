@@ -2,11 +2,15 @@ import { test, expect } from 'vitest';
 import { TestRunInfo } from '@playwright-orchestrator/core';
 import path from 'node:path';
 import { spawnAsync } from '../packages/core/src/helpers/spawn.js';
+import { createRequire } from 'node:module';
+import { dirname, join } from 'node:path';
+
+const req = createRequire(join(process.cwd(), 'package.json'));
+const playwrightCli = join(dirname(req.resolve('@playwright/test/package.json')), 'cli.js');
 
 test('test custom info reporter', async () => {
-    const commandResult = await spawnAsync('pnpm', [
-        'exec',
-        'playwright',
+    const commandResult = await spawnAsync(process.execPath, [
+        playwrightCli,
         'test',
         '--list',
         '--reporter',

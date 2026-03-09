@@ -25,10 +25,11 @@ runs:
       shell: bash
       run: pnpm install --frozen-lockfile
 
-    - name: Build lib locally instead of installing from npm
+    - name: Build lib
       shell: bash
       run: |
-        pnpm run build
+        pnpm build
+        pnpm install --offline
 
     - name: Get Playwright version
       shell: bash
