@@ -98,8 +98,8 @@ export class MySQLShardHandler implements ShardHandler {
                     this.configTable,
                     runId,
                 ]);
-                await client.commit();
             }
+            await client.commit();
         } catch (e) {
             await client.rollback();
             throw e;

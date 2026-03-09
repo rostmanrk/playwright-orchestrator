@@ -1,8 +1,6 @@
 import { createHash } from 'node:crypto';
 import { TestRunConfig } from './types/test-info.js';
 import { TestItem } from './types/adapters.js';
-import child_process from 'node:child_process';
-import { promisify } from 'node:util';
 import { rm, writeFile } from 'node:fs/promises';
 import { TestExecutionReporter } from './reporters/test-execution-reporter.js';
 import { TestReportResult } from './types/reporter.js';
@@ -12,8 +10,7 @@ import { injectable, inject } from 'inversify';
 import type { Adapter } from './adapters/adapter.js';
 import type { ShardHandler } from './adapters/shard-handler.js';
 import { SYMBOLS } from './container.js';
-
-const exec = promisify(child_process.exec);
+import { spawnAsync } from './helpers/spawn.js';
 
 @injectable()
 export class TestRunner {
@@ -81,12 +78,16 @@ export class TestRunner {
         const testName = `[${test.project}] > ${testPosition}`;
         const testHash = createHash('md5').update(testName).digest('hex');
         try {
-            const run = exec(`npx playwright test ${testPosition} ${this.buildParams(test, config, testHash)}`, {
-                env: {
-                    ...process.env,
-                    PLAYWRIGHT_BLOB_OUTPUT_FILE: `${this.outputFolder}/${testHash}.zip`,
+            const run = spawnAsync(
+                'npx',
+                ['playwright', 'test', testPosition, ...this.buildParams(test, config, testHash)],
+                {
+                    env: {
+                        ...process.env,
+                        PLAYWRIGHT_BLOB_OUTPUT_FILE: `${this.outputFolder}/${testHash}.zip`,
+                    },
                 },
-            });
+            );
 
             this.reporter.addTest(test, run);
             const { stdout } = await run;
@@ -111,16 +112,16 @@ export class TestRunner {
         return JSON.parse(stdout) as TestReportResult;
     }
 
-    private buildParams(test: TestItem, config: TestRunConfig, testHash: string): string {
+    private buildParams(test: TestItem, config: TestRunConfig, testHash: string): string[] {
         const args = [...config.args];
         args.push('--workers', '1');
         args.push('--reporter', 'blob,@playwright-orchestrator/core/test-result-reporter');
-        args.push('--project', `"${test.project}"`);
-        args.push('--output', `"${this.outputFolder}/${testHash}"`);
+        args.push('--project', test.project);
+        args.push('--output', `${this.outputFolder}/${testHash}`);
         if (config.configFile) {
-            args.push('--config', `"${config.configFile}"`);
+            args.push('--config', config.configFile);
         }
-        return args.join(' ');
+        return args;
     }
 
     private async createTempConfig(file: string | undefined): Promise<string | undefined> {

@@ -5,7 +5,7 @@ import { testStorage } from '../utils/test-storage.js';
 const filesFolder = 'test-runs-folder';
 const reportsFolder = './test-reports-folder';
 const config = 'tests-playwright.config.ts';
-const storageOptions = `file --directory ${filesFolder}`;
+const storageOptions = ['file', '--directory', filesFolder];
 
 afterAll(async () => {
     if (process.env.CI) return;
