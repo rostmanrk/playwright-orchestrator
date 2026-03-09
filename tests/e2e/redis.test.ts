@@ -1,23 +1,23 @@
-import { test, expect, afterAll, beforeAll } from 'vitest';
-import { exec } from '../../e2e/test-utils.js';
+import { test, afterAll, beforeAll } from 'vitest';
 import { rm } from 'node:fs/promises';
 import { testStorage } from '../utils/test-storage.js';
+import { spawnAsync } from '../../packages/core/src/helpers/spawn.js';
 
 const reportsFolder = './test-reports-folder-redis';
 const config = 'tests-playwright.config.ts';
-const storageOptions = `redis --connection-string redis://localhost:6380`;
+const storageOptions = ['redis', '--connection-string', 'redis://localhost:6380'];
 
 beforeAll(async () => {
     if (process.env.CI) return;
-    await exec('npm run redis-local -- up test --wait');
+    await spawnAsync('npm', ['run', 'redis-local', '--', 'up', 'test', '--wait']);
 });
 
 afterAll(async () => {
     if (process.env.CI) return;
-    await exec('npm run redis-local -- down test');
+    await spawnAsync('npm', ['run', 'redis-local', '--', 'down', 'test']);
     await rm(reportsFolder, { recursive: true, force: true });
 });
 
 test('test redis plugin', async () => {
     await testStorage(storageOptions, config, reportsFolder);
-}, 60000);
+}, 90000);

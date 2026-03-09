@@ -1,19 +1,31 @@
 import { Command, Option } from '@commander-js/extra-typings';
-import { CreateArgs } from './create-args.js';
+import { Container } from 'inversify';
+import { SYMBOLS } from '@playwright-orchestrator/core';
+import type { CreateArgs } from './create-args.js';
 import { MySQLAdapter } from './mysql-adapter.js';
+import { MySQLShardHandler } from './mysql-shard-handler.js';
+import { MySQLInitializer } from './mysql-initializer.js';
+import { MySQLTestRunCreator } from './mysql-test-run-creator.js';
+import { MySQLPool } from './mysql-pool.js';
 import { readFile } from 'node:fs/promises';
+import { MYSQL_CONFIG, MYSQL_POOL } from './symbols.js';
 
-export async function factory(args: CreateArgs) {
-    if (args.sslCa) {
-        args.sslCa = await readFile(args.sslCa);
+export async function register(container: Container, options: CreateArgs): Promise<void> {
+    if (options.sslCa) {
+        options.sslCa = await readFile(options.sslCa as string);
     }
-    if (args.sslCert) {
-        args.sslCert = await readFile(args.sslCert);
+    if (options.sslCert) {
+        options.sslCert = await readFile(options.sslCert as string);
     }
-    if (args.sslKey) {
-        args.sslKey = await readFile(args.sslKey);
+    if (options.sslKey) {
+        options.sslKey = await readFile(options.sslKey as string);
     }
-    return new MySQLAdapter(args);
+    container.bind(MYSQL_CONFIG).toConstantValue(options);
+    container.bind(MYSQL_POOL).to(MySQLPool).inSingletonScope();
+    container.bind(SYMBOLS.Adapter).to(MySQLAdapter).inSingletonScope();
+    container.bind(SYMBOLS.ShardHandler).to(MySQLShardHandler).inSingletonScope();
+    container.bind(SYMBOLS.Initializer).to(MySQLInitializer).inSingletonScope();
+    container.bind(SYMBOLS.TestRunCreator).to(MySQLTestRunCreator).inSingletonScope();
 }
 
 export function createOptions(command: Command) {

@@ -1,12 +1,12 @@
 import { Command } from '@commander-js/extra-typings';
+import { Container } from 'inversify';
 import { STORAGES } from '../plugins-list.js';
-import { Adapter } from '../adapter.js';
 
 export type StorageType = (typeof STORAGES)[number];
 
 export async function loadPluginModule(storage: string): Promise<
     | {
-          factory: (options: any) => Promise<Adapter>;
+          register: (container: Container, options: any) => void | Promise<void>;
           createOptions: (command: Command) => void;
           description?: string;
       }
@@ -29,7 +29,7 @@ export async function* loadPlugins(command: Command<any>) {
                 subCommand.description(plugin.description);
             }
             plugin.createOptions(subCommand);
-            yield { subCommand, factory: plugin.factory };
+            yield { subCommand, register: plugin.register };
         }
     }
 }

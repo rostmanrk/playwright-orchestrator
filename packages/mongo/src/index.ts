@@ -1,9 +1,21 @@
 import { Command, Option } from '@commander-js/extra-typings';
-import { CreateArgs } from './create-args.js';
+import { Container } from 'inversify';
+import { SYMBOLS } from '@playwright-orchestrator/core';
+import type { CreateArgs } from './create-args.js';
 import { MongoDbAdapter } from './mongo-db-adapter.js';
+import { MongoShardHandler } from './mongo-shard-handler.js';
+import { MongoInitializer } from './mongo-initializer.js';
+import { MongoTestRunCreator } from './mongo-test-run-creator.js';
+import { MongoConnection } from './mongo-connection.js';
+import { MONGO_CONFIG, MONGO_CONNECTION } from './symbols.js';
 
-export async function factory(args: CreateArgs) {
-    return new MongoDbAdapter(args);
+export function register(container: Container, options: CreateArgs): void {
+    container.bind(MONGO_CONFIG).toConstantValue(options);
+    container.bind(MONGO_CONNECTION).to(MongoConnection).inSingletonScope();
+    container.bind(SYMBOLS.Adapter).to(MongoDbAdapter).inSingletonScope();
+    container.bind(SYMBOLS.ShardHandler).to(MongoShardHandler).inSingletonScope();
+    container.bind(SYMBOLS.Initializer).to(MongoInitializer).inSingletonScope();
+    container.bind(SYMBOLS.TestRunCreator).to(MongoTestRunCreator).inSingletonScope();
 }
 
 export function createOptions(command: Command) {

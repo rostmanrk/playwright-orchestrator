@@ -17,6 +17,7 @@
         "@playwright-orchestrator/core": "^1.1.0",
         "commander": "^13.0.0",
         "@aws-sdk/client-dynamodb": "^3.724.0",
+        "inversify": "^8.0.0-beta.0",
         "@aws-sdk/lib-dynamodb": "^3.724.0"
     },
     "main": "dist/index.js",

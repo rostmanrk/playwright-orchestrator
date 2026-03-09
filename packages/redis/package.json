@@ -16,6 +16,7 @@
         "@commander-js/extra-typings": "^13.0.0",
         "@playwright-orchestrator/core": "^1.1.0",
         "commander": "^13.0.0",
+        "inversify": "^8.0.0-beta.0",
         "redis": "^4.7.0"
     },
     "main": "dist/index.js",
