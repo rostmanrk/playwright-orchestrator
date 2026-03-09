@@ -29,10 +29,7 @@ export class MySQLShardHandler implements ShardHandler {
     private readonly testsTable: string;
     private readonly pool: Pool;
 
-    constructor(
-        @inject(MYSQL_CONFIG) { tableNamePrefix }: CreateArgs,
-        @inject(MYSQL_POOL) mysqlPool: MySQLPool,
-    ) {
+    constructor(@inject(MYSQL_CONFIG) { tableNamePrefix }: CreateArgs, @inject(MYSQL_POOL) mysqlPool: MySQLPool) {
         this.pool = mysqlPool.pool;
         this.configTable = `${tableNamePrefix}_test_runs`;
         this.testsTable = `${tableNamePrefix}_tests`;
@@ -54,9 +51,14 @@ export class MySQLShardHandler implements ShardHandler {
                 SELECT * FROM ??
                 WHERE run_id = UUID_TO_BIN(?) AND order_num = @order_num`,
                 [
-                    this.testsTable, runId, TestStatus.Ready,
-                    this.testsTable, TestStatus.Ongoing, runId,
-                    this.testsTable, runId,
+                    this.testsTable,
+                    runId,
+                    TestStatus.Ready,
+                    this.testsTable,
+                    TestStatus.Ongoing,
+                    runId,
+                    this.testsTable,
+                    runId,
                 ],
             );
             await client.commit();
@@ -73,10 +75,10 @@ export class MySQLShardHandler implements ShardHandler {
 
     async startShard(runId: string): Promise<TestRunConfig> {
         const client = await this.pool.getConnection();
-        let [result] = await client.query<Run[]>(
-            `SELECT * FROM ?? WHERE id = UUID_TO_BIN(?) FOR UPDATE`,
-            [this.configTable, runId],
-        );
+        let [result] = await client.query<Run[]>(`SELECT * FROM ?? WHERE id = UUID_TO_BIN(?) FOR UPDATE`, [
+            this.configTable,
+            runId,
+        ]);
         if (result.length === 0) {
             throw new Error(`Run ${runId} not found`);
         }
@@ -92,24 +94,27 @@ export class MySQLShardHandler implements ShardHandler {
                     sql: `UPDATE ?? SET updated = CURRENT_TIMESTAMP, status = CASE WHEN status = ? THEN ? ELSE ? END WHERE id = UUID_TO_BIN(?)`,
                     values: [this.configTable, RunStatus.Created, RunStatus.Run, RunStatus.RepeatRun, runId],
                 });
-                [result] = await client.query<Run[]>(
-                    `SELECT * FROM ?? WHERE id = UUID_TO_BIN(?)`,
-                    [this.configTable, runId],
-                );
+                [result] = await client.query<Run[]>(`SELECT * FROM ?? WHERE id = UUID_TO_BIN(?)`, [
+                    this.configTable,
+                    runId,
+                ]);
                 await client.commit();
             }
         } catch (e) {
             await client.rollback();
             throw e;
+        } finally {
+            client.release();
         }
         return this.mapConfig(result[0]);
     }
 
     async finishShard(runId: string): Promise<void> {
-        await this.pool.query(
-            `UPDATE ?? SET status = ?, updated = CURRENT_TIMESTAMP WHERE id = UUID_TO_BIN(?)`,
-            [this.configTable, RunStatus.Finished, runId],
-        );
+        await this.pool.query(`UPDATE ?? SET status = ?, updated = CURRENT_TIMESTAMP WHERE id = UUID_TO_BIN(?)`, [
+            this.configTable,
+            RunStatus.Finished,
+            runId,
+        ]);
     }
 
     private mapConfig(dbValue: any): TestRunConfig {

@@ -5,7 +5,6 @@ import type { TestItem, TestRunConfig } from '@playwright-orchestrator/core';
 import type { CreateArgs } from './create-args.js';
 import { RedisConnection } from './redis-connection.js';
 import { REDIS_CONFIG, REDIS_CONNECTION } from './symbols.js';
-import { exec } from 'child_process';
 
 const TESTS = 'T';
 const TEST_RUN = 'TR';

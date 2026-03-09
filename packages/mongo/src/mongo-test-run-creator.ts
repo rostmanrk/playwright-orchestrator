@@ -3,11 +3,9 @@ import { BaseTestRunCreator, RunStatus, TestStatus } from '@playwright-orchestra
 import type { ReporterTestItem, TestSortItem } from '@playwright-orchestrator/core';
 import type { CreateArgs } from './create-args.js';
 import { MongoConnection } from './mongo-connection.js';
-import { Binary } from 'mongodb';
-import * as uuid from 'uuid';
 import type { TestInfoDocument } from './types.js';
 import { MONGO_CONFIG, MONGO_CONNECTION } from './symbols.js';
-import { generateTestId } from './helpers.js';
+import { generateRunId, generateTestId } from './helpers.js';
 
 @injectable()
 export class MongoTestRunCreator extends BaseTestRunCreator {
@@ -17,10 +15,7 @@ export class MongoTestRunCreator extends BaseTestRunCreator {
     private readonly debug: boolean;
     private readonly connection: MongoConnection;
 
-    constructor(
-        @inject(MONGO_CONFIG) args: CreateArgs,
-        @inject(MONGO_CONNECTION) connection: MongoConnection,
-    ) {
+    constructor(@inject(MONGO_CONFIG) args: CreateArgs, @inject(MONGO_CONNECTION) connection: MongoConnection) {
         super();
         this.connection = connection;
         this.runsCollection = `${args.collectionNamePrefix}_test_runs`;
@@ -58,7 +53,7 @@ export class MongoTestRunCreator extends BaseTestRunCreator {
     async saveRunData(runId: string, config: object, tests: ReporterTestItem[]): Promise<void> {
         const { args, historyWindow, ...testRunConfig } = config as any;
         const run = {
-            _id: new Binary(uuid.parse(runId)),
+            _id: generateRunId(runId),
             status: RunStatus.Created,
             config: testRunConfig,
             args,
@@ -84,5 +79,4 @@ export class MongoTestRunCreator extends BaseTestRunCreator {
             }),
         );
     }
-
 }

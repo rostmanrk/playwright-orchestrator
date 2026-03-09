@@ -4,13 +4,11 @@ import { RunStatus, TestStatus } from '@playwright-orchestrator/core';
 import type { TestItem, TestRunConfig } from '@playwright-orchestrator/core';
 import type { CreateArgs } from './create-args.js';
 import { MongoConnection } from './mongo-connection.js';
-import * as uuid from 'uuid';
 import { MONGO_CONFIG, MONGO_CONNECTION } from './symbols.js';
 import type { TestDocument, TestRunDocument } from './types.js';
 import { generateTestId, generateRunId, parseTestId, mapDbToTestRunConfig } from './helpers.js';
 
 const MAX_ORDER = 0b1111111111111111;
-
 
 @injectable()
 export class MongoShardHandler implements ShardHandler {
@@ -56,17 +54,16 @@ export class MongoShardHandler implements ShardHandler {
         if (!run) throw new Error(`Run ${runId} not found`);
         const { status: statusBefore } = run;
         if (statusBefore === RunStatus.Created || statusBefore === RunStatus.Finished) {
-            await this.tests.updateMany(
-                this.generateTestIdQuery(runId, TestStatus.Failed),
-                { $set: { status: TestStatus.Ready, updated: now } },
-            );
+            await this.tests.updateMany(this.generateTestIdQuery(runId, TestStatus.Failed), {
+                $set: { status: TestStatus.Ready, updated: now },
+            });
         }
         return mapDbToTestRunConfig(run);
     }
 
     async finishShard(runId: string): Promise<void> {
         await this.runs.updateOne(
-            { _id: uuid.parse(runId) },
+            { _id: generateRunId(runId) },
             { $set: { status: RunStatus.Finished, updated: new Date() } },
         );
     }
