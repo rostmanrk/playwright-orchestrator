@@ -10,29 +10,34 @@ inputs:
 runs:
   using: "composite"
   steps:
+    - name: Setup pnpm
+      uses: pnpm/action-setup@v4
+      with:
+        run_install: false
+
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
         node-version: "22"
-        cache: "npm"
+        cache: "pnpm"
 
     - name: Install dependencies
       shell: bash
-      run: npm ci
+      run: pnpm install --frozen-lockfile
 
-    - name: Build lib locally instead of installing from npm
+    - name: Build lib
       shell: bash
       run: |
-        npm run build
-        npm run link-packages
-        npm run cli-permissions
+        pnpm build
+        pnpm install --offline
 
     - name: Get Playwright version
       shell: bash
       id: version
       run: |
         echo ${{ inputs.install-browser }}
-        echo "PLAYWRIGHT_VERSION=$(npm why @playwright/test --json | jq '.[0].version' -r)" >> $GITHUB_OUTPUT
+        PLAYWRIGHT_VERSION=$(node -p "require('./node_modules/@playwright/test/package.json').version")
+        echo "PLAYWRIGHT_VERSION=${PLAYWRIGHT_VERSION}" >> $GITHUB_OUTPUT
 
     - name: Cache Playwright
       if: ${{ inputs.install-browser == 'true' }}
@@ -45,4 +50,4 @@ runs:
     - name: Install Playwright browsers
       shell: bash
       if: ${{ steps.cache.outputs.cache-hit != 'true' && inputs.install-browser == 'true' }}
-      run: npx playwright install --with-deps
+      run: pnpm exec playwright install --with-deps

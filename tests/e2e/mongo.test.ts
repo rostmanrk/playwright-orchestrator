@@ -10,12 +10,12 @@ const storageOptions = ['mongo', '--connection-string', 'mongodb://root:password
 
 beforeAll(async () => {
     if (process.env.CI) return;
-    await spawnAsync('npm', ['run', 'mongo-local', '--', 'up', 'test', '--wait']);
+    await spawnAsync('pnpm', ['mongo-local', 'up', 'test', '--wait']);
 });
 
 afterAll(async () => {
     if (process.env.CI) return;
-    await spawnAsync('npm', ['run', 'mongo-local', '--', 'down', 'test']);
+    await spawnAsync('pnpm', ['mongo-local', 'down', 'test']);
     await rm(reportsFolder, { recursive: true, force: true });
 });
 

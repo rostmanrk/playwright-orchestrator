@@ -1,6 +1,6 @@
 {
     "name": "@playwright-orchestrator/core",
-    "version": "1.2.1",
+    "version": "1.3.0",
     "description": "Core lib and cli for Playwright test orchestration",
     "keywords": [
         "playwright",
@@ -59,7 +59,8 @@
         "@playwright-orchestrator/mysql": "^1.0.0",
         "@playwright-orchestrator/pg": "^1.0.0",
         "@playwright-orchestrator/redis": "^1.0.0",
-        "@playwright/test": "^1.44.0"
+        "@playwright/test": "^1.44.0",
+        "playwright": "^1.44.0"
     },
     "peerDependenciesMeta": {
         "@playwright-orchestrator/file": {
@@ -75,6 +76,9 @@
             "optional": true
         },
         "@playwright-orchestrator/mongo": {
+            "optional": true
+        },
+        "playwright": {
             "optional": true
         }
     },

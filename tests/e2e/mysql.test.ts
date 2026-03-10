@@ -10,12 +10,12 @@ const storageOptions = ['mysql', '--connection-string', 'mysql://root:password@l
 
 beforeAll(async () => {
     if (process.env.CI) return;
-    await spawnAsync('npm', ['run', 'mysql-local', '--', 'up', 'test', '--wait']);
+    await spawnAsync('pnpm', ['mysql-local', 'up', 'test', '--wait']);
 }, 20000);
 
 afterAll(async () => {
     if (process.env.CI) return;
-    await spawnAsync('npm', ['run', 'mysql-local', '--', 'down', 'test']);
+    await spawnAsync('pnpm', ['mysql-local', 'down', 'test']);
     await rm(reportsFolder, { recursive: true, force: true });
 });
 
