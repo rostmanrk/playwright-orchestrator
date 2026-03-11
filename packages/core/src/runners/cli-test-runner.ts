@@ -1,20 +1,21 @@
 import { createHash } from 'node:crypto';
-import { TestRunConfig } from './types/test-info.js';
-import { TestItem } from './types/adapters.js';
+import { TestRunConfig } from '../types/test-info.js';
+import { TestItem } from '../types/adapters.js';
 import { rm, writeFile } from 'node:fs/promises';
-import { TestExecutionReporter } from './reporters/test-execution-reporter.js';
-import { TestReportResult } from './types/reporter.js';
+import { TestExecutionReporter } from '../reporters/test-execution-reporter.js';
+import { TestReportResult } from '../types/reporter.js';
 import path from 'node:path';
 import * as uuid from 'uuid';
 import { injectable, inject } from 'inversify';
-import type { Adapter } from './adapters/adapter.js';
-import type { ShardHandler } from './adapters/shard-handler.js';
-import { SYMBOLS } from './container.js';
-import { spawnAsync } from './helpers/spawn.js';
+import type { Adapter } from '../adapters/adapter.js';
+import type { ShardHandler } from '../adapters/shard-handler.js';
+import { SYMBOLS } from '../container.js';
+import { spawnAsync } from '../helpers/spawn.js';
 import { BrowserManager } from './browser-manager.js';
+import { TestRunner } from '../types/test-runner.js';
 
 @injectable()
-export class TestRunner {
+export class CliTestRunner implements TestRunner {
     private readonly reporter = new TestExecutionReporter();
 
     constructor(
@@ -28,8 +29,12 @@ export class TestRunner {
     async runTests() {
         await this.removePreviousReports();
         const config = await this.shardHandler.startShard(this.runId);
-        const browserLinks = await this.browserManager.runBrowsers(config);
-        config.configFile = await this.createTempConfig(config.configFile, browserLinks);
+        const browsers: Record<string, string> = {};
+        for (const project of config.projects) {
+            const wsEndpoint = await this.browserManager.getBrowserLink(project);
+            browsers[project.name] = wsEndpoint;
+        }
+        config.configFile = await this.createTempConfig(config.configFile, browsers);
 
         const cleanupTempFile = () => {
             if (config.configFile) rm(config.configFile, { force: true }).catch(() => {});

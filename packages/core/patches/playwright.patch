@@ -1,0 +1,15 @@
+--- a/.patch/testRunner.js
++++ b/.patch/testRunner.patched.js
+@@ -261,6 +261,12 @@ class TestRunner extends import_events.default {
+       ...params.runAgents ? { runAgents: params.runAgents } : {},
+       ...params.workers ? { workers: params.workers } : {}
+     };
++    if (params.normalMode){
++      delete overrides.repeatEach;
++      delete overrides.retries;
++      delete overrides.use.trace;
++      delete overrides.use.video;
++    }
+     const config = await this._loadConfigOrReportError(new import_internalReporter.InternalReporter([userReporter]), overrides);
+     if (!config)
+       return { status: "failed" };

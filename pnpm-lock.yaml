@@ -98,6 +98,9 @@ importers:
       commander:
         specifier: ^13.0.0
         version: 13.1.0
+      diff:
+        specifier: ^8.0.3
+        version: 8.0.3
       inversify:
         specifier: ^8.0.0-beta.0
         version: 8.0.0-beta.0(reflect-metadata@0.2.2)
@@ -1057,6 +1060,10 @@ packages:
   denque@2.1.0:
     resolution: {integrity: sha512-HVQE3AAb/pxF8fQAoiqpvg9i3evqug3hoiwakOyZAwJm+6vZehbkYXZ0l4JxS+I3QxM97v5aaRNhj8v5oBhekw==}
     engines: {node: '>=0.10'}
+
+  diff@8.0.3:
+    resolution: {integrity: sha512-qejHi7bcSD4hQAZE0tNAawRK1ZtafHDmMTMkrrIGgSLl7hTnQHmKCeB45xAcbfTqK2zowkM3j3bHt/4b/ARbYQ==}
+    engines: {node: '>=0.3.1'}
 
   emoji-regex@10.6.0:
     resolution: {integrity: sha512-toUI84YS5YmxW219erniWD0CIVOo46xGKColeNQRgOzDorgBi1v4D71/OFzgD9GO2UGKIv1C3Sp8DAn0+j5w7A==}
@@ -2543,6 +2550,8 @@ snapshots:
   deep-eql@5.0.2: {}
 
   denque@2.1.0: {}
+
+  diff@8.0.3: {}
 
   emoji-regex@10.6.0: {}
 

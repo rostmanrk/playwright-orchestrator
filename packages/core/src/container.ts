@@ -1,7 +1,7 @@
 import 'reflect-metadata';
 import { Container } from 'inversify';
 import { PlaywrightRunInfoLoader } from './adapters/playwright-run-info-loader.js';
-import { BrowserManager } from './browser-manager.js';
+import { BrowserManager } from './runners/browser-manager.js';
 
 export const SYMBOLS = {
     Adapter: Symbol.for('Adapter'),

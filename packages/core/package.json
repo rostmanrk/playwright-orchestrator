@@ -22,7 +22,9 @@
     },
     "files": [
         "dist",
-        "src"
+        "src",
+        "patches",
+        "postinstall.cjs"
     ],
     "dependencies": {
         "@actions/core": "^1.11.1",
@@ -31,6 +33,7 @@
         "boxen": "^8.0.1",
         "chalk": "^5.4.1",
         "commander": "^13.0.0",
+        "diff": "^8.0.3",
         "inversify": "^8.0.0-beta.0",
         "reflect-metadata": "^0.2.2",
         "typescript": "^5.0.0",
@@ -83,6 +86,7 @@
         }
     },
     "scripts": {
-        "prepare": "cp ../../README.md ./ && cp ../../LICENSE.md ./"
+        "prepare": "cp ../../README.md ./ && cp ../../LICENSE.md ./",
+        "postinstall": "node postinstall.cjs"
     }
 }

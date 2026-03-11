@@ -18,7 +18,7 @@ export async function testStorage(storageOptions: string[], config: string, repo
         'create',
         ...storageOptions,
         '-j',
-        '2',
+        '1',
         '--config',
         config,
     ]);

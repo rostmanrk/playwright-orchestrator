@@ -1,8 +1,10 @@
 import { loadPlugins } from '../helpers/plugin.js';
-import { TestRunner } from '../test-runner.js';
+import { CliTestRunner } from '../runners/cli-test-runner.js';
 import { withErrorHandling } from './error-handler.js';
 import { program } from './program.js';
 import { createContainer, SYMBOLS } from '../container.js';
+import { TestRunner } from '../types/test-runner.js';
+import { TestServerRunner } from '../runners/test-server-runner.js';
 
 export default async () => {
     const command = program.command('run').description('Start test run shard');
@@ -21,7 +23,7 @@ export default async () => {
                     await register(container, options);
                     container.bind<string>(SYMBOLS.RunId).toConstantValue(options.runId);
                     container.bind<string>(SYMBOLS.OutputFolder).toConstantValue(options.output);
-                    container.bind<TestRunner>(SYMBOLS.TestRunner).to(TestRunner);
+                    container.bind<TestRunner>(SYMBOLS.TestRunner).to(TestServerRunner).inSingletonScope();
                     const runner = container.get<TestRunner>(SYMBOLS.TestRunner);
                     try {
                         await runner.runTests();

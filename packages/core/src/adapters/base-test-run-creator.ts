@@ -1,12 +1,7 @@
 import { injectable } from 'inversify';
 import { getTestId } from '../helpers/get-test-id.js';
 import type { TestRunCreator } from './test-run-creator.js';
-import type {
-    SaveTestRunParams,
-    ReporterTestItem,
-    TestSortItem,
-    SortTestsOptions,
-} from '../types/adapters.js';
+import type { SaveTestRunParams, ReporterTestItem, TestSortItem, SortTestsOptions } from '../types/adapters.js';
 import type { TestRun } from '../types/test-info.js';
 
 @injectable()
@@ -48,7 +43,7 @@ export abstract class BaseTestRunCreator implements TestRunCreator {
         const extractValue = this.extractCompareValue.bind(this, testInfoMap, historyWindow);
         return tests
             .sort((a, b) => (extractValue(b) - extractValue(a)) * (reverse ? -1 : 1))
-            .map((test, i) => ({ ...test, order: i + 1 }));
+            .map((test, i) => ({ ...test, order: reverse ? tests.length - i : i + 1 }));
     }
 
     private extractCompareValue(
