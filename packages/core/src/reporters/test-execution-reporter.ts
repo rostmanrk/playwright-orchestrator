@@ -1,62 +1,81 @@
 import chalk from 'chalk';
 import boxen from 'boxen';
+import logUpdate from 'log-update';
 import { TestItem } from '../types/adapters.js';
-import { cursorSavePosition, cursorRestorePosition, cursorLeft, cursorDown, eraseDown } from 'ansi-escapes';
+import { formatElapsed } from './helpers.js';
+import { injectable } from 'inversify';
 
+const SPINNER = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+const IS_TTY = process.stdout.isTTY === true;
+
+@injectable()
 export class TestExecutionReporter {
     private readonly failedTests: TestItem[] = [];
     private readonly succeedTests: TestItem[] = [];
-    private readonly runningTests: TestItem[] = [];
-    private readonly spinner = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+    private readonly runningTests = new Map<TestItem, number>(); // test -> start timestamp
+    private readonly loadingTasks = new Set<string>();
     private spinnerIndex = 0;
     private spinnerInterval?: NodeJS.Timeout;
 
     constructor() {
-        // disable spinner in CI
-        if (process.env.CI) return;
-        process.stdout.write(cursorSavePosition);
+        if (!IS_TTY) return;
         this.spinnerInterval = setInterval(() => {
-            this.spinnerIndex = (this.spinnerIndex + 1) % this.spinner.length;
-            this.redrawRunning();
+            this.spinnerIndex = (this.spinnerIndex + 1) % SPINNER.length;
+            logUpdate(this.renderLines());
         }, 80);
     }
+
     addTest(test: TestItem, run: Promise<any>) {
         run.then(() => this.finishTest(test)).catch(() => this.failTest(test));
-        this.runningTests.push(test);
-        this.redrawRunning(true);
+        this.runningTests.set(test, Date.now());
+        if (IS_TTY) logUpdate(this.renderLines());
+    }
+
+    addLoading(message: string, run: Promise<any>) {
+        run.then(() => this.finishLoading(message)).catch(() => this.failLoading(message));
+        this.loadingTasks.add(message);
+        if (IS_TTY) logUpdate(this.renderLines());
     }
 
     finishTest(test: TestItem) {
         this.succeedTests.push(test);
-        const message = `${chalk.green('✓')} ${this.getKey(test)}`;
-        this.printTestResult(test, message);
+        const elapsed = formatElapsed(Date.now() - this.runningTests.get(test)!);
+        this.runningTests.delete(test);
+        this.persistLine(`${chalk.green('✓')} ${this.getKey(test)} — ${elapsed}`);
     }
 
     failTest(test: TestItem) {
         this.failedTests.push(test);
-        const message = `${chalk.red('✗')} ${this.getKey(test)}`;
-        this.printTestResult(test, message);
+        const elapsed = formatElapsed(Date.now() - this.runningTests.get(test)!);
+        this.runningTests.delete(test);
+        this.persistLine(`${chalk.red('✗')} ${this.getKey(test)} — ${elapsed}`);
     }
 
-    private printTestResult(test: TestItem, message: string) {
-        this.runningTests.splice(this.runningTests.indexOf(test), 1);
-        if (process.env.CI) {
-            console.log(message);
+    private finishLoading(message: string) {
+        this.loadingTasks.delete(message);
+        this.persistLine(`${chalk.green('✓')} ${message}`);
+    }
+
+    private failLoading(message: string) {
+        this.loadingTasks.delete(message);
+        this.persistLine(`${chalk.red('✗')} ${message}`);
+    }
+
+    info(message: string) {
+        this.persistLine(`${chalk.blue('ℹ')} ${message}`);
+    }
+
+    error(message: string) {
+        if (IS_TTY) {
+            this.persistLine(`${chalk.red('✗')} ${message}`);
         } else {
-            process.stdout.write(cursorRestorePosition);
-            process.stdout.write(eraseDown);
-            process.stdout.write(message);
-            process.stdout.write('\n');
-            process.stdout.write(cursorSavePosition);
-            this.redrawRunning(true);
+            console.error(`${chalk.red('✗')} ${message}`);
         }
     }
 
     printSummary() {
         clearInterval(this.spinnerInterval);
-        process.stdout.write(cursorRestorePosition);
-        process.stdout.write(eraseDown);
-
+        if (IS_TTY) logUpdate.clear();
         const lines = [
             chalk.green(`Succeed: ${this.succeedTests.length}`),
             chalk.red(`Failed: ${this.failedTests.length}:`),
@@ -72,22 +91,27 @@ export class TestExecutionReporter {
         );
     }
 
-    private redrawRunning(full = false) {
-        if (process.env.CI) return;
-        process.stdout.write(cursorRestorePosition);
-        for (let i = 0; i < this.runningTests.length; i++) {
-            const spinner = chalk.yellow(process.env.CI ? '*' : this.spinner[this.spinnerIndex]);
-            if (full) {
-                process.stdout.write(`${spinner} ${this.getKey(this.runningTests[i])}\n`);
-            } else {
-                process.stdout.write(spinner);
-                process.stdout.write(cursorLeft);
-                process.stdout.write(cursorDown());
-            }
+    private persistLine(message: string) {
+        if (IS_TTY) {
+            logUpdate.clear();
+            console.log(message);
+            logUpdate(this.renderLines());
+        } else {
+            console.log(message);
         }
     }
 
+    private renderLines(): string {
+        const tick = chalk.yellow(SPINNER[this.spinnerIndex]);
+        return [
+            ...[...this.runningTests.entries()].map(
+                ([test, startTime]) => `${tick} ${this.getKey(test)} — ${formatElapsed(Date.now() - startTime)}`,
+            ),
+            ...[...this.loadingTasks].map((message) => `${tick} ${message}`),
+        ].join('\n');
+    }
+
     private getKey(test: TestItem) {
-        return `[${test.project}] ${test.file}:${test.position}`;
+        return `[${test.project}] ${test.file}${test.position === '0:0' ? '' : `:${test.position}`}`;
     }
 }

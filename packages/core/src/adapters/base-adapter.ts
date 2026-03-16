@@ -1,13 +1,7 @@
 import { injectable } from 'inversify';
-import {
-    TestItem,
-    ResultTestParams,
-    HistoryItem,
-    SaveTestResultParams,
-} from '../types/adapters.js';
+import { TestItem, ResultTestParams, HistoryItem, SaveTestResultParams } from '../types/adapters.js';
 import { TestReport, TestRunReport } from '../types/reporter.js';
 import { TestStatus } from '../types/test-info.js';
-import { getTestId } from '../helpers/get-test-id.js';
 import type { Adapter } from './adapter.js';
 
 @injectable()
@@ -17,24 +11,14 @@ export abstract class BaseAdapter implements Adapter {
     abstract getTestEma(testId: string): Promise<number>;
     abstract saveTestResult(params: SaveTestResultParams): Promise<void>;
 
-    async finishTest(params: ResultTestParams): Promise<void> {
-        await this.updateTestWithResults(TestStatus.Passed, params);
-    }
-
-    async failTest(params: ResultTestParams): Promise<void> {
-        await this.updateTestWithResults(TestStatus.Failed, params);
-    }
-
-    protected async updateTestWithResults(
+    public async updateTestWithResults(
         status: TestStatus,
         { runId, test, testResult, config }: ResultTestParams,
     ): Promise<void> {
-        const testId = getTestId({ ...test, ...testResult });
-        const ema = await this.getTestEma(testId);
+        const ema = await this.getTestEma(test.testId);
         const newEma = this.calculateEMA(testResult.duration, ema, config.historyWindow);
         await this.saveTestResult({
             runId,
-            testId,
             test,
             item: { status, duration: testResult.duration, updated: Date.now() },
             historyWindow: config.historyWindow,

@@ -121,6 +121,10 @@ exports[`test custom info reporter 1`] = `
     "serial-top-level.spec.ts": {
       "0:0": {
         "annotations": [],
+        "children": [
+          "outside of group",
+          "inside group",
+        ],
         "projects": [
           "chromium",
           "firefox",
@@ -145,6 +149,10 @@ exports[`test custom info reporter 1`] = `
             "description": "#serial_id",
             "type": "@playwright-orchestrator/id",
           },
+        ],
+        "children": [
+          "inside nested group 1",
+          "inside nested group 2",
         ],
         "projects": [
           "chromium",

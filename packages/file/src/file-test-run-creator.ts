@@ -1,6 +1,6 @@
 import { injectable, inject } from 'inversify';
 import { BaseTestRunCreator, TestStatus, RunStatus } from '@playwright-orchestrator/core';
-import type { ReporterTestItem, TestSortItem, TestRunConfig } from '@playwright-orchestrator/core';
+import type { TestItem, TestSortItem, TestRunConfig } from '@playwright-orchestrator/core';
 import type { CreateArgs } from './create-args.js';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
@@ -30,7 +30,7 @@ export class FileTestRunCreator extends BaseTestRunCreator {
         return true;
     }
 
-    async loadTestInfos(tests: ReporterTestItem[]): Promise<Map<string, TestSortItem>> {
+    async loadTestInfos(tests: TestItem[]): Promise<Map<string, TestSortItem>> {
         await mkdir(this.dir, { recursive: true });
         const history: Record<string, TestHistoryItem> = !existsSync(getHistoryRunPath(this.dir))
             ? {}
@@ -53,7 +53,7 @@ export class FileTestRunCreator extends BaseTestRunCreator {
         );
     }
 
-    async saveRunData(runId: string, config: object, tests: ReporterTestItem[]): Promise<void> {
+    async saveRunData(runId: string, config: object, tests: TestItem[]): Promise<void> {
         const testConfig: TestRunConfig = {
             ...(config as TestRunConfig),
             status: RunStatus.Created,

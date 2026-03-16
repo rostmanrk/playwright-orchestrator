@@ -10,7 +10,7 @@ export function withErrorHandling<T extends (...args: any[]) => Promise<any> | a
         try {
             return await target(...args);
         } catch (error: unknown) {
-            const logFile = `${tmpdir()}/${uuid.v4()}.log`;
+            const logFile = `${tmpdir()}/${uuid.v7()}.log`;
             const errorDetails = {
                 message: error instanceof Error ? error.message : 'Unknown error',
                 stack: error instanceof Error ? error.stack : undefined,

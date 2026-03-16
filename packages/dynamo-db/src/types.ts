@@ -4,6 +4,7 @@ import { Fields } from './constants.js';
 export interface TestItemDb {
     [Fields.Id]: string;
     [Fields.Order]: number;
+    [Fields.TestId]: string;
     [Fields.Line]: string;
     [Fields.Character]: string;
     [Fields.File]: string;
@@ -11,6 +12,7 @@ export interface TestItemDb {
     [Fields.Timeout]: number;
     [Fields.Ttl]: number;
     [Fields.Report]?: TestReport;
+    [Fields.Children]?: string[];
 }
 
 export interface TestReport {

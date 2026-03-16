@@ -2,16 +2,33 @@ import type { TestReportResult } from './reporter.js';
 import type { TestRunConfig, TestRunInfo, TestStatus } from './test-info.js';
 import type { TestDetailsAnnotation } from '@playwright/test';
 
+export const BatchMode = {
+    Off: 'off',
+    Time: 'time',
+    Count: 'count',
+} as const;
+export type BatchMode = (typeof BatchMode)[keyof typeof BatchMode];
+
+export const BatchGrouping = {
+    Test: 'test',
+    Project: 'project',
+} as const;
+export type BatchGrouping = (typeof BatchGrouping)[keyof typeof BatchGrouping];
+
+export interface BatchOptions {
+    batchMode: BatchMode;
+    batchTarget?: number;
+    batchGrouping: BatchGrouping;
+}
+
 export interface TestItem {
+    testId: string;
     file: string;
     position: string;
     project: string;
     order: number;
     timeout: number;
-}
-
-export interface ReporterTestItem extends TestItem {
-    testId: string;
+    children?: string[];
 }
 
 export interface ResultTestParams {
@@ -26,6 +43,7 @@ export interface SaveTestRunParams {
     testRun: TestRunInfo;
     args: string[];
     historyWindow: number;
+    batchOptions: BatchOptions;
 }
 
 export interface GetTestIdParams {
@@ -53,7 +71,6 @@ export interface HistoryItem {
 
 export interface SaveTestResultParams {
     runId: string;
-    testId: string;
     test: TestItem;
     item: HistoryItem;
     historyWindow: number;

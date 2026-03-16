@@ -14,7 +14,7 @@ test('test custom info reporter', async () => {
         'test',
         '--list',
         '--reporter',
-        '@playwright-orchestrator/core/tests-info-reporter',
+        '@playwright-orchestrator/core/run-info-reporter',
         '-j',
         '2',
     ]);

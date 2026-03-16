@@ -8,14 +8,8 @@ import {
 } from '@playwright-orchestrator/core';
 import { injectable, inject } from 'inversify';
 import type { CreateArgs } from './create-args.js';
-import {
-    TransactionCanceledException,
-} from '@aws-sdk/client-dynamodb';
-import {
-    QueryCommand,
-    GetCommand,
-    TransactWriteCommand,
-} from '@aws-sdk/lib-dynamodb';
+import { TransactionCanceledException } from '@aws-sdk/client-dynamodb';
+import { QueryCommand, GetCommand, TransactWriteCommand } from '@aws-sdk/lib-dynamodb';
 import { idToStatus, mapTestItemToDb, getTtl } from './helpers.js';
 import { Fields, StatusOffset } from './constants.js';
 import { TestInfoItem, TestItemDb } from './types.js';
@@ -76,9 +70,9 @@ export class DynamoDbAdapter extends BaseAdapter {
     }
 
     private async saveTestResultWithRetry(params: SaveTestResultParams, retry: number): Promise<void> {
-        const { runId, testId, test, item, historyWindow, newEma, title } = params;
+        const { runId, test, item, historyWindow, newEma, title } = params;
         try {
-            const stats = await this.getTestInfo(testId);
+            const stats = await this.getTestInfo(test.testId);
             if (!stats) return;
             const history = [
                 ...stats[Fields.History],
@@ -185,5 +179,4 @@ export class DynamoDbAdapter extends BaseAdapter {
         );
         return Items as TestItemDb[];
     }
-
 }

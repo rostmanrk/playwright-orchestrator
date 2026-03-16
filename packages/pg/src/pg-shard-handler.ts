@@ -13,10 +13,7 @@ export class PgShardHandler implements ShardHandler {
     private readonly testsTable: string;
     private readonly pool: pg.Pool;
 
-    constructor(
-        @inject(PG_CONFIG) { tableNamePrefix }: CreateArgs,
-        @inject(PG_POOL) pgPool: PgPool,
-    ) {
+    constructor(@inject(PG_CONFIG) { tableNamePrefix }: CreateArgs, @inject(PG_POOL) pgPool: PgPool) {
         this.pool = pgPool.pool;
         this.configTable = pg.escapeIdentifier(`${tableNamePrefix}_test_runs`);
         this.testsTable = pg.escapeIdentifier(`${tableNamePrefix}_tests`);
@@ -43,8 +40,16 @@ export class PgShardHandler implements ShardHandler {
             });
             await client.query('COMMIT');
             if (result.rowCount === 0) return undefined;
-            const { file, line, character, project, timeout, order_num } = result.rows[0];
-            return { file, position: `${line}:${character}`, project, timeout, order: order_num };
+            const { file, line, character, project, timeout, order_num, children, test_id } = result.rows[0];
+            return {
+                file,
+                position: `${line}:${character}`,
+                project,
+                timeout,
+                order: order_num,
+                children,
+                testId: test_id,
+            };
         } catch (e) {
             await client.query('ROLLBACK');
             throw e;

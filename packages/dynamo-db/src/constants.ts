@@ -11,6 +11,7 @@ export enum StatusOffset {
 export enum Fields {
     Id = 'pk',
     Order = 'sk',
+    TestId = 'tid',
     Line = 'l',
     Character = 'c',
     File = 'f',
@@ -30,4 +31,5 @@ export enum Fields {
     Ttl = 'ttl',
     Config = 'cfg',
     Created = 'cr',
+    Children = 'chl',
 }

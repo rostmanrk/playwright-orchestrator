@@ -1,0 +1,31 @@
+import { test, expect } from 'vitest';
+import { spawnAsync } from '../packages/core/src/helpers/spawn.js';
+import { createRequire } from 'node:module';
+import { join } from 'node:path';
+
+const req = createRequire(join(process.cwd(), 'package.json'));
+const orchestratorCli = req.resolve('@playwright-orchestrator/core/cli');
+
+async function createWithArgs(args: string[]): Promise<{ stdout: string; stderr: string }> {
+    return spawnAsync(process.execPath, [orchestratorCli, 'create', 'file', ...args]).catch((e) => e);
+}
+
+test('batch-mode time without batch-target fails with required error', async () => {
+    const result = await createWithArgs(['--batch-mode', 'time']);
+    expect(result.stderr).toContain("--batch-target is required when --batch-mode is 'time'");
+}, 30000);
+
+test('batch-mode count without batch-target fails with required error', async () => {
+    const result = await createWithArgs(['--batch-mode', 'count']);
+    expect(result.stderr).toContain("--batch-target is required when --batch-mode is 'count'");
+}, 30000);
+
+test('batch-mode time with batch-target fails with not-implemented error', async () => {
+    const result = await createWithArgs(['--batch-mode', 'time', '--batch-target', '30']);
+    expect(result.stderr).toContain("Batch mode 'time' is not implemented yet");
+}, 30000);
+
+test('batch-mode count with batch-target fails with not-implemented error', async () => {
+    const result = await createWithArgs(['--batch-mode', 'count', '--batch-target', '5']);
+    expect(result.stderr).toContain("Batch mode 'count' is not implemented yet");
+}, 30000);

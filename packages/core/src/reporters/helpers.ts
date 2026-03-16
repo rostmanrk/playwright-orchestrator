@@ -23,3 +23,11 @@ export function formatDuration(ms: number) {
 
     return parts.join(', ');
 }
+
+export function formatElapsed(ms: number): string {
+    if (ms < 10_000) return `${(ms / 1000).toFixed(1)}s`;
+    if (ms < 60_000) return `${Math.floor(ms / 1000)}s`;
+    const m = Math.floor(ms / 60_000);
+    const s = Math.floor((ms % 60_000) / 1000);
+    return s > 0 ? `${m}m ${s}s` : `${m}m`;
+}

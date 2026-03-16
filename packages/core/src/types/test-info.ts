@@ -1,4 +1,5 @@
 import type { TestDetailsAnnotation, FullConfig } from '@playwright/test';
+import type { BatchOptions } from './adapters.js';
 
 export type UseOptions = FullConfig['projects'][number]['use'];
 
@@ -19,6 +20,7 @@ export interface TestRunConfig extends TestConfig {
     args: string[];
     status: RunStatus;
     updated: number;
+    batchOptions?: BatchOptions;
 }
 
 export interface TestRunInfo {
@@ -33,6 +35,7 @@ export interface TestRun {
             projects: string[];
             title: string;
             annotations: TestDetailsAnnotation[];
+            children?: string[];
         };
     };
 }

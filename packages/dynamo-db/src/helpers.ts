@@ -5,19 +5,21 @@ import { DynamoResultTestParams, TestInfoItem, TestItemDb, TestReport } from './
 export function mapTestItemToDb(
     runId: string,
     ttl: number,
-    { position, order, file, project, timeout }: TestItem,
+    { position, order, file, project, timeout, children, testId }: TestItem,
     status: StatusOffset = StatusOffset.Pending,
 ): TestItemDb {
     const [line, character] = position.split(':');
     return {
         [Fields.Id]: runId,
         [Fields.Order]: (order % OFFSET_STEP) + status,
+        [Fields.TestId]: testId,
         [Fields.Line]: line,
         [Fields.Character]: character,
         [Fields.File]: file,
         [Fields.Project]: project,
         [Fields.Timeout]: timeout,
         [Fields.Ttl]: ttl,
+        [Fields.Children]: children,
     };
 }
 
@@ -37,19 +39,23 @@ export function mapTestInfoItemToReport(
 }
 
 export function mapDbToTestItem({
+    [Fields.TestId]: testId,
     [Fields.Order]: order,
     [Fields.Line]: line,
     [Fields.Character]: character,
     [Fields.File]: file,
     [Fields.Project]: project,
     [Fields.Timeout]: timeout,
+    [Fields.Children]: children,
 }: TestItemDb): TestItem {
     return {
+        testId,
         position: `${line}:${character}`,
         file,
         project,
         order,
         timeout,
+        children,
     };
 }
 

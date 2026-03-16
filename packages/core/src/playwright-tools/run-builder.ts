@@ -51,11 +51,13 @@ export class RunBuilder {
             return true;
         }
         if (entry.type === 'test' || analyzer.suiteIsSerial(entry)) {
+            const children = entry.type === 'test' ? undefined : entry.allTests().map((test) => test.title);
             fileTests[position] = {
                 timeout: analyzer.getTimeout(entry),
                 projects: [project],
                 annotations: this.getAnnotations(entry),
                 title: entry.title,
+                children: children,
             };
             return true;
         }

@@ -66,9 +66,9 @@ export class MongoDbAdapter extends BaseAdapter {
         return doc?.ema ?? 0;
     }
 
-    async saveTestResult({ runId, testId, test, item, historyWindow, newEma, title }: SaveTestResultParams): Promise<void> {
+    async saveTestResult({ runId, test, item, historyWindow, newEma, title }: SaveTestResultParams): Promise<void> {
         const updatedDoc = await this.testInfo.findOneAndUpdate(
-            { _id: testId },
+            { _id: test.testId },
             {
                 $set: { ema: newEma },
                 // @ts-ignore

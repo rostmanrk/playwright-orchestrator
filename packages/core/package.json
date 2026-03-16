@@ -21,17 +21,16 @@
         "playwright-orchestrator": "./dist/cli.js"
     },
     "files": [
-        "dist",
-        "src"
+        "dist"
     ],
     "dependencies": {
         "@actions/core": "^1.11.1",
         "@commander-js/extra-typings": "^13.0.0",
-        "ansi-escapes": "^7.0.0",
         "boxen": "^8.0.1",
         "chalk": "^5.4.1",
         "commander": "^13.0.0",
         "inversify": "^8.0.0-beta.0",
+        "log-update": "^6.1.0",
         "reflect-metadata": "^0.2.2",
         "typescript": "^5.0.0",
         "uuid": "^11.0.3"
@@ -48,8 +47,14 @@
         },
         "./cli": "./dist/cli.js",
         "./package.json": "./package.json",
-        "./tests-info-reporter": "./src/playwright-tools/run-info-reporter.ts",
-        "./test-result-reporter": "./src/playwright-tools/test-result-reporter.ts",
+        "./run-info-reporter": {
+            "types": "./dist/playwright-tools/run-info-reporter.d.ts",
+            "default": "./dist/playwright-tools/run-info-reporter.js"
+        },
+        "./test-result-reporter": {
+            "types": "./dist/playwright-tools/test-result-reporter.d.ts",
+            "default": "./dist/playwright-tools/test-result-reporter.js"
+        },
         "./annotations": "./dist/playwright-tools/annotations.cjs"
     },
     "peerDependencies": {

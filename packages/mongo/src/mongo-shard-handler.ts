@@ -30,9 +30,9 @@ export class MongoShardHandler implements ShardHandler {
             $set: { updated: new Date(), status: TestStatus.Ongoing },
         });
         if (!result) return undefined;
-        const { file, line, column, project, timeout } = result!;
+        const { file, line, column, project, timeout, children, testId } = result!;
         const { order } = parseTestId(result!._id);
-        return { file, position: `${line}:${column}`, project, timeout, order };
+        return { file, position: `${line}:${column}`, project, timeout, order, children, testId };
     }
 
     async startShard(runId: string): Promise<TestRunConfig> {

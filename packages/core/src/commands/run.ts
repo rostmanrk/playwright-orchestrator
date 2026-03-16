@@ -1,8 +1,10 @@
 import { loadPlugins } from '../helpers/plugin.js';
-import { TestRunner } from '../test-runner.js';
+import { TestRunner } from '../runner/test-runner.js';
 import { withErrorHandling } from './error-handler.js';
 import { program } from './program.js';
-import { createContainer, SYMBOLS } from '../container.js';
+import { createContainer } from '../container.js';
+import { SequentialBatcher } from '../batch/sequential-batcher.js';
+import { SYMBOLS } from '../symbols.js';
 
 export default async () => {
     const command = program.command('run').description('Start test run shard');
@@ -21,6 +23,7 @@ export default async () => {
                     await register(container, options);
                     container.bind<string>(SYMBOLS.RunId).toConstantValue(options.runId);
                     container.bind<string>(SYMBOLS.OutputFolder).toConstantValue(options.output);
+                    container.bind(SYMBOLS.BatchHandler).to(SequentialBatcher).inTransientScope();
                     container.bind<TestRunner>(SYMBOLS.TestRunner).to(TestRunner);
                     const runner = container.get<TestRunner>(SYMBOLS.TestRunner);
                     try {

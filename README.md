@@ -135,9 +135,12 @@ No additional options.
 
 Creates and configures a new test run. Outputs created run ID. Supports most of [playwright's options](https://playwright.dev/docs/test-cli#reference).
 
-| Option             | Description                                                                         | Type     | Default | Required? |
-| ------------------ | ----------------------------------------------------------------------------------- | -------- | ------- | --------- |
-| `--history-window` | Count of runs history kept and window for average duration. More [here](#-overview) | `number` | 10      | no        |
+| Option              | Description                                                                         | Type                    | Default | Required?                              |
+| ------------------- | ----------------------------------------------------------------------------------- | ----------------------- | ------- | -------------------------------------- |
+| `--history-window`  | Count of runs history kept and window for average duration. More [here](#-overview) | `number`                | `10`    | no                                     |
+| `--batch-mode`      | Batch grouping mode. `off` uses current single-test behaviour                       | `off \| time \| count`  | `time`  | no                                     |
+| `--batch-target`    | Batch size: seconds (time mode) or test count (count mode)                          | `number`                | -       | yes when `--batch-mode` is not `off`   |
+| `--batch-grouping`  | How tests are grouped into batches                                                  | `test \| project`       | `test`  | no                                     |
 
 ### `run`
 

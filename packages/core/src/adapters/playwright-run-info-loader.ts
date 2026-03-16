@@ -13,10 +13,10 @@ export class PlaywrightRunInfoLoader implements RunInfoLoader {
         const { stdout } = await spawnAsync(process.execPath, [
             playwrightCli,
             'test',
-            '--list',
             ...args,
+            '--list',
             '--reporter',
-            '@playwright-orchestrator/core/tests-info-reporter',
+            '@playwright-orchestrator/core/run-info-reporter',
         ]);
         return JSON.parse(stdout) as TestRunInfo;
     }

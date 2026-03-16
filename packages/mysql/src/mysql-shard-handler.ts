@@ -14,6 +14,8 @@ interface Test extends RowDataPacket {
     pos: number;
     project: string;
     timeout: number;
+    children?: string[];
+    test_id: string;
 }
 
 interface Run extends RowDataPacket {
@@ -63,8 +65,16 @@ export class MySQLShardHandler implements ShardHandler {
             );
             await client.commit();
             if (result[2].length === 0) return undefined;
-            const { file, line, pos, project, timeout, order_num } = result[2][0];
-            return { file, position: `${line}:${pos}`, project, timeout, order: order_num };
+            const { file, line, pos, project, timeout, order_num, children, test_id } = result[2][0];
+            return {
+                file,
+                position: `${line}:${pos}`,
+                project,
+                timeout,
+                order: order_num,
+                children,
+                testId: test_id,
+            };
         } catch (e) {
             await client.rollback();
             throw e;

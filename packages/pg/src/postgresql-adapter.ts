@@ -20,10 +20,7 @@ export class PostgreSQLAdapter extends BaseAdapter {
     private readonly testInfoHistoryTable: string;
     private readonly pool: pg.Pool;
 
-    constructor(
-        @inject(PG_CONFIG) { tableNamePrefix }: CreateArgs,
-        @inject(PG_POOL) pgPool: PgPool,
-    ) {
+    constructor(@inject(PG_CONFIG) { tableNamePrefix }: CreateArgs, @inject(PG_POOL) pgPool: PgPool) {
         super();
         this.pool = pgPool.pool;
         this.configTable = pg.escapeIdentifier(`${tableNamePrefix}_test_runs`);
@@ -71,7 +68,7 @@ export class PostgreSQLAdapter extends BaseAdapter {
         return testInfo?.ema ?? 0;
     }
 
-    async saveTestResult({ runId, testId, test, item, historyWindow, newEma, title }: SaveTestResultParams): Promise<void> {
+    async saveTestResult({ runId, test, item, historyWindow, newEma, title }: SaveTestResultParams): Promise<void> {
         const client = await this.pool.connect();
         try {
             await client.query('BEGIN');
@@ -79,7 +76,7 @@ export class PostgreSQLAdapter extends BaseAdapter {
                 rows: [{ id }],
             } = await client.query({
                 text: `UPDATE ${this.testInfoTable} SET ema = $1 WHERE name = $2 RETURNING id`,
-                values: [newEma, testId],
+                values: [newEma, test.testId],
             });
             await client.query({
                 text: `INSERT INTO ${this.testInfoHistoryTable} (status, duration, updated, test_info_id) VALUES ($1, $2, NOW(), $3)`,

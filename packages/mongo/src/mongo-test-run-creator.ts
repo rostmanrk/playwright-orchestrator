@@ -1,6 +1,6 @@
 import { injectable, inject } from 'inversify';
 import { BaseTestRunCreator, RunStatus, TestStatus } from '@playwright-orchestrator/core';
-import type { ReporterTestItem, TestSortItem } from '@playwright-orchestrator/core';
+import type { TestItem, TestSortItem } from '@playwright-orchestrator/core';
 import type { CreateArgs } from './create-args.js';
 import { MongoConnection } from './mongo-connection.js';
 import type { TestInfoDocument } from './types.js';
@@ -24,7 +24,7 @@ export class MongoTestRunCreator extends BaseTestRunCreator {
         this.debug = args.debug ?? false;
     }
 
-    async loadTestInfos(tests: ReporterTestItem[]): Promise<Map<string, TestSortItem>> {
+    async loadTestInfos(tests: TestItem[]): Promise<Map<string, TestSortItem>> {
         const testInfo = this.connection.db.collection<TestInfoDocument>(this.testsInfoCollection);
         const testInfoMap = new Map<string, TestSortItem>();
         for (const { testId } of tests) {
@@ -50,7 +50,7 @@ export class MongoTestRunCreator extends BaseTestRunCreator {
         return testInfoMap;
     }
 
-    async saveRunData(runId: string, config: object, tests: ReporterTestItem[]): Promise<void> {
+    async saveRunData(runId: string, config: object, tests: TestItem[]): Promise<void> {
         const { args, historyWindow, ...testRunConfig } = config as any;
         const run = {
             _id: generateRunId(runId),
@@ -63,10 +63,11 @@ export class MongoTestRunCreator extends BaseTestRunCreator {
         await this.connection.db.collection(this.runsCollection).insertOne(run as any);
         if (tests.length === 0) return;
         await (this.connection.db.collection(this.testsCollection) as any).insertMany(
-            tests.map(({ file, order, position, project, timeout }) => {
+            tests.map(({ file, order, position, project, timeout, children, testId }) => {
                 const [line, column] = position.split(':').map(Number);
                 return {
                     _id: generateTestId(runId, order),
+                    testId,
                     file,
                     project,
                     timeout,
@@ -74,6 +75,7 @@ export class MongoTestRunCreator extends BaseTestRunCreator {
                     column,
                     status: TestStatus.Ready,
                     updated: new Date(),
+                    children,
                     ...(this.debug ? { runId, order } : {}),
                 };
             }),

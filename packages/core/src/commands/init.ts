@@ -1,8 +1,9 @@
 import { loadPlugins } from '../helpers/plugin.js';
 import { withErrorHandling } from './error-handler.js';
 import { program } from './program.js';
-import { createContainer, SYMBOLS } from '../container.js';
+import { createContainer } from '../container.js';
 import type { Initializer } from '../adapters/initializer.js';
+import { SYMBOLS } from '../symbols.js';
 
 export default async () => {
     const command = program.command('init').description('Run initialize script for selected storage type.');

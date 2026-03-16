@@ -1,6 +1,6 @@
 import { injectable, inject } from 'inversify';
 import { BaseTestRunCreator, RunStatus } from '@playwright-orchestrator/core';
-import type { ReporterTestItem, TestSortItem } from '@playwright-orchestrator/core';
+import type { TestItem, TestSortItem } from '@playwright-orchestrator/core';
 import type { CreateArgs } from './create-args.js';
 import { RedisConnection } from './redis-connection.js';
 import { SetOptions } from 'redis';
@@ -26,7 +26,7 @@ export class RedisTestRunCreator extends BaseTestRunCreator {
         this.connection = connection;
     }
 
-    async loadTestInfos(tests: ReporterTestItem[]): Promise<Map<string, TestSortItem>> {
+    async loadTestInfos(tests: TestItem[]): Promise<Map<string, TestSortItem>> {
         const client = await this.connection.getClient();
         const created = new Date().getTime();
         const ops = client.multi();
@@ -53,7 +53,7 @@ export class RedisTestRunCreator extends BaseTestRunCreator {
         return testInfo;
     }
 
-    async saveRunData(runId: string, config: object, tests: ReporterTestItem[]): Promise<void> {
+    async saveRunData(runId: string, config: object, tests: TestItem[]): Promise<void> {
         const client = await this.connection.getClient();
         const baseTestRunKey = `${this._namePrefix}:${TEST_RUN}:${runId}`;
         const setOptions: SetOptions = { EX: this.ttl };
