@@ -51,14 +51,14 @@ export class FileAdapter extends BaseAdapter {
         return {
             runId,
             config,
-            tests: tests.map(({ file, status, project, position, report }) => ({
+            tests: tests.map(({ file, status, projects, position, report }) => ({
                 averageDuration: report.ema,
                 duration: report.duration,
                 fails: report.fails,
                 title: report.title,
                 file,
                 position,
-                project,
+                projects,
                 status,
                 lastSuccessfulRunTimestamp: report.lastSuccessfulRunTimestamp,
             })),
@@ -72,7 +72,7 @@ export class FileAdapter extends BaseAdapter {
         return history[testId]?.ema ?? 0;
     }
 
-    async saveTestResult({ runId, test, item, historyWindow, newEma, title }: SaveTestResultParams): Promise<void> {
+    async saveTestResult({ runId, test, item, historyWindow, newEma }: SaveTestResultParams): Promise<void> {
         const historyFile = getHistoryRunPath(this.dir);
         let testItem: TestHistoryItem;
         const releaseHistory = await lock(historyFile, { retries: 100 });
@@ -93,7 +93,7 @@ export class FileAdapter extends BaseAdapter {
             duration: h.duration,
             updated: h.updated,
         }));
-        const report = this.buildReport(test, item, title, newEma, historyItems);
+        const report = this.buildReport(test, item, newEma, historyItems);
         const resultsFile = getResultsRunPath(this.dir, runId);
         const releaseResults = await lock(resultsFile, { retries: 100 });
         try {

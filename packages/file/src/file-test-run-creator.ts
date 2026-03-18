@@ -1,6 +1,6 @@
-import { injectable, inject } from 'inversify';
-import { BaseTestRunCreator, TestStatus, RunStatus } from '@playwright-orchestrator/core';
-import type { TestItem, TestSortItem, TestRunConfig } from '@playwright-orchestrator/core';
+import { injectable, inject, injectFromBase } from 'inversify';
+import { BaseTestRunCreator, TestStatus } from '@playwright-orchestrator/core';
+import type { TestItem, TestSortItem, TestRun } from '@playwright-orchestrator/core';
 import type { CreateArgs } from './create-args.js';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
@@ -18,6 +18,7 @@ interface TestHistoryItem {
 }
 
 @injectable()
+@injectFromBase({ extendProperties: true, extendConstructorArguments: false })
 export class FileTestRunCreator extends BaseTestRunCreator {
     private readonly dir: string;
 
@@ -53,13 +54,8 @@ export class FileTestRunCreator extends BaseTestRunCreator {
         );
     }
 
-    async saveRunData(runId: string, config: object, tests: TestItem[]): Promise<void> {
-        const testConfig: TestRunConfig = {
-            ...(config as TestRunConfig),
-            status: RunStatus.Created,
-            updated: Date.now(),
-        };
-        await writeFile(getRunConfigPath(this.dir, runId), JSON.stringify(testConfig, null, 2));
+    async saveRunData(runId: string, testRun: TestRun, tests: TestItem[]): Promise<void> {
+        await writeFile(getRunConfigPath(this.dir, runId), JSON.stringify(testRun, null, 2));
         await writeFile(getRunIdFilePath(this.dir, runId), JSON.stringify(tests, null, 2));
         await writeFile(getResultsRunPath(this.dir, runId), '[]');
     }

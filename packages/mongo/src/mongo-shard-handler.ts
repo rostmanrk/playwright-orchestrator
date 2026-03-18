@@ -6,7 +6,7 @@ import type { CreateArgs } from './create-args.js';
 import { MongoConnection } from './mongo-connection.js';
 import { MONGO_CONFIG, MONGO_CONNECTION } from './symbols.js';
 import type { TestDocument, TestRunDocument } from './types.js';
-import { generateTestId, generateRunId, parseTestId, mapDbToTestRunConfig } from './helpers.js';
+import { generateTestId, generateRunId, parseTestId } from './helpers.js';
 
 const MAX_ORDER = 0b1111111111111111;
 
@@ -30,9 +30,13 @@ export class MongoShardHandler implements ShardHandler {
             $set: { updated: new Date(), status: TestStatus.Ongoing },
         });
         if (!result) return undefined;
-        const { file, line, column, project, timeout, children, testId } = result!;
+        const { file, line, column, projects, timeout, children, testId } = result!;
         const { order } = parseTestId(result!._id);
-        return { file, position: `${line}:${column}`, project, timeout, order, children, testId };
+        return { file, position: `${line}:${column}`, projects, timeout, order, children, testId };
+    }
+
+    async getNextTestByProject(runId: string, project: string, config: TestRunConfig): Promise<TestItem | undefined> {
+        throw new Error('Method not implemented.');
     }
 
     async startShard(runId: string): Promise<TestRunConfig> {
@@ -42,7 +46,7 @@ export class MongoShardHandler implements ShardHandler {
                 $set: {
                     status: {
                         $cond: {
-                            if: { $in: ['$status', [RunStatus.Created]] },
+                            if: { $in: ['$status', [RunStatus.Created, RunStatus.Run]] },
                             then: RunStatus.Run,
                             else: RunStatus.RepeatRun,
                         },
@@ -58,7 +62,7 @@ export class MongoShardHandler implements ShardHandler {
                 $set: { status: TestStatus.Ready, updated: now },
             });
         }
-        return mapDbToTestRunConfig(run);
+        return run.config;
     }
 
     async finishShard(runId: string): Promise<void> {

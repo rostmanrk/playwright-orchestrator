@@ -1,7 +1,6 @@
 import { injectable } from 'inversify';
 import type { BatchHandler } from './batch-handler.js';
-import type { TestItem } from '../types/adapters.js';
-import type { TestRunConfig } from '../types/test-info.js';
+import type { TestItem, TestRunConfig } from '../types/adapters.js';
 
 @injectable()
 export class CountBatchHandler implements BatchHandler {

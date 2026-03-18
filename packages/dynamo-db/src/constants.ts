@@ -16,6 +16,7 @@ export enum Fields {
     Character = 'c',
     File = 'f',
     Project = 'p',
+    Projects = 'ps',
     Timeout = 't',
     Duration = 'd',
     EMA = 'e',

@@ -1,8 +1,12 @@
 import type { Reporter, TestCase, TestResult } from '@playwright/test/reporter';
 import { TestCaseKeys, TestLocationKeys, TestReportEvent, TestResultKeys } from '../types/reporter.js';
-import { getTestIdByTestCase } from '../helpers/get-test-id.js';
+import { getTestId } from '../helpers/get-test-id.js';
+import { pick } from '../helpers/pick.js';
+import { BatchGrouping } from '../types/adapters.js';
 
 export default class TestResultReporter implements Reporter {
+    private readonly grouping = process.env.PLAYWRIGHT_ORCHESTRATOR_BATCH_GROUPING;
+
     onTestBegin(test: TestCase, result: TestResult): void {
         console.log(this.prepareTestResult('begin', test, result));
     }
@@ -17,23 +21,18 @@ export default class TestResultReporter implements Reporter {
             type,
             project,
             test: {
-                ...this.pick(test, ...TestCaseKeys),
-                location: this.pick(test.location, ...TestLocationKeys),
+                ...pick(test, ...TestCaseKeys),
+                location: pick(test.location, ...TestLocationKeys),
                 ok: test.ok(),
-                testId: getTestIdByTestCase(test),
+                testId: getTestId({
+                    project: this.grouping === BatchGrouping.Project ? project : undefined,
+                    file,
+                    title: test.title,
+                    annotations: test.annotations,
+                }),
             },
-            result: this.pick(result, ...TestResultKeys),
+            result: pick(result, ...TestResultKeys),
         };
         return JSON.stringify(event);
-    }
-
-    private pick<T extends object, K extends keyof T>(obj: T, ...keys: K[]): Pick<T, K> {
-        const result = {} as Pick<T, K>;
-        for (const key of keys) {
-            if (key in obj) {
-                result[key] = obj[key];
-            }
-        }
-        return result;
     }
 }

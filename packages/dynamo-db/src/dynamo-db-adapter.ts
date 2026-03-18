@@ -47,10 +47,10 @@ export class DynamoDbAdapter extends BaseAdapter {
                 const report = test[Fields.Report];
                 return {
                     file: test[Fields.File],
-                    project: test[Fields.Project],
+                    projects: test[Fields.Projects] ?? [test[Fields.Project]!],
                     position: `${test[Fields.Line]}:${test[Fields.Character]}`,
                     status: idToStatus(test[Fields.Order]),
-                    title: report?.[Fields.Title] ?? '',
+                    title: test[Fields.TestId],
                     fails: report?.[Fields.Fails] ?? 0,
                     lastSuccessfulRunTimestamp: report?.[Fields.LastSuccess] ?? 0,
                     duration: report?.[Fields.Duration] ?? 0,
@@ -70,7 +70,7 @@ export class DynamoDbAdapter extends BaseAdapter {
     }
 
     private async saveTestResultWithRetry(params: SaveTestResultParams, retry: number): Promise<void> {
-        const { runId, test, item, historyWindow, newEma, title } = params;
+        const { runId, test, item, historyWindow, newEma } = params;
         try {
             const stats = await this.getTestInfo(test.testId);
             if (!stats) return;
@@ -88,7 +88,7 @@ export class DynamoDbAdapter extends BaseAdapter {
                 duration: h[Fields.Duration],
                 updated: h[Fields.Updated],
             }));
-            const report = this.buildReport(test, item, title, newEma, historyItems);
+            const report = this.buildReport(test, item, newEma, historyItems);
             const status = item.status === TestStatus.Failed ? StatusOffset.Failed : StatusOffset.Succeed;
             await this.connection.docClient.send(
                 new TransactWriteCommand({

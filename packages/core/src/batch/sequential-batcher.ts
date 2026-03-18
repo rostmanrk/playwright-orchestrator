@@ -1,8 +1,7 @@
 import { injectable, inject } from 'inversify';
 import type { BatchHandler } from './batch-handler.js';
 import type { ShardHandler } from '../adapters/shard-handler.js';
-import type { TestItem } from '../types/adapters.js';
-import type { TestRunConfig } from '../types/test-info.js';
+import type { TestItem, TestRunConfig } from '../types/adapters.js';
 import { SYMBOLS } from '../symbols.js';
 
 @injectable()

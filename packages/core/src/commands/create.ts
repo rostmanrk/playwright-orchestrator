@@ -4,10 +4,9 @@ import { loadPlugins } from '../helpers/plugin.js';
 import { withErrorHandling } from './error-handler.js';
 import { Option } from '@commander-js/extra-typings';
 import { createContainer } from '../container.js';
-import type { RunInfoLoader } from '../adapters/run-info-loader.js';
 import type { TestRunCreator } from '../adapters/test-run-creator.js';
-import type { BatchOptions } from '../types/adapters.js';
 import { SYMBOLS } from '../symbols.js';
+import { pick } from '../helpers/pick.js';
 
 export default async () => {
     const command = program
@@ -49,21 +48,17 @@ export default async () => {
                     const runId = uuid.v7();
                     const args = subCommand.args.slice(subCommand.registeredArguments.length);
                     const container = createContainer();
-                    const runInfo = await container.get<RunInfoLoader>(SYMBOLS.RunInfoLoader).load(args);
                     await register(container, options);
                     const creator = container.get<TestRunCreator>(SYMBOLS.TestRunCreator);
-                    const batchOptions: BatchOptions = {
-                        batchMode: options.batchMode,
-                        batchTarget: options.batchTarget !== undefined ? +options.batchTarget : undefined,
-                        batchGrouping: options.batchGrouping,
-                    };
+                    options = pick(options, 'batchMode', 'batchTarget', 'batchGrouping', 'historyWindow');
+                    options.historyWindow = +options.historyWindow;
+                    options.batchTarget = options.batchTarget !== undefined ? +options.batchTarget : undefined;
+
                     try {
                         await creator.create({
                             runId,
-                            testRun: runInfo,
                             args,
-                            historyWindow: +options.historyWindow,
-                            batchOptions,
+                            options,
                         });
                         console.log(runId);
                     } finally {

@@ -18,6 +18,9 @@ export class PgShardHandler implements ShardHandler {
         this.configTable = pg.escapeIdentifier(`${tableNamePrefix}_test_runs`);
         this.testsTable = pg.escapeIdentifier(`${tableNamePrefix}_tests`);
     }
+    async getNextTestByProject(runId: string, project: string, config: TestRunConfig): Promise<TestItem | undefined> {
+        throw new Error('Method not implemented.');
+    }
 
     async getNextTest(runId: string, _config: TestRunConfig): Promise<TestItem | undefined> {
         const client = await this.pool.connect();
@@ -40,11 +43,11 @@ export class PgShardHandler implements ShardHandler {
             });
             await client.query('COMMIT');
             if (result.rowCount === 0) return undefined;
-            const { file, line, character, project, timeout, order_num, children, test_id } = result.rows[0];
+            const { file, line, character, projects, timeout, order_num, children, test_id } = result.rows[0];
             return {
                 file,
                 position: `${line}:${character}`,
-                project,
+                projects,
                 timeout,
                 order: order_num,
                 children,
@@ -90,7 +93,7 @@ export class PgShardHandler implements ShardHandler {
                 });
             }
             await client.query('COMMIT');
-            return this.mapConfig(result.rows[0]);
+            return result.rows[0].config;
         } catch (e) {
             await client.query('ROLLBACK');
             throw e;
@@ -104,9 +107,5 @@ export class PgShardHandler implements ShardHandler {
             text: `UPDATE ${this.configTable} SET status = $1, updated = NOW() WHERE id = $2`,
             values: [RunStatus.Finished, runId],
         });
-    }
-
-    private mapConfig(dbConfig: any): TestRunConfig {
-        return { ...dbConfig.config, updated: dbConfig.updated.getTime(), status: dbConfig.status };
     }
 }

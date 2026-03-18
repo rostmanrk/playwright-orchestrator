@@ -1,7 +1,7 @@
 import { injectable, inject } from 'inversify';
-import type { ShardHandler } from '@playwright-orchestrator/core';
+import type { ShardHandler, TestRunConfig } from '@playwright-orchestrator/core';
 import { RunStatus } from '@playwright-orchestrator/core';
-import type { TestItem, TestRunConfig } from '@playwright-orchestrator/core';
+import type { TestItem, TestRun } from '@playwright-orchestrator/core';
 import type { CreateArgs } from './create-args.js';
 import { RedisConnection } from './redis-connection.js';
 import { REDIS_CONFIG, REDIS_CONNECTION } from './symbols.js';
@@ -23,8 +23,11 @@ export class RedisShardHandler implements ShardHandler {
         this.connection = connection;
         this.ttl = ttl * 24 * 60 * 60;
     }
+    async getNextTestByProject(runId: string, project: string, config: TestRunConfig): Promise<TestItem | undefined> {
+        throw new Error('Method not implemented.');
+    }
 
-    async getNextTest(runId: string, _config: TestRunConfig): Promise<TestItem | undefined> {
+    async getNextTest(runId: string, config: TestRunConfig): Promise<TestItem | undefined> {
         const client = await this.connection.getClient();
         const res = await client.lPop(`${this._namePrefix}:${TESTS}:${runId}:queue`);
         return res ? JSON.parse(res) : undefined;
@@ -61,7 +64,7 @@ export class RedisShardHandler implements ShardHandler {
             transaction.set(updatedKey, new Date().getTime(), { EX: this.ttl });
             await transaction.exec();
         }
-        return this.loadTestRunConfig(runId);
+        return (await this.loadTestRun(runId)).config;
     }
 
     async finishShard(runId: string): Promise<void> {
@@ -74,7 +77,7 @@ export class RedisShardHandler implements ShardHandler {
             .exec();
     }
 
-    private async loadTestRunConfig(runId: string): Promise<TestRunConfig> {
+    private async loadTestRun(runId: string): Promise<TestRun> {
         const client = await this.connection.getClient();
         const baseKey = `${this._namePrefix}:${TEST_RUN}:${runId}`;
         const [config, status, updated] = await client.mGet([
@@ -83,6 +86,6 @@ export class RedisShardHandler implements ShardHandler {
             `${baseKey}:updated`,
         ]);
         if (!config || !status || !updated) throw new Error(`Run ${runId} not found`);
-        return { ...JSON.parse(config), status: +status, updated: +updated };
+        return { status: +status as RunStatus, updated: +updated, config: JSON.parse(config) };
     }
 }

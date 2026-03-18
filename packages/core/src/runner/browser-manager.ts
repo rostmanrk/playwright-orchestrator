@@ -1,8 +1,9 @@
 import { inject, injectable, preDestroy } from 'inversify';
 import playwright, { BrowserServer } from 'playwright';
-import { Project, TestRunConfig } from '../types/test-info.js';
+import { Project } from '../types/test-info.js';
 import { TestExecutionReporter } from '../reporters/test-execution-reporter.js';
 import { SYMBOLS } from '../symbols.js';
+import { TestRunConfig } from '../types/adapters.js';
 
 @injectable()
 export class BrowserManager {

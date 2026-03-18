@@ -1,5 +1,5 @@
-import { TestRunConfig, TestStatus } from '../types/test-info.js';
-import { TestItem } from '../types/adapters.js';
+import { TestStatus } from '../types/test-info.js';
+import { TestItem, TestRunConfig } from '../types/adapters.js';
 import { rm, writeFile } from 'node:fs/promises';
 import { TestExecutionReporter } from '../reporters/test-execution-reporter.js';
 import { TestInfoResult, TestReportEvent } from '../types/reporter.js';
@@ -14,7 +14,6 @@ import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import { cp } from 'node:fs/promises';
 import { SYMBOLS } from '../symbols.js';
-import { withRetry } from '../helpers/with-retry.js';
 
 @injectable()
 export class TestRunner {
@@ -94,6 +93,7 @@ export class TestRunner {
                         ...(config.configFile && {
                             PLAYWRIGHT_ORCHESTRATOR_BROWSERS: JSON.stringify(browsers),
                         }),
+                        PLAYWRIGHT_ORCHESTRATOR_BATCH_GROUPING: config.options.batchGrouping,
                     },
                 },
             );
@@ -101,8 +101,8 @@ export class TestRunner {
             createInterface({ input: playwright.stdout, crlfDelay: Infinity }).on('line', onData);
             playwright.on('exit', () => onExit().then(resolve, reject));
         });
-        await withRetry(() => cp(batchFolder, this.outputFolder, { recursive: true }), 3);
-        await withRetry(() => cp(batchArtifactsFolder, this.outputFolder, { recursive: true }), 3);
+        await cp(batchFolder, this.outputFolder, { recursive: true });
+        await cp(batchArtifactsFolder, this.outputFolder, { recursive: true });
         await Promise.all([
             rm(batchFolder, { recursive: true, force: true }),
             rm(batchArtifactsFolder, { recursive: true, force: true }),
@@ -130,10 +130,11 @@ export class TestRunner {
             }
             const {
                 type,
-                test: { testId, ok, title, annotations, retries },
-                result: { duration, status, retry },
+                test: { testId: eventTestId, ok, retries },
+                result: { duration, status, retry, error },
             } = event;
-            const test = testMapping.get(testId)!;
+            const test = testMapping.get(eventTestId)!;
+            const testId = test.testId;
 
             if (type === 'begin' && !testResolvers.has(testId)) {
                 this.reporter.addTest(test, createTestPromise(testId));
@@ -144,11 +145,11 @@ export class TestRunner {
                     testCounts.set(testId, (testCounts.get(testId) ?? 1) - 1);
                 }
                 if (!testResults.has(testId)) testResults.set(testId, []);
-                testResults.get(testId)!.push({ annotations, duration, status, title, retry });
+                testResults.get(testId)!.push({ duration, status, retry, error, ok });
                 if ((testCounts.get(testId) ?? 0) === 0) {
                     const { success, fail } = testResolvers.get(testId)!;
                     pending.push(
-                        this.saveTestResult(event, test, testResults, config).then(() => {
+                        this.saveTestResult(test, testResults, config).then(() => {
                             ok ? success() : fail();
                         }),
                     );
@@ -161,26 +162,17 @@ export class TestRunner {
         return { onData, onExit };
     }
 
-    private async saveTestResult(
-        event: TestReportEvent,
-        test: TestItem,
-        testResults: Map<string, TestInfoResult[]>,
-        config: TestRunConfig,
-    ) {
-        const {
-            test: { testId, ok, title, annotations },
-            result: { duration, status, error },
-        } = event;
-        await this.adapter.updateTestWithResults(ok ? TestStatus.Passed : TestStatus.Failed, {
+    private async saveTestResult(test: TestItem, testResults: Map<string, TestInfoResult[]>, config: TestRunConfig) {
+        const tests = testResults.get(test.testId)!;
+        const last = tests.at(-1);
+        await this.adapter.updateTestWithResults(last!.ok ? TestStatus.Passed : TestStatus.Failed, {
             runId: this.runId,
             test,
             testResult: {
-                annotations,
-                duration,
-                status,
-                error,
-                title,
-                tests: testResults.get(testId) ?? [],
+                // Summing durations of all retries and tests for the test to get total duration.
+                duration: tests.reduce((acc, r) => acc + r.duration, 0),
+                status: last!.status,
+                tests,
             },
             config,
         });
@@ -194,7 +186,7 @@ export class TestRunner {
             for (const childId of test.children ?? []) {
                 mapping.set(childId, test);
             }
-            counts.set(test.testId, test.children?.length ?? 1);
+            counts.set(test.testId, (test.children?.length ?? 1) * test.projects.length);
         }
         return { mapping, counts };
     }
@@ -204,7 +196,9 @@ export class TestRunner {
         const projects = new Set<string>();
         for (const test of tests) {
             args.push(`${test.file}:${test.position}`);
-            projects.add(test.project);
+            for (const project of test.projects) {
+                projects.add(project);
+            }
         }
         args.push(...config.args);
         args.push('--workers', '1');

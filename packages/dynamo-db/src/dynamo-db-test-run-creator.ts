@@ -1,15 +1,16 @@
-import { injectable, inject } from 'inversify';
-import { BaseTestRunCreator, RunStatus } from '@playwright-orchestrator/core';
-import type { TestItem, TestSortItem } from '@playwright-orchestrator/core';
+import { injectable, inject, injectFromBase } from 'inversify';
+import { BaseTestRunCreator } from '@playwright-orchestrator/core';
+import type { TestItem, TestRun, TestSortItem } from '@playwright-orchestrator/core';
 import type { CreateArgs } from './create-args.js';
 import { PutCommand, BatchWriteCommand, BatchGetCommand } from '@aws-sdk/lib-dynamodb';
-import { mapDbTestInfoToSortItem, mapTestItemToDb, getTtl } from './helpers.js';
+import { mapDbTestInfoToSortItem, mapTestItemToDb, getTtl, mapTestRunToDb } from './helpers.js';
 import { Fields } from './constants.js';
 import type { TestInfoItem } from './types.js';
 import { DynamoDbConnection } from './dynamo-db-connection.js';
 import { DYNAMO_CONFIG, DYNAMO_CONNECTION } from './symbols.js';
 
 @injectable()
+@injectFromBase({ extendProperties: true, extendConstructorArguments: false })
 export class DynamoDbTestRunCreator extends BaseTestRunCreator {
     private readonly testsTableName: string;
     private readonly ttl: number;
@@ -40,20 +41,11 @@ export class DynamoDbTestRunCreator extends BaseTestRunCreator {
         return foundTestMap;
     }
 
-    async saveRunData(runId: string, config: object, tests: TestItem[]): Promise<void> {
+    async saveRunData(runId: string, testRun: TestRun, tests: TestItem[]): Promise<void> {
         await this.connection.docClient.send(
             new PutCommand({
                 TableName: this.testsTableName,
-                Item: {
-                    [Fields.Id]: runId,
-                    [Fields.Order]: 0,
-                    [Fields.Config]: {
-                        ...config,
-                        status: RunStatus.Created,
-                        updated: Date.now(),
-                    },
-                    [Fields.Ttl]: getTtl(this.ttl),
-                },
+                Item: mapTestRunToDb(runId, getTtl(this.ttl), testRun),
             }),
         );
         for (let i = 0; i < tests.length; i += 25) {

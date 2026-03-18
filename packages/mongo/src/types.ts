@@ -1,13 +1,11 @@
-import { RunStatus, TestConfig, TestItem, TestStatus } from '@playwright-orchestrator/core';
+import { RunStatus, TestItem, TestRunConfig, TestStatus } from '@playwright-orchestrator/core';
 import { Binary, Document } from 'mongodb';
 
 export interface TestRunDocument extends Document {
     _id: Binary;
     status: RunStatus;
-    config: TestConfig;
-    args: string[];
+    config: TestRunConfig;
     updated: Date;
-    historyWindow: number;
 }
 
 export interface TestDocument extends Document, Omit<TestItem, 'order' | 'position'> {

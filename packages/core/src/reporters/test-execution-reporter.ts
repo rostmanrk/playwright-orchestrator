@@ -112,6 +112,7 @@ export class TestExecutionReporter {
     }
 
     private getKey(test: TestItem) {
-        return `[${test.project}] ${test.file}${test.position === '0:0' ? '' : `:${test.position}`}`;
+        const project = test.projects.join('|');
+        return `[${project}] ${test.file}${test.position === '0:0' ? '' : `:${test.position}`}`;
     }
 }

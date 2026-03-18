@@ -1,5 +1,5 @@
 import type { TestReportResult } from './reporter.js';
-import type { TestRunConfig, TestRunInfo, TestStatus } from './test-info.js';
+import type { RunStatus, TestConfig, TestStatus } from './test-info.js';
 import type { TestDetailsAnnotation } from '@playwright/test';
 
 export const BatchMode = {
@@ -15,17 +15,29 @@ export const BatchGrouping = {
 } as const;
 export type BatchGrouping = (typeof BatchGrouping)[keyof typeof BatchGrouping];
 
-export interface BatchOptions {
+export interface TestRunConfig extends TestConfig {
+    args: string[];
+    options: BaseOptions;
+}
+
+export interface TestRun {
+    status: RunStatus;
+    updated: number;
+    config: TestRunConfig;
+}
+
+export interface BaseOptions {
     batchMode: BatchMode;
     batchTarget?: number;
     batchGrouping: BatchGrouping;
+    historyWindow: number;
 }
 
 export interface TestItem {
     testId: string;
     file: string;
     position: string;
-    project: string;
+    projects: string[];
     order: number;
     timeout: number;
     children?: string[];
@@ -40,14 +52,12 @@ export interface ResultTestParams {
 
 export interface SaveTestRunParams {
     runId: string;
-    testRun: TestRunInfo;
     args: string[];
-    historyWindow: number;
-    batchOptions: BatchOptions;
+    options: BaseOptions;
 }
 
 export interface GetTestIdParams {
-    project: string;
+    project?: string;
     file: string;
     title: string;
     annotations: TestDetailsAnnotation[];
@@ -75,5 +85,4 @@ export interface SaveTestResultParams {
     item: HistoryItem;
     historyWindow: number;
     newEma: number;
-    title: string;
 }

@@ -1,11 +1,11 @@
 import type { TestCase, TestResult } from '@playwright/test/reporter';
-import type { TestDetailsAnnotation } from '@playwright/test';
-import type { TestRunConfig, TestStatus } from './test-info.js';
+import type { TestStatus } from './test-info.js';
+import { TestRunConfig } from './adapters.js';
 
 export interface TestReport {
     file: string;
     position: string;
-    project: string;
+    projects: string[];
     status: TestStatus;
     duration: number;
     averageDuration: number;
@@ -21,15 +21,18 @@ export interface TestRunReport {
 }
 
 export interface BaseTestResult {
-    annotations: TestDetailsAnnotation[];
     duration: number;
-    title: string;
     status: TestResult['status'];
 }
 
 export interface TestReportResult extends BaseTestResult {
-    error: TestResult['error'];
     tests: TestInfoResult[];
+}
+
+export interface TestInfoResult extends BaseTestResult {
+    ok: boolean;
+    error: TestResult['error'];
+    retry: number;
 }
 
 export type TestReportResultMap = Record<string, { case: TestCase; result: TestResult }[]>;
@@ -54,8 +57,4 @@ export interface TestReportEvent {
         ok: boolean;
     };
     result: Pick<TestResult, (typeof TestResultKeys)[number]>;
-}
-
-export interface TestInfoResult extends BaseTestResult {
-    retry: number;
 }

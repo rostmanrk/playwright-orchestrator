@@ -33,7 +33,7 @@ export class PgInitializer implements Initializer {
                 file TEXT NOT NULL,
                 line INT NOT NULL,
                 character INT NOT NULL,
-                project TEXT NOT NULL,
+                projects JSONB NOT NULL,
                 timeout INT NOT NULL,
                 updated TIMESTAMP NOT NULL DEFAULT NOW(),
                 report JSONB,
@@ -44,6 +44,20 @@ export class PgInitializer implements Initializer {
             ALTER TABLE ${testsTable} ADD COLUMN IF NOT EXISTS children JSONB;
             ALTER TABLE ${testsTable} ADD COLUMN IF NOT EXISTS test_id TEXT NOT NULL DEFAULT '';
             ALTER TABLE ${testsTable} ALTER COLUMN test_id DROP DEFAULT;
+            DO $$
+            BEGIN
+            IF NOT EXISTS (
+                SELECT 1
+                FROM information_schema.columns
+                WHERE table_name = ${pg.escapeLiteral(`${tableNamePrefix}_tests`)} AND column_name = 'projects'
+            ) THEN
+                ALTER TABLE ${testsTable} ADD COLUMN projects JSONB NOT NULL DEFAULT '[]';
+                UPDATE ${testsTable} SET projects = jsonb_build_array(project) WHERE project IS NOT NULL;
+                ALTER TABLE ${testsTable} DROP COLUMN IF EXISTS project;
+                ALTER TABLE ${testsTable} ALTER COLUMN projects DROP DEFAULT;
+            END IF;
+            END $$;
+            UPDATE ${testsTable} SET projects = '[]' WHERE projects IS NULL;
             CREATE INDEX IF NOT EXISTS status_idx ON ${testsTable}(status);
             CREATE TABLE IF NOT EXISTS ${testInfoTable} (
                 id SERIAL PRIMARY KEY,

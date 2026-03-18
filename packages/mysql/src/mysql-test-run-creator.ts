@@ -1,6 +1,6 @@
-import { injectable, inject } from 'inversify';
-import { BaseTestRunCreator, RunStatus, TestStatus } from '@playwright-orchestrator/core';
-import type { TestItem, TestSortItem } from '@playwright-orchestrator/core';
+import { injectable, inject, injectFromBase } from 'inversify';
+import { BaseTestRunCreator, TestStatus } from '@playwright-orchestrator/core';
+import type { TestItem, TestRun, TestSortItem } from '@playwright-orchestrator/core';
 import type { CreateArgs } from './create-args.js';
 import { MySQLPool } from './mysql-pool.js';
 import { Pool, RowDataPacket, ResultSetHeader } from 'mysql2/promise';
@@ -15,6 +15,7 @@ interface TestInfo extends RowDataPacket {
 }
 
 @injectable()
+@injectFromBase({ extendProperties: true, extendConstructorArguments: false })
 export class MySQLTestRunCreator extends BaseTestRunCreator {
     private readonly configTable: string;
     private readonly testsTable: string;
@@ -81,8 +82,8 @@ export class MySQLTestRunCreator extends BaseTestRunCreator {
         return testInfoMap;
     }
 
-    async saveRunData(runId: string, config: object, tests: TestItem[]): Promise<void> {
-        const testValues = tests.map(({ position, order, file, project, timeout, children, testId }) => {
+    async saveRunData(runId: string, testRun: TestRun, tests: TestItem[]): Promise<void> {
+        const testValues = tests.map(({ position, order, file, projects, timeout, children, testId }) => {
             const [line, character] = position.split(':');
             return [
                 runId,
@@ -90,7 +91,7 @@ export class MySQLTestRunCreator extends BaseTestRunCreator {
                 file,
                 +line,
                 +character,
-                project,
+                JSON.stringify(projects),
                 timeout,
                 children != null ? JSON.stringify(children) : null,
                 testId,
@@ -101,12 +102,12 @@ export class MySQLTestRunCreator extends BaseTestRunCreator {
         const values: (string | number | object | null | undefined)[] = [
             this.configTable,
             runId,
-            RunStatus.Created,
-            JSON.stringify(config),
+            testRun.status,
+            JSON.stringify(testRun.config),
         ];
         if (testValues.length) {
             statements.push(
-                `INSERT INTO ?? (run_id, order_num, file, line, pos, project, timeout, children, test_id) VALUES ${testValues
+                `INSERT INTO ?? (run_id, order_num, file, line, pos, projects, timeout, children, test_id) VALUES ${testValues
                     .map(() => '(UUID_TO_BIN(?), ?, ?, ?, ?, ?, ?, ?, ?)')
                     .join(', ')}`,
             );

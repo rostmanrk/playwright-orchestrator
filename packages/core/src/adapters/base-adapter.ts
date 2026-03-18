@@ -13,35 +13,35 @@ export abstract class BaseAdapter implements Adapter {
 
     public async updateTestWithResults(
         status: TestStatus,
-        { runId, test, testResult, config }: ResultTestParams,
+        {
+            runId,
+            test,
+            testResult,
+            config: {
+                options: { historyWindow },
+            },
+        }: ResultTestParams,
     ): Promise<void> {
         const ema = await this.getTestEma(test.testId);
-        const newEma = this.calculateEMA(testResult.duration, ema, config.historyWindow);
+        const newEma = this.calculateEMA(testResult.duration, ema, historyWindow);
         await this.saveTestResult({
             runId,
             test,
             item: { status, duration: testResult.duration, updated: Date.now() },
-            historyWindow: config.historyWindow,
+            historyWindow,
             newEma,
-            title: testResult.title,
         });
     }
 
-    protected buildReport(
-        test: TestItem,
-        item: HistoryItem,
-        title: string,
-        newEma: number,
-        history: HistoryItem[],
-    ): TestReport {
+    protected buildReport(test: TestItem, item: HistoryItem, newEma: number, history: HistoryItem[]): TestReport {
         return {
             file: test.file,
             position: test.position,
-            project: test.project,
+            projects: test.projects,
             status: item.status,
             duration: item.duration,
             averageDuration: newEma,
-            title,
+            title: test.testId,
             fails: history.filter((h) => h.status === TestStatus.Failed).length,
             lastSuccessfulRunTimestamp: history.findLast((h) => h.status === TestStatus.Passed)?.updated,
         };

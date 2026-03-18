@@ -22,7 +22,7 @@ interface Run extends RowDataPacket {
     id: number;
     status: number;
     updated: Date;
-    config: any;
+    config: TestRunConfig;
 }
 
 @injectable()
@@ -35,6 +35,10 @@ export class MySQLShardHandler implements ShardHandler {
         this.pool = mysqlPool.pool;
         this.configTable = `${tableNamePrefix}_test_runs`;
         this.testsTable = `${tableNamePrefix}_tests`;
+    }
+
+    async getNextTestByProject(runId: string, project: string, config: TestRunConfig): Promise<TestItem | undefined> {
+        throw new Error('Method not implemented.');
     }
 
     async getNextTest(runId: string, _config: TestRunConfig): Promise<TestItem | undefined> {
@@ -65,11 +69,11 @@ export class MySQLShardHandler implements ShardHandler {
             );
             await client.commit();
             if (result[2].length === 0) return undefined;
-            const { file, line, pos, project, timeout, order_num, children, test_id } = result[2][0];
+            const { file, line, pos, projects, timeout, order_num, children, test_id } = result[2][0];
             return {
                 file,
                 position: `${line}:${pos}`,
-                project,
+                projects,
                 timeout,
                 order: order_num,
                 children,
@@ -116,7 +120,7 @@ export class MySQLShardHandler implements ShardHandler {
         } finally {
             client.release();
         }
-        return this.mapConfig(result[0]);
+        return result[0].config;
     }
 
     async finishShard(runId: string): Promise<void> {
@@ -125,10 +129,5 @@ export class MySQLShardHandler implements ShardHandler {
             RunStatus.Finished,
             runId,
         ]);
-    }
-
-    private mapConfig(dbValue: any): TestRunConfig {
-        const { updated, status, config } = dbValue;
-        return { ...config, updated: updated.getTime(), status } as TestRunConfig;
     }
 }

@@ -1,5 +1,4 @@
-import type { TestItem } from '../types/adapters.js';
-import type { TestRunConfig } from '../types/test-info.js';
+import type { TestItem, TestRunConfig } from '../types/adapters.js';
 
 export interface BatchHandler {
     getNextBatch(runId: string, config: TestRunConfig): Promise<TestItem[] | undefined>;

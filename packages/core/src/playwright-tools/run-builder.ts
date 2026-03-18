@@ -1,9 +1,9 @@
 import type { FullConfig, Suite, TestCase } from '@playwright/test/reporter';
 import { TestASTAnalyzer } from './test-ats-analyzer.js';
-import type { TestConfig, TestRun, TestRunInfo } from '../types/test-info.js';
+import type { TestConfig, ReporterTestRun, ReporterTestRunInfo } from '../types/test-info.js';
 
 export class RunBuilder {
-    private readonly testRun: TestRun = {};
+    private readonly testRun: ReporterTestRun = {};
     private config: TestConfig | undefined = undefined;
 
     parseEntry(entry: TestCase | Suite) {
@@ -24,7 +24,7 @@ export class RunBuilder {
         return this;
     }
 
-    build(): TestRunInfo {
+    build(): ReporterTestRunInfo {
         return structuredClone({
             config: this.config!,
             testRun: this.testRun,

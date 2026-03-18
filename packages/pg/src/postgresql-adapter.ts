@@ -44,14 +44,14 @@ export class PostgreSQLAdapter extends BaseAdapter {
         return {
             runId,
             config: this.mapConfig(dbConfig),
-            tests: rows.map(({ file, project, line, character, report }) => ({
+            tests: rows.map(({ file, projects, line, character, report }) => ({
                 averageDuration: report?.ema ?? 0,
                 duration: report?.duration ?? 0,
                 status: report?.status ?? TestStatus.Ready,
                 fails: report?.fails ?? 0,
                 file,
                 position: `${line}:${character}`,
-                project,
+                projects,
                 title: report?.title,
                 lastSuccessfulRunTimestamp: report?.lastSuccessfulRun,
             })),
@@ -68,7 +68,7 @@ export class PostgreSQLAdapter extends BaseAdapter {
         return testInfo?.ema ?? 0;
     }
 
-    async saveTestResult({ runId, test, item, historyWindow, newEma, title }: SaveTestResultParams): Promise<void> {
+    async saveTestResult({ runId, test, item, historyWindow, newEma }: SaveTestResultParams): Promise<void> {
         const client = await this.pool.connect();
         try {
             await client.query('BEGIN');
@@ -103,7 +103,7 @@ export class PostgreSQLAdapter extends BaseAdapter {
                 duration,
                 updated: +updated,
             }));
-            const report = this.buildReport(test, item, title, newEma, history);
+            const report = this.buildReport(test, item, newEma, history);
             await client.query({
                 text: `UPDATE ${this.testsTable}
                 SET status = $1, updated = NOW(), report = $2

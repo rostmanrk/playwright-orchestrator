@@ -1,13 +1,14 @@
-import { injectable, inject } from 'inversify';
-import { BaseTestRunCreator, RunStatus, TestStatus } from '@playwright-orchestrator/core';
-import type { TestItem, TestSortItem } from '@playwright-orchestrator/core';
+import { injectable, inject, injectFromBase } from 'inversify';
+import { BaseTestRunCreator, TestStatus } from '@playwright-orchestrator/core';
+import type { TestItem, TestRun, TestSortItem } from '@playwright-orchestrator/core';
 import type { CreateArgs } from './create-args.js';
 import { MongoConnection } from './mongo-connection.js';
-import type { TestInfoDocument } from './types.js';
+import type { TestInfoDocument, TestRunDocument } from './types.js';
 import { MONGO_CONFIG, MONGO_CONNECTION } from './symbols.js';
 import { generateRunId, generateTestId } from './helpers.js';
 
 @injectable()
+@injectFromBase({ extendProperties: true, extendConstructorArguments: false })
 export class MongoTestRunCreator extends BaseTestRunCreator {
     private readonly runsCollection: string;
     private readonly testsCollection: string;
@@ -50,31 +51,28 @@ export class MongoTestRunCreator extends BaseTestRunCreator {
         return testInfoMap;
     }
 
-    async saveRunData(runId: string, config: object, tests: TestItem[]): Promise<void> {
-        const { args, historyWindow, ...testRunConfig } = config as any;
-        const run = {
+    async saveRunData(runId: string, testRun: TestRun, tests: TestItem[]): Promise<void> {
+        const now = new Date();
+        const run: TestRunDocument = {
             _id: generateRunId(runId),
-            status: RunStatus.Created,
-            config: testRunConfig,
-            args,
-            historyWindow,
-            updated: new Date(),
+            ...testRun,
+            updated: now,
         };
         await this.connection.db.collection(this.runsCollection).insertOne(run as any);
         if (tests.length === 0) return;
         await (this.connection.db.collection(this.testsCollection) as any).insertMany(
-            tests.map(({ file, order, position, project, timeout, children, testId }) => {
+            tests.map(({ file, order, position, projects, timeout, children, testId }) => {
                 const [line, column] = position.split(':').map(Number);
                 return {
                     _id: generateTestId(runId, order),
                     testId,
                     file,
-                    project,
+                    projects,
                     timeout,
                     line,
                     column,
                     status: TestStatus.Ready,
-                    updated: new Date(),
+                    updated: now,
                     children,
                     ...(this.debug ? { runId, order } : {}),
                 };

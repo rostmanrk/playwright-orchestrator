@@ -61,7 +61,7 @@ export class RedisAdapter extends BaseAdapter {
         return +((await client.get(`${this._namePrefix}:${TEST_INFO}:${testId}:ema`)) ?? 0);
     }
 
-    async saveTestResult({ runId, test, item, historyWindow, newEma, title }: SaveTestResultParams): Promise<void> {
+    async saveTestResult({ runId, test, item, historyWindow, newEma }: SaveTestResultParams): Promise<void> {
         const client = await this.connection.getClient();
         const baseTestInfoKey = `${this._namePrefix}:${TEST_INFO}:${test.testId}`;
         const updateOptions: SetOptions = { EX: this.ttl };
@@ -83,7 +83,7 @@ export class RedisAdapter extends BaseAdapter {
         const history: HistoryItem[] = (await client.lRange(`${baseTestInfoKey}:history`, 0, -1)).map((el) =>
             JSON.parse(el),
         );
-        const report = this.buildReport(test, item, title, newEma, history);
+        const report = this.buildReport(test, item, newEma, history);
         const reportKey = `${this._namePrefix}:${TEST_RUN}:${runId}:report`;
         const pipeline = client
             .multi()

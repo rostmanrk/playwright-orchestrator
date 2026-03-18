@@ -32,7 +32,7 @@ export class MySQLInitializer implements Initializer {
                 file TEXT NOT NULL,
                 line INT NOT NULL,
                 pos INT NOT NULL,
-                project TEXT NOT NULL,
+                projects JSON NOT NULL,
                 timeout INT NOT NULL,
                 updated TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 report JSON,
@@ -62,17 +62,36 @@ export class MySQLInitializer implements Initializer {
         });
 
         await this.addColumnIfMissing(testsTable, 'children', 'JSON');
-        await this.addColumnIfMissing(testsTable, 'test_id', 'TEXT', false, "''", true);
+        await this.addColumnIfMissing(testsTable, 'test_id', 'TEXT', false, "''");
+        await this.migrateProjectsToJson(testsTable);
     }
 
-    async addColumnIfMissing(
-        tableName: string,
-        columnName: string,
-        columnType: string, // e.g. "INT NOT NULL DEFAULT 0"
-        nullable: boolean = true,
-        defaultValue?: string,
-        dropDefault: boolean = false,
-    ): Promise<void> {
+    private async migrateProjectsToJson(tableName: string): Promise<void> {
+        const hasProjectsColumn = await this.columnExists(tableName, 'projects');
+        if (hasProjectsColumn) return;
+
+        await this.mysqlPool.pool.query({
+            sql: `ALTER TABLE ?? ADD COLUMN projects JSON NULL;`,
+            values: [tableName],
+        });
+
+        await this.mysqlPool.pool.query({
+            sql: `UPDATE ?? SET projects = JSON_ARRAY(project)`,
+            values: [tableName],
+        });
+
+        await this.mysqlPool.pool.query({
+            sql: `ALTER TABLE ?? DROP COLUMN project;`,
+            values: [tableName],
+        });
+
+        await this.mysqlPool.pool.query({
+            sql: `ALTER TABLE ?? MODIFY COLUMN projects JSON NOT NULL;`,
+            values: [tableName],
+        });
+    }
+
+    private async columnExists(tableName: string, columnName: string): Promise<boolean> {
         const [rows] = await this.mysqlPool.pool.query({
             sql: `
 SELECT 1
@@ -84,33 +103,32 @@ LIMIT 1
 `,
             values: [tableName, columnName],
         });
+        return Array.isArray(rows) && rows.length > 0;
+    }
 
-        const exists = Array.isArray(rows) && rows.length > 0;
+    private async addColumnIfMissing(
+        tableName: string,
+        columnName: string,
+        columnType: string,
+        nullable: boolean = true,
+        defaultValue?: string,
+    ): Promise<void> {
+        const exists = await this.columnExists(tableName, columnName);
         if (!exists) {
-            // TEXT, BLOB, JSON, and GEOMETRY columns cannot have a DEFAULT value in MySQL.
-            // For those types, add as nullable, backfill existing rows, then set NOT NULL.
-            const isNoDefaultType = /^(TEXT|BLOB|JSON|GEOMETRY)/i.test(columnType.trim());
-            if (isNoDefaultType && !nullable && dropDefault && defaultValue) {
-                await this.mysqlPool.pool.query({
-                    sql: `ALTER TABLE ?? ADD COLUMN ${columnName} ${columnType} NULL;`,
-                    values: [tableName],
-                });
+            await this.mysqlPool.pool.query({
+                sql: `ALTER TABLE ?? ADD COLUMN ${columnName} ${columnType} NULL;`,
+                values: [tableName],
+            });
+            if (defaultValue !== undefined) {
                 await this.mysqlPool.pool.query({
                     sql: `UPDATE ?? SET ${columnName} = ${defaultValue} WHERE ${columnName} IS NULL;`,
                     values: [tableName],
                 });
+            }
+            if (!nullable) {
                 await this.mysqlPool.pool.query({
                     sql: `ALTER TABLE ?? MODIFY COLUMN ${columnName} ${columnType} NOT NULL;`,
                     values: [tableName],
-                });
-            } else {
-                await this.mysqlPool.pool.query({
-                    // Use escaped identifier for table name (??), column definition as trusted static string.
-                    sql: `
-ALTER TABLE ?? ADD COLUMN ${columnName} ${columnType}${nullable ? '' : ' NOT NULL'}${defaultValue ? ` DEFAULT ${defaultValue}` : ''};
-${dropDefault ? `ALTER TABLE ?? ALTER COLUMN ${columnName} DROP DEFAULT;` : ''}
-`,
-                    values: [tableName, ...(dropDefault ? [tableName] : [])],
                 });
             }
         }

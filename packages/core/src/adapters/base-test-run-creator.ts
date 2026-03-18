@@ -1,27 +1,45 @@
-import { injectable } from 'inversify';
+import { inject, injectable } from 'inversify';
 import { getTestId } from '../helpers/get-test-id.js';
 import type { TestRunCreator } from './test-run-creator.js';
-import type { SaveTestRunParams, TestItem, TestSortItem, SortTestsOptions } from '../types/adapters.js';
-import type { TestRun } from '../types/test-info.js';
+import type {
+    SaveTestRunParams,
+    TestItem,
+    TestSortItem,
+    SortTestsOptions,
+    BaseOptions,
+    TestRunConfig,
+    TestRun,
+} from '../types/adapters.js';
+import type { ReporterTestRun } from '../types/test-info.js';
+import { RunStatus, SYMBOLS } from '../index.js';
+import type { RunInfoLoader } from '../index.js';
 
 @injectable()
 export abstract class BaseTestRunCreator implements TestRunCreator {
+    @inject(SYMBOLS.RunInfoLoader)
+    private readonly runInfoLoader!: RunInfoLoader;
+
     get reverseSortOrder(): boolean {
         return false;
     }
 
     abstract loadTestInfos(tests: TestItem[]): Promise<Map<string, TestSortItem>>;
-    abstract saveRunData(runId: string, config: object, tests: TestItem[]): Promise<void>;
+    abstract saveRunData(runId: string, testRun: TestRun, tests: TestItem[]): Promise<void>;
 
-    async create({ runId, testRun, args, historyWindow, batchOptions }: SaveTestRunParams): Promise<void> {
-        let tests = this.transformTestRunToItems(testRun.testRun);
+    async create({ runId, args, options }: SaveTestRunParams): Promise<void> {
+        const reporterTestRun = await this.runInfoLoader.load(args);
+        let tests = this.transformTestRunToItems(reporterTestRun.testRun, options);
         const testInfos = await this.loadTestInfos(tests);
-        tests = this.sortTests(tests, testInfos, { historyWindow, reverse: this.reverseSortOrder });
-        await this.saveRunData(
-            runId,
-            { ...testRun.config, args: this.cleanArgs(args), historyWindow, batchOptions },
-            tests,
-        );
+        tests = this.sortTests(tests, testInfos, {
+            historyWindow: options.historyWindow,
+            reverse: this.reverseSortOrder,
+        });
+        const config: TestRun = {
+            status: RunStatus.Created,
+            updated: Date.now(),
+            config: { ...reporterTestRun.config, options, args: this.cleanArgs(args) },
+        };
+        await this.saveRunData(runId, config, tests);
     }
 
     private cleanArgs(args: string[]): string[] {
@@ -31,22 +49,26 @@ export abstract class BaseTestRunCreator implements TestRunCreator {
         }
         return args.slice(i);
     }
-    private transformTestRunToItems(run: TestRun): TestItem[] {
+    private transformTestRunToItems(run: ReporterTestRun, options: BaseOptions): TestItem[] {
         const tests = Object.entries(run)
             .flatMap(([file, tests]) =>
-                Object.entries(tests).flatMap(([position, { timeout, projects, title, annotations, children }]) =>
-                    projects.flatMap((project) => {
-                        const testId = getTestId({ project, file, title, annotations });
+                Object.entries(tests).flatMap(([position, { timeout, projects, title, annotations, children }]) => {
+                    const baseItem = { file, position, timeout };
+                    if (options.batchGrouping === 'test') {
                         return {
-                            testId,
-                            file,
-                            position,
-                            project,
-                            timeout,
-                            children: children?.map((child) => getTestId({ project, file, title: child, annotations })),
+                            ...baseItem,
+                            testId: getTestId({ file, title, annotations }),
+                            projects,
+                            children: children?.map((child) => getTestId({ file, title: child, annotations })),
                         };
-                    }),
-                ),
+                    }
+                    return projects.flatMap((project) => ({
+                        ...baseItem,
+                        testId: getTestId({ project, file, title, annotations }),
+                        projects: [project],
+                        children: children?.map((child) => getTestId({ project, file, title: child, annotations })),
+                    }));
+                }),
             )
             .map((test, i) => ({ ...test, order: i + 1 }));
         this.validateTests(tests);

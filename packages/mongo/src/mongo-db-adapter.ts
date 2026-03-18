@@ -10,7 +10,7 @@ import type { CreateArgs } from './create-args.js';
 import { MongoConnection } from './mongo-connection.js';
 import { TestDocument, TestInfoDocument, TestRunDocument } from './types.js';
 import { MONGO_CONFIG, MONGO_CONNECTION } from './symbols.js';
-import { generateTestId, generateRunId, mapDbToTestRunConfig } from './helpers.js';
+import { generateTestId, generateRunId } from './helpers.js';
 
 const MAX_ORDER = 0b1111111111111111;
 @injectable()
@@ -36,20 +36,20 @@ export class MongoDbAdapter extends BaseAdapter {
         if (!run) {
             throw new Error(`Run ${runId} not found`);
         }
-        const config = mapDbToTestRunConfig(run);
+        const config = run.config;
         const tests = await this.tests
             .find(this.generateTestIdQuery(runId, TestStatus.Failed, TestStatus.Passed))
             .toArray();
         return {
             runId,
             config,
-            tests: tests.map(({ file, line, column, project, status, report }) => {
+            tests: tests.map(({ file, line, column, status, report, projects }) => {
                 const position = `${line}:${column}`;
                 const { duration, fails, title, lastSuccessfulRun, ema } = report!;
                 return {
                     file,
                     position,
-                    project,
+                    projects,
                     status,
                     title,
                     duration,
@@ -66,7 +66,7 @@ export class MongoDbAdapter extends BaseAdapter {
         return doc?.ema ?? 0;
     }
 
-    async saveTestResult({ runId, test, item, historyWindow, newEma, title }: SaveTestResultParams): Promise<void> {
+    async saveTestResult({ runId, test, item, historyWindow, newEma }: SaveTestResultParams): Promise<void> {
         const updatedDoc = await this.testInfo.findOneAndUpdate(
             { _id: test.testId },
             {
@@ -86,7 +86,7 @@ export class MongoDbAdapter extends BaseAdapter {
             duration: h.duration,
             updated: h.updated instanceof Date ? h.updated.getTime() : (h.updated as number),
         }));
-        const report = this.buildReport(test, item, title, newEma, history);
+        const report = this.buildReport(test, item, newEma, history);
         const testDocId = generateTestId(runId, test.order);
         await this.tests.updateOne(
             { _id: testDocId },

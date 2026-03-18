@@ -1,4 +1,4 @@
-import { ResultTestParams } from '@playwright-orchestrator/core';
+import { ResultTestParams, TestRunConfig } from '@playwright-orchestrator/core';
 import { Fields } from './constants.js';
 
 export interface TestItemDb {
@@ -8,7 +8,8 @@ export interface TestItemDb {
     [Fields.Line]: string;
     [Fields.Character]: string;
     [Fields.File]: string;
-    [Fields.Project]: string;
+    [Fields.Project]?: string;
+    [Fields.Projects]: string[];
     [Fields.Timeout]: number;
     [Fields.Ttl]: number;
     [Fields.Report]?: TestReport;
@@ -20,12 +21,13 @@ export interface TestReport {
     [Fields.EMA]: number;
     [Fields.Fails]: number;
     [Fields.LastSuccess]: number;
-    [Fields.Title]: string;
 }
 
-export interface TestRunConfig {
+export interface TestRunDb {
     [Fields.Id]: string;
     [Fields.Order]: number;
+    [Fields.Updated]: number;
+    [Fields.Status]: number;
     [Fields.Config]: TestRunConfig;
     [Fields.Ttl]: number;
 }
