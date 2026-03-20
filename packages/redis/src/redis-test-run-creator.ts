@@ -1,5 +1,5 @@
 import { injectable, inject, injectFromBase } from 'inversify';
-import { BaseTestRunCreator, RunStatus } from '@playwright-orchestrator/core';
+import { BaseTestRunCreator, Grouping, RunStatus } from '@playwright-orchestrator/core';
 import type { TestItem, TestRun, TestSortItem } from '@playwright-orchestrator/core';
 import type { CreateArgs } from './create-args.js';
 import { RedisConnection } from './redis-connection.js';
@@ -63,8 +63,10 @@ export class RedisTestRunCreator extends BaseTestRunCreator {
             .set(`${baseTestRunKey}:config`, JSON.stringify(testRun.config), setOptions)
             .set(`${baseTestRunKey}:status`, RunStatus.Created, setOptions)
             .set(`${baseTestRunKey}:updated`, testRun.updated, setOptions);
+        const groupByProject = testRun.config.options.grouping === Grouping.Project;
         for (const test of tests) {
-            pipeline.rPush(`${this._namePrefix}:${TESTS}:${runId}:queue`, JSON.stringify(test));
+            const key = `${this._namePrefix}:${TESTS}:${runId}:queue${groupByProject && test.projects.length === 1 ? `:${test.projects[0]}` : ''}`;
+            pipeline.rPush(key, JSON.stringify(test));
         }
         await pipeline.exec();
     }

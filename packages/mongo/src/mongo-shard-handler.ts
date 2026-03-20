@@ -26,17 +26,24 @@ export class MongoShardHandler implements ShardHandler {
     }
 
     async getNextTest(runId: string, _config: TestRunConfig): Promise<TestItem | undefined> {
-        const result = await this.tests.findOneAndUpdate(this.generateTestIdQuery(runId, TestStatus.Ready), {
+        return this.claimNextTest(runId);
+    }
+
+    async getNextTestByProject(runId: string, project: string): Promise<TestItem | undefined> {
+        return this.claimNextTest(runId, project);
+    }
+
+    private async claimNextTest(runId: string, project?: string): Promise<TestItem | undefined> {
+        const query = project
+            ? { ...this.generateTestIdQuery(runId, TestStatus.Ready), projects: project }
+            : this.generateTestIdQuery(runId, TestStatus.Ready);
+        const result = await this.tests.findOneAndUpdate(query, {
             $set: { updated: new Date(), status: TestStatus.Ongoing },
         });
         if (!result) return undefined;
-        const { file, line, column, projects, timeout, children, testId } = result!;
-        const { order } = parseTestId(result!._id);
-        return { file, position: `${line}:${column}`, projects, timeout, order, children, testId };
-    }
-
-    async getNextTestByProject(runId: string, project: string, config: TestRunConfig): Promise<TestItem | undefined> {
-        throw new Error('Method not implemented.');
+        const { file, line, column, projects, timeout, ema, children, testId } = result;
+        const { order } = parseTestId(result._id);
+        return { file, position: `${line}:${column}`, projects, timeout, ema, order, children, testId };
     }
 
     async startShard(runId: string): Promise<TestRunConfig> {

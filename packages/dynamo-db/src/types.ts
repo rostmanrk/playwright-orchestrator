@@ -11,6 +11,7 @@ export interface TestItemDb {
     [Fields.Project]?: string;
     [Fields.Projects]: string[];
     [Fields.Timeout]: number;
+    [Fields.EMA]: number;
     [Fields.Ttl]: number;
     [Fields.Report]?: TestReport;
     [Fields.Children]?: string[];

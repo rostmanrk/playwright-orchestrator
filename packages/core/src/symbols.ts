@@ -9,5 +9,8 @@ export const SYMBOLS = {
     TestRunner: Symbol.for('TestRunner'),
     BrowserManager: Symbol.for('BrowserManager'),
     BatchHandler: Symbol.for('BatchHandler'),
+    BatchHandlerFactory: Symbol.for('BatchHandlerFactory'),
     TestExecutionReporter: Symbol.for('TestExecutionReporter'),
+    TestEventHandler: Symbol.for('TestEventHandler'),
+    TestEventHandlerFactory: Symbol.for('TestEventHandlerFactory'),
 } as const;

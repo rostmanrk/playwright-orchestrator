@@ -75,19 +75,25 @@ export class FileShardHandler implements ShardHandler {
     }
 
     async getNextTest(runId: string, _config: TestRunConfig): Promise<TestItem | undefined> {
+        return this.popNextTest(runId);
+    }
+
+    async getNextTestByProject(runId: string, project: string): Promise<TestItem | undefined> {
+        return this.popNextTest(runId, project);
+    }
+
+    private async popNextTest(runId: string, project?: string): Promise<TestItem | undefined> {
         const file = getRunIdFilePath(this.dir, runId);
         const release = await lock(file, { retries: 100 });
         try {
             const tests = JSON.parse(await readFile(file, 'utf-8')) as TestItem[];
-            const test = tests.pop();
+            const index = project ? tests.findLastIndex((t) => t.projects.includes(project)) : tests.length - 1;
+            if (index === -1) return undefined;
+            const [test] = tests.splice(index, 1);
             await writeFile(file, JSON.stringify(tests, null, 2));
             return test;
         } finally {
             await release();
         }
-    }
-
-    async getNextTestByProject(runId: string, project: string, config: TestRunConfig): Promise<TestItem | undefined> {
-        throw new Error('Method not implemented.');
     }
 }

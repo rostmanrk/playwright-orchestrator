@@ -22,7 +22,6 @@ export interface TestRunReport {
 
 export interface BaseTestResult {
     duration: number;
-    status: TestResult['status'];
 }
 
 export interface TestReportResult extends BaseTestResult {
@@ -33,6 +32,7 @@ export interface TestInfoResult extends BaseTestResult {
     ok: boolean;
     error: TestResult['error'];
     retry: number;
+    status: TestResult['status'];
 }
 
 export type TestReportResultMap = Record<string, { case: TestCase; result: TestResult }[]>;

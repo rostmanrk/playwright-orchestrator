@@ -18,18 +18,26 @@ export class PgShardHandler implements ShardHandler {
         this.configTable = pg.escapeIdentifier(`${tableNamePrefix}_test_runs`);
         this.testsTable = pg.escapeIdentifier(`${tableNamePrefix}_tests`);
     }
-    async getNextTestByProject(runId: string, project: string, config: TestRunConfig): Promise<TestItem | undefined> {
-        throw new Error('Method not implemented.');
+    async getNextTest(runId: string, _config: TestRunConfig): Promise<TestItem | undefined> {
+        return this.claimNextTest(runId);
     }
 
-    async getNextTest(runId: string, _config: TestRunConfig): Promise<TestItem | undefined> {
+    async getNextTestByProject(runId: string, project: string): Promise<TestItem | undefined> {
+        return this.claimNextTest(runId, project);
+    }
+
+    private async claimNextTest(runId: string, project?: string): Promise<TestItem | undefined> {
+        const projectFilter = project ? `AND projects @> to_jsonb(ARRAY[$4]::text[])` : '';
+        const values = project
+            ? [runId, TestStatus.Ready, TestStatus.Ongoing, project]
+            : [runId, TestStatus.Ready, TestStatus.Ongoing];
         const client = await this.pool.connect();
         try {
             await client.query('BEGIN');
             const result = await client.query({
                 text: `WITH next_test AS (
                     SELECT order_num FROM ${this.testsTable}
-                    WHERE run_id = $1 AND status = $2
+                    WHERE run_id = $1 AND status = $2 ${projectFilter}
                     ORDER BY order_num
                     LIMIT 1
                     FOR UPDATE SKIP LOCKED
@@ -39,16 +47,17 @@ export class PgShardHandler implements ShardHandler {
                 FROM next_test
                 WHERE t.run_id = $1 AND t.order_num = next_test.order_num
                 RETURNING *`,
-                values: [runId, TestStatus.Ready, TestStatus.Ongoing],
+                values,
             });
             await client.query('COMMIT');
             if (result.rowCount === 0) return undefined;
-            const { file, line, character, projects, timeout, order_num, children, test_id } = result.rows[0];
+            const { file, line, character, projects, timeout, ema, order_num, children, test_id } = result.rows[0];
             return {
                 file,
                 position: `${line}:${character}`,
                 projects,
                 timeout,
+                ema,
                 order: order_num,
                 children,
                 testId: test_id,

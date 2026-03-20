@@ -83,7 +83,7 @@ export class MySQLTestRunCreator extends BaseTestRunCreator {
     }
 
     async saveRunData(runId: string, testRun: TestRun, tests: TestItem[]): Promise<void> {
-        const testValues = tests.map(({ position, order, file, projects, timeout, children, testId }) => {
+        const testValues = tests.map(({ position, order, file, projects, timeout, ema, children, testId }) => {
             const [line, character] = position.split(':');
             return [
                 runId,
@@ -93,6 +93,7 @@ export class MySQLTestRunCreator extends BaseTestRunCreator {
                 +character,
                 JSON.stringify(projects),
                 timeout,
+                ema,
                 children != null ? JSON.stringify(children) : null,
                 testId,
             ];
@@ -107,8 +108,8 @@ export class MySQLTestRunCreator extends BaseTestRunCreator {
         ];
         if (testValues.length) {
             statements.push(
-                `INSERT INTO ?? (run_id, order_num, file, line, pos, projects, timeout, children, test_id) VALUES ${testValues
-                    .map(() => '(UUID_TO_BIN(?), ?, ?, ?, ?, ?, ?, ?, ?)')
+                `INSERT INTO ?? (run_id, order_num, file, line, pos, projects, timeout, ema, children, test_id) VALUES ${testValues
+                    .map(() => '(UUID_TO_BIN(?), ?, ?, ?, ?, ?, ?, ?, ?, ?)')
                     .join(', ')}`,
             );
             values.push(this.testsTable, ...testValues.flatMap((v) => v));

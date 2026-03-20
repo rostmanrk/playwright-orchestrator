@@ -35,6 +35,7 @@ export class PgInitializer implements Initializer {
                 character INT NOT NULL,
                 projects JSONB NOT NULL,
                 timeout INT NOT NULL,
+                ema FLOAT NOT NULL,
                 updated TIMESTAMP NOT NULL DEFAULT NOW(),
                 report JSONB,
                 children JSONB,
@@ -42,6 +43,8 @@ export class PgInitializer implements Initializer {
                 FOREIGN KEY (run_id) REFERENCES ${configTable}(id)
             );
             ALTER TABLE ${testsTable} ADD COLUMN IF NOT EXISTS children JSONB;
+            ALTER TABLE ${testsTable} ADD COLUMN IF NOT EXISTS ema FLOAT NOT NULL DEFAULT 0;
+            ALTER TABLE ${testsTable} ALTER COLUMN ema DROP DEFAULT;
             ALTER TABLE ${testsTable} ADD COLUMN IF NOT EXISTS test_id TEXT NOT NULL DEFAULT '';
             ALTER TABLE ${testsTable} ALTER COLUMN test_id DROP DEFAULT;
             DO $$

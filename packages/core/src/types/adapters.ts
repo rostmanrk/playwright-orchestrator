@@ -9,15 +9,16 @@ export const BatchMode = {
 } as const;
 export type BatchMode = (typeof BatchMode)[keyof typeof BatchMode];
 
-export const BatchGrouping = {
+export const Grouping = {
     Test: 'test',
     Project: 'project',
 } as const;
-export type BatchGrouping = (typeof BatchGrouping)[keyof typeof BatchGrouping];
+export type Grouping = (typeof Grouping)[keyof typeof Grouping];
 
 export interface TestRunConfig extends TestConfig {
     args: string[];
     options: BaseOptions;
+    version?: string;
 }
 
 export interface TestRun {
@@ -29,7 +30,7 @@ export interface TestRun {
 export interface BaseOptions {
     batchMode: BatchMode;
     batchTarget?: number;
-    batchGrouping: BatchGrouping;
+    grouping: Grouping;
     historyWindow: number;
 }
 
@@ -41,6 +42,7 @@ export interface TestItem {
     order: number;
     timeout: number;
     children?: string[];
+    ema: number;
 }
 
 export interface ResultTestParams {

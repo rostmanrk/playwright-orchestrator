@@ -20,12 +20,14 @@ test('batch-mode count without batch-target fails with required error', async ()
     expect(result.stderr).toContain("--batch-target is required when --batch-mode is 'count'");
 }, 30000);
 
-test('batch-mode time with batch-target fails with not-implemented error', async () => {
+test('batch-mode time with batch-target succeeds and returns a run id', async () => {
     const result = await createWithArgs(['--batch-mode', 'time', '--batch-target', '30']);
-    expect(result.stderr).toContain("Batch mode 'time' is not implemented yet");
+    expect(result.stderr).toBe('');
+    expect(result.stdout.trim()).toMatch(/^[0-9a-f-]{36}$/);
 }, 30000);
 
-test('batch-mode count with batch-target fails with not-implemented error', async () => {
+test('batch-mode count with batch-target succeeds and returns a run id', async () => {
     const result = await createWithArgs(['--batch-mode', 'count', '--batch-target', '5']);
-    expect(result.stderr).toContain("Batch mode 'count' is not implemented yet");
+    expect(result.stderr).toBe('');
+    expect(result.stdout.trim()).toMatch(/^[0-9a-f-]{36}$/);
 }, 30000);

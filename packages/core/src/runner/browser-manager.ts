@@ -1,7 +1,7 @@
 import { inject, injectable, preDestroy } from 'inversify';
 import playwright, { BrowserServer } from 'playwright';
 import { Project } from '../types/test-info.js';
-import { TestExecutionReporter } from '../reporters/test-execution-reporter.js';
+import { TestExecutionReporter } from './test-execution-reporter.js';
 import { SYMBOLS } from '../symbols.js';
 import { TestRunConfig } from '../types/adapters.js';
 

@@ -1,11 +1,7 @@
 import { injectable, inject } from 'inversify';
 import type { Initializer } from '@playwright-orchestrator/core';
 import type { CreateArgs } from './create-args.js';
-import {
-    CreateTableCommand,
-    DescribeTableCommand,
-    UpdateTimeToLiveCommand,
-} from '@aws-sdk/client-dynamodb';
+import { CreateTableCommand, DescribeTableCommand, UpdateTimeToLiveCommand } from '@aws-sdk/client-dynamodb';
 import { Fields } from './constants.js';
 import { DynamoDbConnection } from './dynamo-db-connection.js';
 import { DYNAMO_CONFIG, DYNAMO_CONNECTION } from './symbols.js';
@@ -20,31 +16,37 @@ export class DynamoDbInitializer implements Initializer {
     async initialize(): Promise<void> {
         const { tableNamePrefix } = this.config;
         const testsTableName = `${tableNamePrefix}-tests`;
-        await this.createTestsTable(testsTableName);
+        if (!(await this.createTestsTable(testsTableName))) return;
         await this.enableTtl(testsTableName);
     }
 
-    private async createTestsTable(tableName: string): Promise<void> {
-        await this.connection.client.send(
-            new CreateTableCommand({
-                TableName: tableName,
-                AttributeDefinitions: [
-                    { AttributeName: Fields.Id, AttributeType: 'S' },
-                    { AttributeName: Fields.Order, AttributeType: 'N' },
-                ],
-                KeySchema: [
-                    { AttributeName: Fields.Id, KeyType: 'HASH' },
-                    { AttributeName: Fields.Order, KeyType: 'RANGE' },
-                ],
-                BillingMode: 'PAY_PER_REQUEST',
-            }),
-        );
+    private async createTestsTable(tableName: string): Promise<boolean> {
+        try {
+            await this.connection.client.send(
+                new CreateTableCommand({
+                    TableName: tableName,
+                    AttributeDefinitions: [
+                        { AttributeName: Fields.Id, AttributeType: 'S' },
+                        { AttributeName: Fields.Order, AttributeType: 'N' },
+                    ],
+                    KeySchema: [
+                        { AttributeName: Fields.Id, KeyType: 'HASH' },
+                        { AttributeName: Fields.Order, KeyType: 'RANGE' },
+                    ],
+                    BillingMode: 'PAY_PER_REQUEST',
+                }),
+            );
+        } catch (e) {
+            if ((e as { name?: string }).name === 'ResourceInUseException') return false;
+            throw e;
+        }
         let created = false;
         do {
             await new Promise((resolve) => setTimeout(resolve, 1500));
             const res = await this.connection.client.send(new DescribeTableCommand({ TableName: tableName }));
             created = res.Table?.TableStatus === 'ACTIVE';
         } while (!created);
+        return true;
     }
 
     private async enableTtl(tableName: string): Promise<void> {

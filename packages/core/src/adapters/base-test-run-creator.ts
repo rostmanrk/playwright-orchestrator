@@ -7,12 +7,12 @@ import type {
     TestSortItem,
     SortTestsOptions,
     BaseOptions,
-    TestRunConfig,
     TestRun,
 } from '../types/adapters.js';
 import type { ReporterTestRun } from '../types/test-info.js';
 import { RunStatus, SYMBOLS } from '../index.js';
 import type { RunInfoLoader } from '../index.js';
+import { cliVersion } from '../commands/version.js';
 
 @injectable()
 export abstract class BaseTestRunCreator implements TestRunCreator {
@@ -37,7 +37,7 @@ export abstract class BaseTestRunCreator implements TestRunCreator {
         const config: TestRun = {
             status: RunStatus.Created,
             updated: Date.now(),
-            config: { ...reporterTestRun.config, options, args: this.cleanArgs(args) },
+            config: { ...reporterTestRun.config, options, args: this.cleanArgs(args), version: cliVersion },
         };
         await this.saveRunData(runId, config, tests);
     }
@@ -54,7 +54,7 @@ export abstract class BaseTestRunCreator implements TestRunCreator {
             .flatMap(([file, tests]) =>
                 Object.entries(tests).flatMap(([position, { timeout, projects, title, annotations, children }]) => {
                     const baseItem = { file, position, timeout };
-                    if (options.batchGrouping === 'test') {
+                    if (options.grouping === 'test') {
                         return {
                             ...baseItem,
                             testId: getTestId({ file, title, annotations }),
@@ -70,7 +70,7 @@ export abstract class BaseTestRunCreator implements TestRunCreator {
                     }));
                 }),
             )
-            .map((test, i) => ({ ...test, order: i + 1 }));
+            .map((test) => ({ ...test, order: 0, ema: 0 }));
         this.validateTests(tests);
         return tests;
     }
@@ -82,7 +82,8 @@ export abstract class BaseTestRunCreator implements TestRunCreator {
     ): TestItem[] {
         const extractValue = this.extractCompareValue.bind(this, testInfoMap, historyWindow);
         return tests
-            .sort((a, b) => (extractValue(b) - extractValue(a)) * (reverse ? -1 : 1))
+            .map((test) => ({ ...test, ema: extractValue(test) } as TestItem))
+            .sort((a, b) => (b.ema - a.ema) * (reverse ? -1 : 1))
             .map((test, i) => ({ ...test, order: reverse ? tests.length - i : i + 1 }));
     }
 

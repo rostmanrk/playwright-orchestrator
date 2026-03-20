@@ -61,7 +61,7 @@ export class MongoTestRunCreator extends BaseTestRunCreator {
         await this.connection.db.collection(this.runsCollection).insertOne(run as any);
         if (tests.length === 0) return;
         await (this.connection.db.collection(this.testsCollection) as any).insertMany(
-            tests.map(({ file, order, position, projects, timeout, children, testId }) => {
+            tests.map(({ file, order, position, projects, timeout, ema, children, testId }) => {
                 const [line, column] = position.split(':').map(Number);
                 return {
                     _id: generateTestId(runId, order),
@@ -69,6 +69,7 @@ export class MongoTestRunCreator extends BaseTestRunCreator {
                     file,
                     projects,
                     timeout,
+                    ema,
                     line,
                     column,
                     status: TestStatus.Ready,

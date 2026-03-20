@@ -1,15 +1,13 @@
-import { injectable, inject } from 'inversify';
+import { injectable, injectFromBase } from 'inversify';
 import type { BatchHandler } from './batch-handler.js';
-import type { ShardHandler } from '../adapters/shard-handler.js';
-import type { TestItem, TestRunConfig } from '../types/adapters.js';
-import { SYMBOLS } from '../symbols.js';
+import { type TestItem, type TestRunConfig } from '../types/adapters.js';
+import { BaseBatchHandler } from './base-batch-handler.js';
 
 @injectable()
-export class SequentialBatcher implements BatchHandler {
-    constructor(@inject(SYMBOLS.ShardHandler) private readonly shardHandler: ShardHandler) {}
-
+@injectFromBase({ extendProperties: true, extendConstructorArguments: false })
+export class SequentialBatcher extends BaseBatchHandler implements BatchHandler {
     async getNextBatch(runId: string, config: TestRunConfig): Promise<TestItem[] | undefined> {
-        const test = await this.shardHandler.getNextTest(runId, config);
+        const test = await this.getNextTest(runId, config);
         return test ? [test] : undefined;
     }
 }

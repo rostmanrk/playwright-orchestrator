@@ -34,6 +34,7 @@ export class MySQLInitializer implements Initializer {
                 pos INT NOT NULL,
                 projects JSON NOT NULL,
                 timeout INT NOT NULL,
+                ema FLOAT NOT NULL,
                 updated TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 report JSON,
                 children JSON,
@@ -62,6 +63,7 @@ export class MySQLInitializer implements Initializer {
         });
 
         await this.addColumnIfMissing(testsTable, 'children', 'JSON');
+        await this.addColumnIfMissing(testsTable, 'ema', 'FLOAT', false, '0');
         await this.addColumnIfMissing(testsTable, 'test_id', 'TEXT', false, "''");
         await this.migrateProjectsToJson(testsTable);
     }

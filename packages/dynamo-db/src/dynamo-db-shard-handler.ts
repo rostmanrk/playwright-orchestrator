@@ -53,12 +53,8 @@ export class DynamoDbShardHandler implements ShardHandler {
         return await this.getNextTestByStatus(runId, StatusOffset.Pending);
     }
 
-    async getNextTestByProject(runId: string, project: string, config: TestRunConfig): Promise<TestItem | undefined> {
+    async getNextTestByProject(runId: string, project: string): Promise<TestItem | undefined> {
         return await this.getNextTestByStatus(runId, StatusOffset.Pending, project);
-    }
-
-    async getNextTestGroup(runId: string, config: TestRunConfig): Promise<TestItem[]> {
-        throw new Error('Method not implemented.');
     }
 
     private async getTestRun(runId: string): Promise<TestRunDb> {
@@ -105,6 +101,10 @@ export class DynamoDbShardHandler implements ShardHandler {
     }
 
     private async queryNextTest(runId: string, start: number, project?: string): Promise<TestItem | undefined> {
+        if (project) {
+            return this.queryNextTestByProjectWithPagination(runId, start, project);
+        }
+
         const command: QueryCommandInput = {
             TableName: this.testsTableName,
             KeyConditionExpression: '#pk = :pk AND #sk BETWEEN :start AND :end',
@@ -116,14 +116,49 @@ export class DynamoDbShardHandler implements ShardHandler {
             },
             Limit: 1,
         };
-        if (project) {
-            command.ExpressionAttributeNames!['#project'] = Fields.Project;
-            command.ExpressionAttributeValues![':project'] = project;
-            command.FilterExpression = command.FilterExpression ?? '' + '#project = :project';
-        }
         const queryOutput = await this.connection.docClient.send(new QueryCommand(command));
         if (queryOutput.Count === 0) return;
         return mapDbToTestItem(queryOutput.Items![0] as TestItemDb);
+    }
+
+    private async queryNextTestByProjectWithPagination(
+        runId: string,
+        start: number,
+        project: string,
+    ): Promise<TestItem | undefined> {
+        const command: QueryCommandInput = {
+            TableName: this.testsTableName,
+            KeyConditionExpression: '#pk = :pk AND #sk BETWEEN :start AND :end',
+            ExpressionAttributeNames: {
+                '#pk': Fields.Id,
+                '#sk': Fields.Order,
+                '#projects': Fields.Projects,
+            },
+            ExpressionAttributeValues: {
+                ':pk': runId,
+                ':start': 1 + start,
+                ':end': start + OFFSET_STEP - 1,
+                ':projects': [project],
+            },
+            FilterExpression: '#projects = :projects',
+            Limit: 1,
+        };
+
+        let exclusiveStartKey: QueryCommandInput['ExclusiveStartKey'];
+        do {
+            const queryOutput = await this.connection.docClient.send(
+                new QueryCommand({
+                    ...command,
+                    ExclusiveStartKey: exclusiveStartKey,
+                }),
+            );
+            if ((queryOutput.Count ?? 0) > 0 && queryOutput.Items?.length) {
+                return mapDbToTestItem(queryOutput.Items[0] as TestItemDb);
+            }
+            exclusiveStartKey = queryOutput.LastEvaluatedKey;
+        } while (exclusiveStartKey);
+
+        return;
     }
 
     private async updateConfigStatus(runId: string, status: RunStatus): Promise<void> {
@@ -131,8 +166,8 @@ export class DynamoDbShardHandler implements ShardHandler {
             new UpdateCommand({
                 TableName: this.testsTableName,
                 Key: { [Fields.Id]: runId, [Fields.Order]: 0 },
-                UpdateExpression: 'SET #cfg.#status = :status, #cfg.#updated = :updated',
-                ExpressionAttributeNames: { '#cfg': Fields.Config, '#status': 'status', '#updated': 'updated' },
+                UpdateExpression: 'SET #status = :status, #updated = :updated',
+                ExpressionAttributeNames: { '#status': Fields.Status, '#updated': Fields.Updated },
                 ExpressionAttributeValues: { ':status': status, ':updated': Date.now() },
             }),
         );

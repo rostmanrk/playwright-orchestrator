@@ -23,13 +23,41 @@ export class RedisShardHandler implements ShardHandler {
         this.connection = connection;
         this.ttl = ttl * 24 * 60 * 60;
     }
-    async getNextTestByProject(runId: string, project: string, config: TestRunConfig): Promise<TestItem | undefined> {
-        throw new Error('Method not implemented.');
+    async getNextTestByProject(runId: string, project: string): Promise<TestItem | undefined> {
+        const client = await this.connection.getClient();
+        const res = await client.lPop(`${this._namePrefix}:${TESTS}:${runId}:queue:${project}`);
+        return res ? JSON.parse(res) : undefined;
     }
 
     async getNextTest(runId: string, config: TestRunConfig): Promise<TestItem | undefined> {
+        const script = `
+local item = redis.call('LPOP', KEYS[1])
+if item then
+    return item
+end
+
+local bestKey = nil
+local bestLen = 0
+
+for i = 1, #ARGV do
+    local len = redis.call('LLEN', ARGV[i])
+    if len > bestLen then
+        bestLen = len
+        bestKey = ARGV[i]
+    end
+end
+
+if bestKey then
+    return redis.call('LPOP', bestKey)
+end
+
+return nil`;
         const client = await this.connection.getClient();
-        const res = await client.lPop(`${this._namePrefix}:${TESTS}:${runId}:queue`);
+        const primaryKey = `${this._namePrefix}:${TESTS}:${runId}:queue`;
+        const res = (await client.eval(script, {
+            keys: [primaryKey],
+            arguments: config.projects.map((project) => `${primaryKey}:${project.name}`),
+        })) as string | null;
         return res ? JSON.parse(res) : undefined;
     }
 

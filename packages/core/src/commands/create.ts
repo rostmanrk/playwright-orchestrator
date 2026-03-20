@@ -7,6 +7,7 @@ import { createContainer } from '../container.js';
 import type { TestRunCreator } from '../adapters/test-run-creator.js';
 import { SYMBOLS } from '../symbols.js';
 import { pick } from '../helpers/pick.js';
+import { BatchMode, Grouping } from '../types/adapters.js';
 
 export default async () => {
     const command = program
@@ -18,8 +19,8 @@ export default async () => {
             .option('--history-window <number>', 'History window size', '10')
             .addOption(
                 new Option('--batch-mode <mode>', 'Batch grouping mode')
-                    .choices(['off', 'time', 'count'] as const)
-                    .default('off'),
+                    .choices([BatchMode.Off, BatchMode.Time, BatchMode.Count] as const)
+                    .default(BatchMode.Off),
             )
             .addOption(
                 new Option(
@@ -28,29 +29,25 @@ export default async () => {
                 ),
             )
             .addOption(
-                new Option('--batch-grouping <grouping>', 'Batch grouping strategy')
-                    .choices(['test', 'project'] as const)
-                    .default('test'),
+                new Option('--grouping <grouping>', 'Test grouping strategy')
+                    .choices([Grouping.Test, Grouping.Project] as const)
+                    .default(Grouping.Test),
             )
             .allowUnknownOption()
             .allowExcessArguments()
             .action(
                 withErrorHandling(async (options) => {
-                    if (
-                        (options.batchMode === 'time' || options.batchMode === 'count') &&
-                        options.batchTarget === undefined
-                    ) {
-                        throw new Error(`--batch-target is required when --batch-mode is '${options.batchMode}'`);
-                    }
-                    if (options.batchMode !== 'off') {
-                        throw new Error(`Batch mode '${options.batchMode}' is not implemented yet`);
+                    if (options.batchMode !== BatchMode.Off && options.batchTarget === undefined) {
+                        program.error(`--batch-target is required when --batch-mode is '${options.batchMode}'`, {
+                            exitCode: 1,
+                        });
                     }
                     const runId = uuid.v7();
                     const args = subCommand.args.slice(subCommand.registeredArguments.length);
                     const container = createContainer();
                     await register(container, options);
                     const creator = container.get<TestRunCreator>(SYMBOLS.TestRunCreator);
-                    options = pick(options, 'batchMode', 'batchTarget', 'batchGrouping', 'historyWindow');
+                    options = pick(options, 'batchMode', 'batchTarget', 'grouping', 'historyWindow');
                     options.historyWindow = +options.historyWindow;
                     options.batchTarget = options.batchTarget !== undefined ? +options.batchTarget : undefined;
 

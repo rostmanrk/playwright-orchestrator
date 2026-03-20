@@ -1,11 +1,11 @@
-import { TestItem, TestReportResult, TestRun, TestSortItem, TestStatus } from '@playwright-orchestrator/core';
+import { RunStatus, TestItem, TestRun, TestSortItem, TestStatus } from '@playwright-orchestrator/core';
 import { Fields, OFFSET_STEP, StatusOffset } from './constants.js';
 import { TestInfoItem, TestItemDb, TestRunDb } from './types.js';
 
 export function mapTestItemToDb(
     runId: string,
     ttl: number,
-    { position, order, file, projects, timeout, children, testId }: TestItem,
+    { position, order, file, projects, timeout, ema, children, testId }: TestItem,
     status: StatusOffset = StatusOffset.Pending,
 ): TestItemDb {
     const [line, character] = position.split(':');
@@ -18,6 +18,7 @@ export function mapTestItemToDb(
         [Fields.File]: file,
         [Fields.Projects]: projects,
         [Fields.Timeout]: timeout,
+        [Fields.EMA]: ema,
         [Fields.Ttl]: ttl,
         [Fields.Children]: children,
     };
@@ -32,6 +33,7 @@ export function mapDbToTestItem({
     [Fields.Project]: project,
     [Fields.Projects]: projects,
     [Fields.Timeout]: timeout,
+    [Fields.EMA]: ema,
     [Fields.Children]: children,
 }: TestItemDb): TestItem {
     return {
@@ -41,6 +43,7 @@ export function mapDbToTestItem({
         projects: projects ?? [project!],
         order,
         timeout,
+        ema,
         children,
     };
 }
@@ -64,13 +67,8 @@ export function mapDbToTestRun({
     return {
         config,
         updated,
-        status: status as TestStatus,
+        status: status as RunStatus,
     };
-}
-
-export function parseStatus(status: TestReportResult['status']): TestStatus {
-    if (status === 'passed') return TestStatus.Passed;
-    return TestStatus.Failed;
 }
 
 export function idToStatus(id: number): TestStatus {

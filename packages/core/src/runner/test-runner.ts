@@ -1,35 +1,40 @@
-import { TestStatus } from '../types/test-info.js';
 import { TestItem, TestRunConfig } from '../types/adapters.js';
 import { rm, writeFile } from 'node:fs/promises';
-import { TestExecutionReporter } from '../reporters/test-execution-reporter.js';
-import { TestInfoResult, TestReportEvent } from '../types/reporter.js';
+import { TestExecutionReporter } from './test-execution-reporter.js';
 import path from 'node:path';
 import * as uuid from 'uuid';
 import { injectable, inject } from 'inversify';
-import type { Adapter } from '../adapters/adapter.js';
 import type { ShardHandler } from '../adapters/shard-handler.js';
-import type { BatchHandler } from '../batch/batch-handler.js';
+import type { BatchHandlerFactory } from '../commands/run.js';
 import { BrowserManager } from './browser-manager.js';
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import { cp } from 'node:fs/promises';
 import { SYMBOLS } from '../symbols.js';
+import type { TestEventHandlerFactory } from './test-event-handler.js';
+import { cliVersion } from '../commands/version.js';
 
 @injectable()
 export class TestRunner {
     constructor(
         @inject(SYMBOLS.RunId) private readonly runId: string,
         @inject(SYMBOLS.OutputFolder) private readonly outputFolder: string,
-        @inject(SYMBOLS.Adapter) private readonly adapter: Adapter,
         @inject(SYMBOLS.ShardHandler) private readonly shardHandler: ShardHandler,
         @inject(SYMBOLS.BrowserManager) private readonly browserManager: BrowserManager,
-        @inject(SYMBOLS.BatchHandler) private readonly batchHandler: BatchHandler,
+        @inject(SYMBOLS.BatchHandlerFactory) private readonly batchHandlerFactory: BatchHandlerFactory,
         @inject(SYMBOLS.TestExecutionReporter) private readonly reporter: TestExecutionReporter,
+        @inject(SYMBOLS.TestEventHandlerFactory) private readonly testEventHandlerFactory: TestEventHandlerFactory,
     ) {}
 
     async runTests() {
         await this.removePreviousReports();
         const config = await this.shardHandler.startShard(this.runId);
+        if (config.version !== cliVersion) {
+            console.error(
+                `Version mismatch: Orchestrator CLI version is ${cliVersion} but test run was created with version ${config.version}. Please make sure to use the same version of Playwright Orchestrator across all your machines.`,
+            );
+            process.exit(1);
+        }
         const browsers = await this.browserManager.runBrowsers(config);
         config.configFile = await this.createTempConfig(config.configFile);
 
@@ -58,15 +63,18 @@ export class TestRunner {
     }
 
     private async runTestsUntilAvailable(config: TestRunConfig, browsers: Record<string, string>) {
+        const batchHandler = this.batchHandlerFactory(config.options.batchMode);
         const runningBatches = new Set<Promise<void>>();
-        let nextBatch = await this.batchHandler.getNextBatch(this.runId, config);
+        let batchNumber = 0;
+        let nextBatch = await batchHandler.getNextBatch(this.runId, config);
         while (nextBatch || runningBatches.size > 0) {
             if (nextBatch && runningBatches.size < config.workers) {
-                const batchPromise = this.runTestBatch(nextBatch, config, browsers).finally(() => {
+                batchNumber++;
+                const batchPromise = this.runTestBatch(nextBatch, config, browsers, batchNumber).finally(() => {
                     runningBatches.delete(batchPromise);
                 });
                 runningBatches.add(batchPromise);
-                nextBatch = await this.batchHandler.getNextBatch(this.runId, config);
+                nextBatch = await batchHandler.getNextBatch(this.runId, config);
             } else {
                 await Promise.race(runningBatches);
             }
@@ -78,117 +86,48 @@ export class TestRunner {
         await rm(`./${this.outputFolder}`, { recursive: true, force: true });
     }
 
-    private async runTestBatch(tests: TestItem[], config: TestRunConfig, browsers: Record<string, string>) {
+    private async runTestBatch(
+        tests: TestItem[],
+        config: TestRunConfig,
+        browsers: Record<string, string>,
+        batchNumber: number,
+    ) {
+        const batchName = `Batch ${batchNumber}`;
+        const { onData, onExit, batchResolver } = this.testEventHandlerFactory(tests, config, batchName);
+
         const batchId = uuid.v7();
         const batchFolder = `batch-${batchId}`;
         const batchArtifactsFolder = `batch-artifacts-${batchId}`;
-        await new Promise<void>((resolve, reject) => {
-            const playwright = spawn(
-                'npx',
-                ['playwright', 'test', ...this.buildParams(tests, config), '--output', batchArtifactsFolder],
-                {
-                    env: {
-                        ...process.env,
-                        PLAYWRIGHT_BLOB_OUTPUT_DIR: batchFolder,
-                        ...(config.configFile && {
-                            PLAYWRIGHT_ORCHESTRATOR_BROWSERS: JSON.stringify(browsers),
-                        }),
-                        PLAYWRIGHT_ORCHESTRATOR_BATCH_GROUPING: config.options.batchGrouping,
+        try {
+            await new Promise<void>((resolve, reject) => {
+                const playwright = spawn(
+                    'npx',
+                    ['playwright', 'test', ...this.buildParams(tests, config), '--output', batchArtifactsFolder],
+                    {
+                        env: {
+                            ...process.env,
+                            PLAYWRIGHT_BLOB_OUTPUT_DIR: batchFolder,
+                            ...(config.configFile && {
+                                PLAYWRIGHT_ORCHESTRATOR_BROWSERS: JSON.stringify(browsers),
+                            }),
+                            PLAYWRIGHT_ORCHESTRATOR_GROUPING: config.options.grouping,
+                        },
                     },
-                },
-            );
-            const { onData, onExit } = this.handleTestResultEvent(tests, config);
-            createInterface({ input: playwright.stdout, crlfDelay: Infinity }).on('line', onData);
-            playwright.on('exit', () => onExit().then(resolve, reject));
-        });
-        await cp(batchFolder, this.outputFolder, { recursive: true });
-        await cp(batchArtifactsFolder, this.outputFolder, { recursive: true });
-        await Promise.all([
-            rm(batchFolder, { recursive: true, force: true }),
-            rm(batchArtifactsFolder, { recursive: true, force: true }),
-        ]);
-    }
-
-    private handleTestResultEvent(tests: TestItem[], config: TestRunConfig) {
-        const { mapping: testMapping, counts: testCounts } = this.createTestMapping(tests);
-        const testResolvers: Map<string, { success: () => void; fail: (reason?: any) => void }> = new Map();
-        const testResults: Map<string, TestInfoResult[]> = new Map();
-        const pending: Promise<void>[] = [];
-
-        const createTestPromise = (id: string) =>
-            new Promise<void>((resolve, reject) => {
-                testResolvers.set(id, { success: resolve, fail: reject });
+                );
+                createInterface({ input: playwright.stdout, crlfDelay: Infinity }).on('line', onData);
+                playwright.on('exit', () => onExit().then(resolve, reject));
             });
-
-        const onData = (data: any) => {
-            let event: TestReportEvent;
-            try {
-                event = JSON.parse(data.toString()) as TestReportEvent;
-            } catch (error) {
-                this.reporter.error(`Failed to parse test report event`);
-                return;
-            }
-            const {
-                type,
-                test: { testId: eventTestId, ok, retries },
-                result: { duration, status, retry, error },
-            } = event;
-            const test = testMapping.get(eventTestId)!;
-            const testId = test.testId;
-
-            if (type === 'begin' && !testResolvers.has(testId)) {
-                this.reporter.addTest(test, createTestPromise(testId));
-            }
-
-            if (type === 'end') {
-                if (ok || retries === retry) {
-                    testCounts.set(testId, (testCounts.get(testId) ?? 1) - 1);
-                }
-                if (!testResults.has(testId)) testResults.set(testId, []);
-                testResults.get(testId)!.push({ duration, status, retry, error, ok });
-                if ((testCounts.get(testId) ?? 0) === 0) {
-                    const { success, fail } = testResolvers.get(testId)!;
-                    pending.push(
-                        this.saveTestResult(test, testResults, config).then(() => {
-                            ok ? success() : fail();
-                        }),
-                    );
-                }
-            }
-        };
-
-        const onExit = () => Promise.all(pending).then(() => {});
-
-        return { onData, onExit };
-    }
-
-    private async saveTestResult(test: TestItem, testResults: Map<string, TestInfoResult[]>, config: TestRunConfig) {
-        const tests = testResults.get(test.testId)!;
-        const last = tests.at(-1);
-        await this.adapter.updateTestWithResults(last!.ok ? TestStatus.Passed : TestStatus.Failed, {
-            runId: this.runId,
-            test,
-            testResult: {
-                // Summing durations of all retries and tests for the test to get total duration.
-                duration: tests.reduce((acc, r) => acc + r.duration, 0),
-                status: last!.status,
-                tests,
-            },
-            config,
-        });
-    }
-
-    private createTestMapping(tests: TestItem[]): { mapping: Map<string, TestItem>; counts: Map<string, number> } {
-        const mapping = new Map<string, TestItem>();
-        const counts = new Map<string, number>();
-        for (const test of tests) {
-            mapping.set(test.testId, test);
-            for (const childId of test.children ?? []) {
-                mapping.set(childId, test);
-            }
-            counts.set(test.testId, (test.children?.length ?? 1) * test.projects.length);
+            await cp(batchFolder, this.outputFolder, { recursive: true });
+            await cp(batchArtifactsFolder, this.outputFolder, { recursive: true });
+            await Promise.all([
+                rm(batchFolder, { recursive: true, force: true }),
+                rm(batchArtifactsFolder, { recursive: true, force: true }),
+            ]);
+            batchResolver.success();
+        } catch (err) {
+            batchResolver.fail(err);
+            throw err;
         }
-        return { mapping, counts };
     }
 
     private buildParams(tests: TestItem[], config: TestRunConfig): string[] {
