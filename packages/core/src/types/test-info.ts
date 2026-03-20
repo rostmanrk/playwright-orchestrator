@@ -14,25 +14,19 @@ export interface TestConfig {
     projects: Project[];
 }
 
-export interface TestRunConfig extends TestConfig {
-    historyWindow: number;
-    args: string[];
-    status: RunStatus;
-    updated: number;
-}
-
-export interface TestRunInfo {
-    testRun: TestRun;
+export interface ReporterTestRunInfo {
+    testRun: ReporterTestRun;
     config: TestConfig;
 }
 
-export interface TestRun {
+export interface ReporterTestRun {
     [file: string]: {
         [position: string]: {
             timeout: number;
             projects: string[];
             title: string;
             annotations: TestDetailsAnnotation[];
+            children?: string[];
         };
     };
 }

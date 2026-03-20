@@ -1,10 +1,15 @@
-import { injectable, preDestroy } from 'inversify';
+import { inject, injectable, preDestroy } from 'inversify';
 import playwright, { BrowserServer } from 'playwright';
-import { Project, TestRunConfig } from './types/test-info.js';
+import { Project } from '../types/test-info.js';
+import { TestExecutionReporter } from './test-execution-reporter.js';
+import { SYMBOLS } from '../symbols.js';
+import { TestRunConfig } from '../types/adapters.js';
 
 @injectable()
 export class BrowserManager {
     private browsers: Map<string, BrowserServer> = new Map();
+
+    constructor(@inject(SYMBOLS.TestExecutionReporter) private readonly reporter: TestExecutionReporter) {}
 
     public getBrowserLinks(): Record<string, string> {
         const links: Record<string, string> = {};
@@ -28,11 +33,13 @@ export class BrowserManager {
         if (!project.use?.defaultBrowserType) {
             return;
         }
-        // Placeholder for browser setup logic, e.g., downloading or verifying browser binaries
-        console.log(`Setting up browser: ${project.use.defaultBrowserType}`);
         const browserLauncher = playwright[project.use.defaultBrowserType];
-        const browser = await browserLauncher.launchServer(project?.use?.launchOptions);
-        this.browsers.set(project.name, browser);
+        const message = `Setting up browser for project: ${project.name} with type: ${project.use.defaultBrowserType}`;
+        const setup = browserLauncher.launchServer(project?.use?.launchOptions).then((browser) => {
+            this.browsers.set(project.name, browser);
+        });
+        this.reporter.addLoading(message, setup);
+        await setup;
     }
 
     private async teardownBrowser(projectName: string): Promise<void> {

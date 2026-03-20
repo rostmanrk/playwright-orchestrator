@@ -1,5 +1,5 @@
 import { injectable, inject } from 'inversify';
-import type { ShardHandler } from '@playwright-orchestrator/core';
+import type { ShardHandler, TestRun } from '@playwright-orchestrator/core';
 import { RunStatus, TestStatus } from '@playwright-orchestrator/core';
 import type { TestItem, TestRunConfig } from '@playwright-orchestrator/core';
 import type { CreateArgs } from './create-args.js';
@@ -31,13 +31,15 @@ export class FileShardHandler implements ShardHandler {
         const file = getRunConfigPath(this.dir, runId);
         const release = await lock(file, { retries: 100 });
         try {
-            const config = JSON.parse(await readFile(file, 'utf-8')) as TestRunConfig;
-            if (config.status === RunStatus.Created || config.status === RunStatus.Finished) {
-                config.status = config.status === RunStatus.Created ? RunStatus.Run : RunStatus.RepeatRun;
-                config.updated = Date.now();
-                await writeFile(file, JSON.stringify(config));
-                if (config.status === RunStatus.RepeatRun) {
-                    const results = JSON.parse(await readFile(getResultsRunPath(this.dir, runId), 'utf-8')) as ResultTestItem[];
+            const testRun = JSON.parse(await readFile(file, 'utf-8')) as TestRun;
+            if (testRun.status === RunStatus.Created || testRun.status === RunStatus.Finished) {
+                testRun.status = testRun.status === RunStatus.Created ? RunStatus.Run : RunStatus.RepeatRun;
+                testRun.updated = Date.now();
+                await writeFile(file, JSON.stringify(testRun));
+                if (testRun.status === RunStatus.RepeatRun) {
+                    const results = JSON.parse(
+                        await readFile(getResultsRunPath(this.dir, runId), 'utf-8'),
+                    ) as ResultTestItem[];
                     const failed = results
                         .filter((r) => r.status === TestStatus.Failed)
                         .map(({ file, testId, order, position, project, timeout }) => ({
@@ -53,7 +55,7 @@ export class FileShardHandler implements ShardHandler {
                     await writeFile(getResultsRunPath(this.dir, runId), JSON.stringify(rest, null, 2), 'utf-8');
                 }
             }
-            return config;
+            return testRun.config;
         } finally {
             await release();
         }
@@ -63,26 +65,35 @@ export class FileShardHandler implements ShardHandler {
         const file = getRunConfigPath(this.dir, runId);
         const release = await lock(file, { retries: 100 });
         try {
-            const config = JSON.parse(await readFile(file, 'utf-8')) as TestRunConfig;
-            config.status = RunStatus.Finished;
-            config.updated = Date.now();
-            await writeFile(file, JSON.stringify(config));
+            const testRun = JSON.parse(await readFile(file, 'utf-8')) as TestRun;
+            testRun.status = RunStatus.Finished;
+            testRun.updated = Date.now();
+            await writeFile(file, JSON.stringify(testRun, null, 2));
         } finally {
             await release();
         }
     }
 
     async getNextTest(runId: string, _config: TestRunConfig): Promise<TestItem | undefined> {
+        return this.popNextTest(runId);
+    }
+
+    async getNextTestByProject(runId: string, project: string): Promise<TestItem | undefined> {
+        return this.popNextTest(runId, project);
+    }
+
+    private async popNextTest(runId: string, project?: string): Promise<TestItem | undefined> {
         const file = getRunIdFilePath(this.dir, runId);
         const release = await lock(file, { retries: 100 });
         try {
             const tests = JSON.parse(await readFile(file, 'utf-8')) as TestItem[];
-            const test = tests.pop();
+            const index = project ? tests.findLastIndex((t) => t.projects.includes(project)) : tests.length - 1;
+            if (index === -1) return undefined;
+            const [test] = tests.splice(index, 1);
             await writeFile(file, JSON.stringify(tests, null, 2));
             return test;
         } finally {
             await release();
         }
     }
-
 }

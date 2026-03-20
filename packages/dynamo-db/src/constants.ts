@@ -11,10 +11,12 @@ export enum StatusOffset {
 export enum Fields {
     Id = 'pk',
     Order = 'sk',
+    TestId = 'tid',
     Line = 'l',
     Character = 'c',
     File = 'f',
     Project = 'p',
+    Projects = 'ps',
     Timeout = 't',
     Duration = 'd',
     EMA = 'e',
@@ -30,4 +32,5 @@ export enum Fields {
     Ttl = 'ttl',
     Config = 'cfg',
     Created = 'cr',
+    Children = 'chl',
 }

@@ -135,9 +135,12 @@ No additional options.
 
 Creates and configures a new test run. Outputs created run ID. Supports most of [playwright's options](https://playwright.dev/docs/test-cli#reference).
 
-| Option             | Description                                                                         | Type     | Default | Required? |
-| ------------------ | ----------------------------------------------------------------------------------- | -------- | ------- | --------- |
-| `--history-window` | Count of runs history kept and window for average duration. More [here](#-overview) | `number` | 10      | no        |
+| Option             | Description                                                                                                                          | Type                   | Default | Required?                            |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------ | ---------------------- | ------- | ------------------------------------ |
+| `--history-window` | Count of runs history kept and window for average duration. More [here](#-overview)                                                  | `number`               | `10`    | no                                   |
+| `--batch-mode`     | Batch grouping mode. `off` uses current single-test behaviour                                                                        | `off \| time \| count` | `off`   | no                                   |
+| `--batch-target`   | Batch size: seconds (time mode) or test count (count mode)                                                                           | `number`               | -       | yes when `--batch-mode` is not `off` |
+| `--grouping`       | How tests are grouped. Experiment on your workload, but per project query is less optimized, using default behaviour is recommended. | `test \| project`      | `test`  | no                                   |
 
 ### `run`
 
@@ -250,6 +253,12 @@ Use MongoDB as storage.
 | `--tls-insecure`                   | Allow insecure                        | -        | -                         | no        |
 | `--debug`                          | Add extra fields for some collections | `string` | -                         | no        |
 
+## 🔄 Migration Guide
+
+### Upgrading to v1.3
+
+**SQL storage adapters (`pg`, `mysql`) require re-running `init`** to apply schema updates:
+
 ## 💻 Development
 
 Make sure podman and compose is installed. They used for tests and local development.
@@ -264,18 +273,18 @@ Licensed under the Apache License 2.0. See LICENSE.md for details.
 
 ## 🔮 Future plans/ideas
 
-- ✅ ~~Tests~~
-- ✅ ~~Better Error Handling~~
-- ✅ ~~MySQL adapter~~
-- ✅ ~~MongoDB adapter~~
-- ✅ ~~Tests improvements~~
-- ✅ ~~Better Logging~~
-- ✅ ~~Test History statistics (test duration trends, count of test failures for past n days, etc.)~~
-- ✅ ~~Smarter test ordering based on previous execution duration~~
-- ✅ ~~GHA reporter~~
-- ✅ ~~Redis adapter~~
-- ✅ ~~Browser reuse (performance improvement)~~
-- ⬜ Test batching (performance improvement)
+- ✅ Tests
+- ✅ Better Error Handling
+- ✅ MySQL adapter
+- ✅ MongoDB adapter
+- ✅ Tests improvements
+- ✅ Better Logging
+- ✅ Test History statistics (test duration trends, count of test failures for past n days, etc.)
+- ✅ Smarter test ordering based on previous execution duration
+- ✅ GHA reporter
+- ✅ Redis adapter
+- ✅ Browser reuse (performance improvement)
+- ✅ Test batching and grouping (performance improvement)
 - ⬜ Even more adapters (by request)
 - ⬜ More examples
 - ⬜ Create Documentation site.

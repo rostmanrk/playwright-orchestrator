@@ -1,5 +1,5 @@
-import type { TestRunInfo } from '../types/test-info.js';
+import type { ReporterTestRunInfo } from '../types/test-info.js';
 
 export interface RunInfoLoader {
-    load(args: string[]): Promise<TestRunInfo>;
+    load(args: string[]): Promise<ReporterTestRunInfo>;
 }

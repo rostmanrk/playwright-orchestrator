@@ -1,6 +1,6 @@
-import { injectable, inject } from 'inversify';
-import { BaseTestRunCreator, RunStatus } from '@playwright-orchestrator/core';
-import type { ReporterTestItem, TestSortItem } from '@playwright-orchestrator/core';
+import { injectable, inject, injectFromBase } from 'inversify';
+import { BaseTestRunCreator, Grouping, RunStatus } from '@playwright-orchestrator/core';
+import type { TestItem, TestRun, TestSortItem } from '@playwright-orchestrator/core';
 import type { CreateArgs } from './create-args.js';
 import { RedisConnection } from './redis-connection.js';
 import { SetOptions } from 'redis';
@@ -11,6 +11,7 @@ const TESTS = 'T';
 const TEST_RUN = 'TR';
 
 @injectable()
+@injectFromBase({ extendProperties: true, extendConstructorArguments: false })
 export class RedisTestRunCreator extends BaseTestRunCreator {
     private readonly _namePrefix: string;
     private readonly ttl: number;
@@ -26,7 +27,7 @@ export class RedisTestRunCreator extends BaseTestRunCreator {
         this.connection = connection;
     }
 
-    async loadTestInfos(tests: ReporterTestItem[]): Promise<Map<string, TestSortItem>> {
+    async loadTestInfos(tests: TestItem[]): Promise<Map<string, TestSortItem>> {
         const client = await this.connection.getClient();
         const created = new Date().getTime();
         const ops = client.multi();
@@ -53,17 +54,19 @@ export class RedisTestRunCreator extends BaseTestRunCreator {
         return testInfo;
     }
 
-    async saveRunData(runId: string, config: object, tests: ReporterTestItem[]): Promise<void> {
+    async saveRunData(runId: string, testRun: TestRun, tests: TestItem[]): Promise<void> {
         const client = await this.connection.getClient();
         const baseTestRunKey = `${this._namePrefix}:${TEST_RUN}:${runId}`;
         const setOptions: SetOptions = { EX: this.ttl };
         const pipeline = client
             .multi()
-            .set(`${baseTestRunKey}:config`, JSON.stringify(config), setOptions)
+            .set(`${baseTestRunKey}:config`, JSON.stringify(testRun.config), setOptions)
             .set(`${baseTestRunKey}:status`, RunStatus.Created, setOptions)
-            .set(`${baseTestRunKey}:updated`, new Date().getTime(), setOptions);
+            .set(`${baseTestRunKey}:updated`, testRun.updated, setOptions);
+        const groupByProject = testRun.config.options.grouping === Grouping.Project;
         for (const test of tests) {
-            pipeline.rPush(`${this._namePrefix}:${TESTS}:${runId}:queue`, JSON.stringify(test));
+            const key = `${this._namePrefix}:${TESTS}:${runId}:queue${groupByProject && test.projects.length === 1 ? `:${test.projects[0]}` : ''}`;
+            pipeline.rPush(key, JSON.stringify(test));
         }
         await pipeline.exec();
     }

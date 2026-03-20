@@ -1,7 +1,8 @@
-import { test, afterAll } from 'vitest';
+import { it, afterAll, describe } from 'vitest';
 import { rm } from 'node:fs/promises';
 import { testStorage } from '../utils/test-storage.js';
 import { TEST_TIMEOUT } from '../utils/constants.js';
+import { Grouping } from '../../packages/core/src/types/adapters.js';
 
 const filesFolder = 'test-runs-folder';
 const reportsFolder = './test-reports-folder';
@@ -14,11 +15,20 @@ afterAll(async () => {
     await rm(reportsFolder, { recursive: true, force: true });
 });
 
-test(
-    'test file plugin',
-    async () => {
-        // init command
-        await testStorage(storageOptions, config, reportsFolder);
-    },
-    TEST_TIMEOUT,
-);
+describe('File plugin', () => {
+    it(
+        'grouping by test',
+        async () => {
+            await testStorage(storageOptions, config, reportsFolder, Grouping.Test);
+        },
+        TEST_TIMEOUT,
+    );
+
+    it(
+        'grouping by project',
+        async () => {
+            await testStorage(storageOptions, config, reportsFolder, Grouping.Project);
+        },
+        TEST_TIMEOUT,
+    );
+});

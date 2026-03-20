@@ -13,23 +13,31 @@ export class PgShardHandler implements ShardHandler {
     private readonly testsTable: string;
     private readonly pool: pg.Pool;
 
-    constructor(
-        @inject(PG_CONFIG) { tableNamePrefix }: CreateArgs,
-        @inject(PG_POOL) pgPool: PgPool,
-    ) {
+    constructor(@inject(PG_CONFIG) { tableNamePrefix }: CreateArgs, @inject(PG_POOL) pgPool: PgPool) {
         this.pool = pgPool.pool;
         this.configTable = pg.escapeIdentifier(`${tableNamePrefix}_test_runs`);
         this.testsTable = pg.escapeIdentifier(`${tableNamePrefix}_tests`);
     }
-
     async getNextTest(runId: string, _config: TestRunConfig): Promise<TestItem | undefined> {
+        return this.claimNextTest(runId);
+    }
+
+    async getNextTestByProject(runId: string, project: string): Promise<TestItem | undefined> {
+        return this.claimNextTest(runId, project);
+    }
+
+    private async claimNextTest(runId: string, project?: string): Promise<TestItem | undefined> {
+        const projectFilter = project ? `AND projects @> to_jsonb(ARRAY[$4]::text[])` : '';
+        const values = project
+            ? [runId, TestStatus.Ready, TestStatus.Ongoing, project]
+            : [runId, TestStatus.Ready, TestStatus.Ongoing];
         const client = await this.pool.connect();
         try {
             await client.query('BEGIN');
             const result = await client.query({
                 text: `WITH next_test AS (
                     SELECT order_num FROM ${this.testsTable}
-                    WHERE run_id = $1 AND status = $2
+                    WHERE run_id = $1 AND status = $2 ${projectFilter}
                     ORDER BY order_num
                     LIMIT 1
                     FOR UPDATE SKIP LOCKED
@@ -39,12 +47,21 @@ export class PgShardHandler implements ShardHandler {
                 FROM next_test
                 WHERE t.run_id = $1 AND t.order_num = next_test.order_num
                 RETURNING *`,
-                values: [runId, TestStatus.Ready, TestStatus.Ongoing],
+                values,
             });
             await client.query('COMMIT');
             if (result.rowCount === 0) return undefined;
-            const { file, line, character, project, timeout, order_num } = result.rows[0];
-            return { file, position: `${line}:${character}`, project, timeout, order: order_num };
+            const { file, line, character, projects, timeout, ema, order_num, children, test_id } = result.rows[0];
+            return {
+                file,
+                position: `${line}:${character}`,
+                projects,
+                timeout,
+                ema,
+                order: order_num,
+                children,
+                testId: test_id,
+            };
         } catch (e) {
             await client.query('ROLLBACK');
             throw e;
@@ -85,7 +102,7 @@ export class PgShardHandler implements ShardHandler {
                 });
             }
             await client.query('COMMIT');
-            return this.mapConfig(result.rows[0]);
+            return result.rows[0].config;
         } catch (e) {
             await client.query('ROLLBACK');
             throw e;
@@ -99,9 +116,5 @@ export class PgShardHandler implements ShardHandler {
             text: `UPDATE ${this.configTable} SET status = $1, updated = NOW() WHERE id = $2`,
             values: [RunStatus.Finished, runId],
         });
-    }
-
-    private mapConfig(dbConfig: any): TestRunConfig {
-        return { ...dbConfig.config, updated: dbConfig.updated.getTime(), status: dbConfig.status };
     }
 }

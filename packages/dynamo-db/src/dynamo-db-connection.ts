@@ -11,7 +11,9 @@ export class DynamoDbConnection {
 
     constructor(@inject(DYNAMO_CONFIG) { endpointUrl }: CreateArgs) {
         this.client = new DynamoDBClient({ endpoint: endpointUrl, maxAttempts: 10 });
-        this.docClient = DynamoDBDocumentClient.from(this.client);
+        this.docClient = DynamoDBDocumentClient.from(this.client, {
+            marshallOptions: { removeUndefinedValues: true },
+        });
     }
 
     @preDestroy()

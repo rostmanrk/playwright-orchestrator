@@ -2,12 +2,13 @@ import { expect } from 'vitest';
 import { spawnAsync } from '../../packages/core/src/helpers/spawn.js';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
+import type { Grouping } from '../../packages/core/src/types/adapters.js';
 
 const req = createRequire(join(process.cwd(), 'package.json'));
 const orchestratorCli = req.resolve('@playwright-orchestrator/core/cli');
 const playwrightCli = join(dirname(req.resolve('@playwright/test/package.json')), 'cli.js');
 
-export async function testStorage(storageOptions: string[], config: string, reportsFolder: string) {
+export async function testStorage(storageOptions: string[], config: string, reportsFolder: string, grouping: Grouping) {
     // init command
     const init = await spawnAsync(process.execPath, [orchestratorCli, 'init', ...storageOptions]);
     expect(init.stdout).toBeTruthy();
@@ -17,10 +18,16 @@ export async function testStorage(storageOptions: string[], config: string, repo
         orchestratorCli,
         'create',
         ...storageOptions,
+        '--batch-mode',
+        'count',
+        '--batch-target',
+        '4',
         '-j',
         '2',
         '--config',
         config,
+        '--grouping',
+        grouping,
     ]);
     const runId = create.stdout.trim();
     expect(runId).toBeTruthy();

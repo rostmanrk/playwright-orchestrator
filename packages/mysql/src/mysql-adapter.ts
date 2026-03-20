@@ -58,10 +58,7 @@ export class MySQLAdapter extends BaseAdapter {
     private readonly testInfoHistoryTable: string;
     private readonly pool: Pool;
 
-    constructor(
-        @inject(MYSQL_CONFIG) { tableNamePrefix }: CreateArgs,
-        @inject(MYSQL_POOL) mysqlPool: MySQLPool,
-    ) {
+    constructor(@inject(MYSQL_CONFIG) { tableNamePrefix }: CreateArgs, @inject(MYSQL_POOL) mysqlPool: MySQLPool) {
         super();
         this.pool = mysqlPool.pool;
         this.configTable = `${tableNamePrefix}_test_runs`;
@@ -86,14 +83,14 @@ export class MySQLAdapter extends BaseAdapter {
         return {
             runId,
             config: this.mapConfig(run),
-            tests: tests.map(({ file, project, report, line, pos }) => {
+            tests: tests.map(({ file, projects, report, line, pos }) => {
                 return {
                     averageDuration: report?.ema ?? 0,
                     file,
                     duration: report?.duration ?? 0,
                     fails: report?.fails ?? 0,
                     position: `${line}:${pos}`,
-                    project,
+                    projects,
                     status: report?.status ?? TestStatus.Ready,
                     title: report?.title ?? '',
                     lastSuccessfulRunTimestamp: report?.lastSuccessfulRun,
@@ -110,20 +107,12 @@ export class MySQLAdapter extends BaseAdapter {
         return testInfo?.ema ?? 0;
     }
 
-    async saveTestResult({
-        runId,
-        testId,
-        test,
-        item,
-        historyWindow,
-        newEma,
-        title,
-    }: SaveTestResultParams): Promise<void> {
+    async saveTestResult({ runId, test, item, historyWindow, newEma }: SaveTestResultParams): Promise<void> {
         const client = await this.pool.getConnection();
         try {
-        await client.beginTransaction();
-        await client.query<ResultSetHeader>({
-            sql: `UPDATE ?? SET ema = ? WHERE name = ?;
+            await client.beginTransaction();
+            await client.query<ResultSetHeader>({
+                sql: `UPDATE ?? SET ema = ? WHERE name = ?;
 
             INSERT INTO ?? (duration, status, updated, test_info_id)
             SELECT ?, ?, CURRENT_TIMESTAMP, id FROM ?? WHERE name = ?;
@@ -141,43 +130,43 @@ export class MySQLAdapter extends BaseAdapter {
                 ) AS keep_rows
             );
             `,
-            values: [
-                // UPDATE ?? SET ema = ? WHERE name = ?;
-                this.testInfoTable,
-                newEma,
-                testId,
-                // INSERT INTO ?? (duration, status, updated, test_info_id)
-                this.testInfoHistoryTable,
-                // SELECT ?, ?, CURRENT_TIMESTAMP, id FROM ?? WHERE name = ?;
-                item.duration,
-                item.status,
-                this.testInfoTable,
-                testId,
-                // DELETE h FROM ?? h JOIN ?? t ...
-                this.testInfoHistoryTable,
-                this.testInfoTable,
-                testId,
-                // NOT IN (SELECT id FROM (SELECT h2.id FROM ?? h2 JOIN ?? t2 ...
-                this.testInfoHistoryTable,
-                this.testInfoTable,
-                testId,
-                historyWindow,
-            ],
-        });
-        const [history] = await client.query<HistoryRow[]>({
-            sql: `SELECT h.status, h.duration, UNIX_TIMESTAMP(h.updated) * 1000 AS updated
+                values: [
+                    // UPDATE ?? SET ema = ? WHERE name = ?;
+                    this.testInfoTable,
+                    newEma,
+                    test.testId,
+                    // INSERT INTO ?? (duration, status, updated, test_info_id)
+                    this.testInfoHistoryTable,
+                    // SELECT ?, ?, CURRENT_TIMESTAMP, id FROM ?? WHERE name = ?;
+                    item.duration,
+                    item.status,
+                    this.testInfoTable,
+                    test.testId,
+                    // DELETE h FROM ?? h JOIN ?? t ...
+                    this.testInfoHistoryTable,
+                    this.testInfoTable,
+                    test.testId,
+                    // NOT IN (SELECT id FROM (SELECT h2.id FROM ?? h2 JOIN ?? t2 ...
+                    this.testInfoHistoryTable,
+                    this.testInfoTable,
+                    test.testId,
+                    historyWindow,
+                ],
+            });
+            const [history] = await client.query<HistoryRow[]>({
+                sql: `SELECT h.status, h.duration, UNIX_TIMESTAMP(h.updated) * 1000 AS updated
                   FROM ?? h JOIN ?? t ON t.id = h.test_info_id
                   WHERE t.name = ? ORDER BY h.updated`,
-            values: [this.testInfoHistoryTable, this.testInfoTable, testId],
-        });
-        const historyItems = history.map((h) => ({
-            status: h.status as TestStatus,
-            duration: h.duration,
-            updated: h.updated,
-        }));
-        const report = this.buildReport(test, item, title, newEma, historyItems);
-        await client.query<ResultSetHeader>({
-            sql: `UPDATE ??
+                values: [this.testInfoHistoryTable, this.testInfoTable, test.testId],
+            });
+            const historyItems = history.map((h) => ({
+                status: h.status as TestStatus,
+                duration: h.duration,
+                updated: h.updated,
+            }));
+            const report = this.buildReport(test, item, newEma, historyItems);
+            await client.query<ResultSetHeader>({
+                sql: `UPDATE ??
             SET
                 status = ?,
                 updated = CURRENT_TIMESTAMP,
@@ -191,20 +180,20 @@ export class MySQLAdapter extends BaseAdapter {
                     '$.status', ?
                 )
             WHERE run_id = UUID_TO_BIN(?) AND order_num = ?`,
-            values: [
-                this.testsTable,
-                report.status,
-                report.title,
-                report.duration,
-                report.fails,
-                report.averageDuration,
-                report.lastSuccessfulRunTimestamp,
-                report.status,
-                runId,
-                test.order,
-            ],
-        });
-        await client.commit();
+                values: [
+                    this.testsTable,
+                    report.status,
+                    report.title,
+                    report.duration,
+                    report.fails,
+                    report.averageDuration,
+                    report.lastSuccessfulRunTimestamp,
+                    report.status,
+                    runId,
+                    test.order,
+                ],
+            });
+            await client.commit();
         } catch (err) {
             await client.rollback();
             throw err;

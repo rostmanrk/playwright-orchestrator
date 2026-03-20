@@ -1,8 +1,9 @@
-import { test, afterAll, beforeAll } from 'vitest';
+import { it, afterAll, beforeAll, describe } from 'vitest';
 import { rm } from 'node:fs/promises';
 import { testStorage } from '../utils/test-storage.js';
 import { spawnAsync } from '../../packages/core/src/helpers/spawn.js';
 import { TEST_TIMEOUT } from '../utils/constants.js';
+import { Grouping } from '../../packages/core/src/types/adapters.js';
 
 const reportsFolder = './test-reports-folder-pg';
 const config = 'tests-playwright.config.ts';
@@ -19,10 +20,19 @@ afterAll(async () => {
     await rm(reportsFolder, { recursive: true, force: true });
 });
 
-test(
-    'test pg plugin',
-    async () => {
-        await testStorage(storageOptions, config, reportsFolder);
-    },
-    TEST_TIMEOUT,
-);
+describe('PostgreSQL plugin', () => {
+    it(
+        'test pg plugin',
+        async () => {
+            await testStorage(storageOptions, config, reportsFolder, Grouping.Test);
+        },
+        TEST_TIMEOUT,
+    );
+    it(
+        'grouping by project',
+        async () => {
+            await testStorage(storageOptions, config, reportsFolder, Grouping.Project);
+        },
+        TEST_TIMEOUT,
+    );
+});

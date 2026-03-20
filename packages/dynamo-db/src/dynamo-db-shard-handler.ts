@@ -10,10 +10,11 @@ import {
     DeleteCommand,
     GetCommand,
     UpdateCommand,
+    QueryCommandInput,
 } from '@aws-sdk/lib-dynamodb';
 import { mapDbToTestItem, mapTestItemToDb, getTtl } from './helpers.js';
 import { Fields, OFFSET_STEP, StatusOffset } from './constants.js';
-import type { TestItemDb } from './types.js';
+import type { TestItemDb, TestRunDb } from './types.js';
 import { DYNAMO_CONFIG, DYNAMO_CONNECTION } from './symbols.js';
 
 @injectable()
@@ -32,11 +33,12 @@ export class DynamoDbShardHandler implements ShardHandler {
     }
 
     async startShard(runId: string): Promise<TestRunConfig> {
-        const config = await this.getConfig(runId);
-        const status: RunStatus = config.status;
+        const testRun = await this.getTestRun(runId);
+        const status = testRun[Fields.Status] as RunStatus;
+        const config = testRun[Fields.Config];
         if (status === RunStatus.Created || status === RunStatus.Finished) {
             const newStatus = status === RunStatus.Finished ? RunStatus.RepeatRun : RunStatus.Run;
-            config.status = newStatus;
+            testRun[Fields.Status] = newStatus;
             await this.updateConfigStatus(runId, newStatus);
             await this.updateFailedTests(runId, config);
         }
@@ -51,7 +53,11 @@ export class DynamoDbShardHandler implements ShardHandler {
         return await this.getNextTestByStatus(runId, StatusOffset.Pending);
     }
 
-    private async getConfig(runId: string): Promise<TestRunConfig> {
+    async getNextTestByProject(runId: string, project: string): Promise<TestItem | undefined> {
+        return await this.getNextTestByStatus(runId, StatusOffset.Pending, project);
+    }
+
+    private async getTestRun(runId: string): Promise<TestRunDb> {
         const configRequest = await this.connection.docClient.send(
             new GetCommand({
                 TableName: this.testsTableName,
@@ -59,14 +65,18 @@ export class DynamoDbShardHandler implements ShardHandler {
             }),
         );
         if (!configRequest.Item) throw new Error(`Run ${runId} not found.`);
-        return configRequest.Item[Fields.Config] as TestRunConfig;
+        return configRequest.Item as TestRunDb;
     }
 
-    private async getNextTestByStatus(runId: string, status: StatusOffset): Promise<TestItem | undefined> {
+    private async getNextTestByStatus(
+        runId: string,
+        status: StatusOffset,
+        project?: string,
+    ): Promise<TestItem | undefined> {
         let deleted = false;
         let test: TestItem | undefined = undefined;
         while (!deleted) {
-            test = await this.queryNextTest(runId, status);
+            test = await this.queryNextTest(runId, status, project);
             if (!test) return;
             deleted = await this.tryToDeleteItem(runId, test.order);
         }
@@ -90,22 +100,65 @@ export class DynamoDbShardHandler implements ShardHandler {
         );
     }
 
-    private async queryNextTest(runId: string, start: number): Promise<TestItem | undefined> {
-        const queryOutput = await this.connection.docClient.send(
-            new QueryCommand({
-                TableName: this.testsTableName,
-                KeyConditionExpression: '#pk = :pk AND #sk BETWEEN :start AND :end',
-                ExpressionAttributeNames: { '#pk': Fields.Id, '#sk': Fields.Order },
-                ExpressionAttributeValues: {
-                    ':pk': runId,
-                    ':start': 1 + start,
-                    ':end': start + OFFSET_STEP - 1,
-                },
-                Limit: 1,
-            }),
-        );
+    private async queryNextTest(runId: string, start: number, project?: string): Promise<TestItem | undefined> {
+        if (project) {
+            return this.queryNextTestByProjectWithPagination(runId, start, project);
+        }
+
+        const command: QueryCommandInput = {
+            TableName: this.testsTableName,
+            KeyConditionExpression: '#pk = :pk AND #sk BETWEEN :start AND :end',
+            ExpressionAttributeNames: { '#pk': Fields.Id, '#sk': Fields.Order },
+            ExpressionAttributeValues: {
+                ':pk': runId,
+                ':start': 1 + start,
+                ':end': start + OFFSET_STEP - 1,
+            },
+            Limit: 1,
+        };
+        const queryOutput = await this.connection.docClient.send(new QueryCommand(command));
         if (queryOutput.Count === 0) return;
         return mapDbToTestItem(queryOutput.Items![0] as TestItemDb);
+    }
+
+    private async queryNextTestByProjectWithPagination(
+        runId: string,
+        start: number,
+        project: string,
+    ): Promise<TestItem | undefined> {
+        const command: QueryCommandInput = {
+            TableName: this.testsTableName,
+            KeyConditionExpression: '#pk = :pk AND #sk BETWEEN :start AND :end',
+            ExpressionAttributeNames: {
+                '#pk': Fields.Id,
+                '#sk': Fields.Order,
+                '#projects': Fields.Projects,
+            },
+            ExpressionAttributeValues: {
+                ':pk': runId,
+                ':start': 1 + start,
+                ':end': start + OFFSET_STEP - 1,
+                ':projects': [project],
+            },
+            FilterExpression: '#projects = :projects',
+            Limit: 1,
+        };
+
+        let exclusiveStartKey: QueryCommandInput['ExclusiveStartKey'];
+        do {
+            const queryOutput = await this.connection.docClient.send(
+                new QueryCommand({
+                    ...command,
+                    ExclusiveStartKey: exclusiveStartKey,
+                }),
+            );
+            if ((queryOutput.Count ?? 0) > 0 && queryOutput.Items?.length) {
+                return mapDbToTestItem(queryOutput.Items[0] as TestItemDb);
+            }
+            exclusiveStartKey = queryOutput.LastEvaluatedKey;
+        } while (exclusiveStartKey);
+
+        return;
     }
 
     private async updateConfigStatus(runId: string, status: RunStatus): Promise<void> {
@@ -113,8 +166,8 @@ export class DynamoDbShardHandler implements ShardHandler {
             new UpdateCommand({
                 TableName: this.testsTableName,
                 Key: { [Fields.Id]: runId, [Fields.Order]: 0 },
-                UpdateExpression: 'SET #cfg.#status = :status, #cfg.#updated = :updated',
-                ExpressionAttributeNames: { '#cfg': Fields.Config, '#status': 'status', '#updated': 'updated' },
+                UpdateExpression: 'SET #status = :status, #updated = :updated',
+                ExpressionAttributeNames: { '#status': Fields.Status, '#updated': Fields.Updated },
                 ExpressionAttributeValues: { ':status': status, ':updated': Date.now() },
             }),
         );
@@ -135,5 +188,4 @@ export class DynamoDbShardHandler implements ShardHandler {
             return false;
         }
     }
-
 }

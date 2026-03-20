@@ -7,7 +7,7 @@ export type ReporterType = (typeof REPORTERS)[number];
 export async function generateReport(data: TestRunReport, type: ReporterType): Promise<void> {
     switch (type) {
         case 'json':
-            console.log(JSON.stringify(data));
+            console.log(JSON.stringify(data, null, 2));
             break;
         case 'gha':
             await ghaReporter(data);

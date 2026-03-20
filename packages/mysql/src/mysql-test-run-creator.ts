@@ -1,6 +1,6 @@
-import { injectable, inject } from 'inversify';
-import { BaseTestRunCreator, RunStatus, TestStatus } from '@playwright-orchestrator/core';
-import type { ReporterTestItem, TestSortItem } from '@playwright-orchestrator/core';
+import { injectable, inject, injectFromBase } from 'inversify';
+import { BaseTestRunCreator, TestStatus } from '@playwright-orchestrator/core';
+import type { TestItem, TestRun, TestSortItem } from '@playwright-orchestrator/core';
 import type { CreateArgs } from './create-args.js';
 import { MySQLPool } from './mysql-pool.js';
 import { Pool, RowDataPacket, ResultSetHeader } from 'mysql2/promise';
@@ -15,6 +15,7 @@ interface TestInfo extends RowDataPacket {
 }
 
 @injectable()
+@injectFromBase({ extendProperties: true, extendConstructorArguments: false })
 export class MySQLTestRunCreator extends BaseTestRunCreator {
     private readonly configTable: string;
     private readonly testsTable: string;
@@ -22,10 +23,7 @@ export class MySQLTestRunCreator extends BaseTestRunCreator {
     private readonly testInfoHistoryTable: string;
     private readonly pool: Pool;
 
-    constructor(
-        @inject(MYSQL_CONFIG) { tableNamePrefix }: CreateArgs,
-        @inject(MYSQL_POOL) mysqlPool: MySQLPool,
-    ) {
+    constructor(@inject(MYSQL_CONFIG) { tableNamePrefix }: CreateArgs, @inject(MYSQL_POOL) mysqlPool: MySQLPool) {
         super();
         this.pool = mysqlPool.pool;
         this.configTable = `${tableNamePrefix}_test_runs`;
@@ -34,7 +32,7 @@ export class MySQLTestRunCreator extends BaseTestRunCreator {
         this.testInfoHistoryTable = `${tableNamePrefix}_tests_info_history`;
     }
 
-    async loadTestInfos(tests: ReporterTestItem[]): Promise<Map<string, TestSortItem>> {
+    async loadTestInfos(tests: TestItem[]): Promise<Map<string, TestSortItem>> {
         if (!tests.length) {
             return new Map<string, TestSortItem>();
         }
@@ -84,23 +82,34 @@ export class MySQLTestRunCreator extends BaseTestRunCreator {
         return testInfoMap;
     }
 
-    async saveRunData(runId: string, config: object, tests: ReporterTestItem[]): Promise<void> {
-        const testValues = tests.map(({ position, order, file, project, timeout }) => {
+    async saveRunData(runId: string, testRun: TestRun, tests: TestItem[]): Promise<void> {
+        const testValues = tests.map(({ position, order, file, projects, timeout, ema, children, testId }) => {
             const [line, character] = position.split(':');
-            return [runId, order, file, +line, +character, project, timeout];
+            return [
+                runId,
+                order,
+                file,
+                +line,
+                +character,
+                JSON.stringify(projects),
+                timeout,
+                ema,
+                children != null ? JSON.stringify(children) : null,
+                testId,
+            ];
         });
 
         const statements: string[] = [`INSERT INTO ?? (id, status, config) VALUES (UUID_TO_BIN(?), ?, ?)`];
-        const values: (string | number | object)[] = [
+        const values: (string | number | object | null | undefined)[] = [
             this.configTable,
             runId,
-            RunStatus.Created,
-            JSON.stringify(config),
+            testRun.status,
+            JSON.stringify(testRun.config),
         ];
         if (testValues.length) {
             statements.push(
-                `INSERT INTO ?? (run_id, order_num, file, line, pos, project, timeout) VALUES ${testValues
-                    .map(() => '(UUID_TO_BIN(?), ?, ?, ?, ?, ?, ?)')
+                `INSERT INTO ?? (run_id, order_num, file, line, pos, projects, timeout, ema, children, test_id) VALUES ${testValues
+                    .map(() => '(UUID_TO_BIN(?), ?, ?, ?, ?, ?, ?, ?, ?, ?)')
                     .join(', ')}`,
             );
             values.push(this.testsTable, ...testValues.flatMap((v) => v));

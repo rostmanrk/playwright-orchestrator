@@ -8,14 +8,8 @@ import {
 } from '@playwright-orchestrator/core';
 import { injectable, inject } from 'inversify';
 import type { CreateArgs } from './create-args.js';
-import {
-    TransactionCanceledException,
-} from '@aws-sdk/client-dynamodb';
-import {
-    QueryCommand,
-    GetCommand,
-    TransactWriteCommand,
-} from '@aws-sdk/lib-dynamodb';
+import { TransactionCanceledException } from '@aws-sdk/client-dynamodb';
+import { QueryCommand, GetCommand, TransactWriteCommand } from '@aws-sdk/lib-dynamodb';
 import { idToStatus, mapTestItemToDb, getTtl } from './helpers.js';
 import { Fields, StatusOffset } from './constants.js';
 import { TestInfoItem, TestItemDb } from './types.js';
@@ -53,10 +47,10 @@ export class DynamoDbAdapter extends BaseAdapter {
                 const report = test[Fields.Report];
                 return {
                     file: test[Fields.File],
-                    project: test[Fields.Project],
+                    projects: test[Fields.Projects] ?? [test[Fields.Project]!],
                     position: `${test[Fields.Line]}:${test[Fields.Character]}`,
                     status: idToStatus(test[Fields.Order]),
-                    title: report?.[Fields.Title] ?? '',
+                    title: test[Fields.TestId],
                     fails: report?.[Fields.Fails] ?? 0,
                     lastSuccessfulRunTimestamp: report?.[Fields.LastSuccess] ?? 0,
                     duration: report?.[Fields.Duration] ?? 0,
@@ -76,9 +70,9 @@ export class DynamoDbAdapter extends BaseAdapter {
     }
 
     private async saveTestResultWithRetry(params: SaveTestResultParams, retry: number): Promise<void> {
-        const { runId, testId, test, item, historyWindow, newEma, title } = params;
+        const { runId, test, item, historyWindow, newEma } = params;
         try {
-            const stats = await this.getTestInfo(testId);
+            const stats = await this.getTestInfo(test.testId);
             if (!stats) return;
             const history = [
                 ...stats[Fields.History],
@@ -94,7 +88,7 @@ export class DynamoDbAdapter extends BaseAdapter {
                 duration: h[Fields.Duration],
                 updated: h[Fields.Updated],
             }));
-            const report = this.buildReport(test, item, title, newEma, historyItems);
+            const report = this.buildReport(test, item, newEma, historyItems);
             const status = item.status === TestStatus.Failed ? StatusOffset.Failed : StatusOffset.Succeed;
             await this.connection.docClient.send(
                 new TransactWriteCommand({
@@ -185,5 +179,4 @@ export class DynamoDbAdapter extends BaseAdapter {
         );
         return Items as TestItemDb[];
     }
-
 }

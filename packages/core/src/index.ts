@@ -9,3 +9,4 @@ export * from './adapters/run-info-loader.js';
 export * from './adapters/test-run-creator.js';
 export * from './adapters/base-test-run-creator.js';
 export * from './adapters/shard-handler.js';
+export * from './symbols.js';

@@ -21,8 +21,3 @@ export function parseTestId(testId: Binary): { runId: string; order: number } {
     const order = (testId.buffer[16] << 8) + testId.buffer[17];
     return { runId, order };
 }
-
-export function mapDbToTestRunConfig(run: TestRunDocument): TestRunConfig {
-    const { args, config, status, updated, historyWindow } = run;
-    return { ...config, args, historyWindow, status, updated: updated.getTime() };
-}

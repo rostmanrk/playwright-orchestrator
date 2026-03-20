@@ -6,7 +6,7 @@ import type { CreateArgs } from './create-args.js';
 import { MongoConnection } from './mongo-connection.js';
 import { MONGO_CONFIG, MONGO_CONNECTION } from './symbols.js';
 import type { TestDocument, TestRunDocument } from './types.js';
-import { generateTestId, generateRunId, parseTestId, mapDbToTestRunConfig } from './helpers.js';
+import { generateTestId, generateRunId, parseTestId } from './helpers.js';
 
 const MAX_ORDER = 0b1111111111111111;
 
@@ -26,13 +26,24 @@ export class MongoShardHandler implements ShardHandler {
     }
 
     async getNextTest(runId: string, _config: TestRunConfig): Promise<TestItem | undefined> {
-        const result = await this.tests.findOneAndUpdate(this.generateTestIdQuery(runId, TestStatus.Ready), {
+        return this.claimNextTest(runId);
+    }
+
+    async getNextTestByProject(runId: string, project: string): Promise<TestItem | undefined> {
+        return this.claimNextTest(runId, project);
+    }
+
+    private async claimNextTest(runId: string, project?: string): Promise<TestItem | undefined> {
+        const query = project
+            ? { ...this.generateTestIdQuery(runId, TestStatus.Ready), projects: project }
+            : this.generateTestIdQuery(runId, TestStatus.Ready);
+        const result = await this.tests.findOneAndUpdate(query, {
             $set: { updated: new Date(), status: TestStatus.Ongoing },
         });
         if (!result) return undefined;
-        const { file, line, column, project, timeout } = result!;
-        const { order } = parseTestId(result!._id);
-        return { file, position: `${line}:${column}`, project, timeout, order };
+        const { file, line, column, projects, timeout, ema, children, testId } = result;
+        const { order } = parseTestId(result._id);
+        return { file, position: `${line}:${column}`, projects, timeout, ema, order, children, testId };
     }
 
     async startShard(runId: string): Promise<TestRunConfig> {
@@ -42,7 +53,7 @@ export class MongoShardHandler implements ShardHandler {
                 $set: {
                     status: {
                         $cond: {
-                            if: { $in: ['$status', [RunStatus.Created]] },
+                            if: { $in: ['$status', [RunStatus.Created, RunStatus.Run]] },
                             then: RunStatus.Run,
                             else: RunStatus.RepeatRun,
                         },
@@ -58,7 +69,7 @@ export class MongoShardHandler implements ShardHandler {
                 $set: { status: TestStatus.Ready, updated: now },
             });
         }
-        return mapDbToTestRunConfig(run);
+        return run.config;
     }
 
     async finishShard(runId: string): Promise<void> {

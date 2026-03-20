@@ -3,8 +3,9 @@ import { loadPlugins } from '../helpers/plugin.js';
 import { generateReport, REPORTERS } from '../reporters/reporter-factory.js';
 import { withErrorHandling } from './error-handler.js';
 import { program } from './program.js';
-import { createContainer, SYMBOLS } from '../container.js';
+import { createContainer } from '../container.js';
 import type { Adapter } from '../adapters/adapter.js';
+import { SYMBOLS } from '../symbols.js';
 
 export default async () => {
     const command = program.command('create-report').description('Create for selected storage type.');

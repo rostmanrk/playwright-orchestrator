@@ -14,13 +14,16 @@ interface Test extends RowDataPacket {
     pos: number;
     project: string;
     timeout: number;
+    ema: number;
+    children?: string[];
+    test_id: string;
 }
 
 interface Run extends RowDataPacket {
     id: number;
     status: number;
     updated: Date;
-    config: any;
+    config: TestRunConfig;
 }
 
 @injectable()
@@ -36,12 +39,22 @@ export class MySQLShardHandler implements ShardHandler {
     }
 
     async getNextTest(runId: string, _config: TestRunConfig): Promise<TestItem | undefined> {
+        return this.claimNextTest(runId);
+    }
+
+    async getNextTestByProject(runId: string, project: string): Promise<TestItem | undefined> {
+        return this.claimNextTest(runId, project);
+    }
+
+    private async claimNextTest(runId: string, project?: string): Promise<TestItem | undefined> {
+        const projectFilter = project ? `AND JSON_CONTAINS(projects, JSON_QUOTE(?))` : '';
+        const filterParams = project ? [project] : [];
         const client = await this.pool.getConnection();
         try {
             await client.beginTransaction();
             const [result] = await client.query<Test[][]>(
                 `SET @order_num = (SELECT order_num FROM ??
-                    WHERE run_id = UUID_TO_BIN(?) AND status = ?
+                    WHERE run_id = UUID_TO_BIN(?) AND status = ? ${projectFilter}
                     ORDER BY order_num
                     LIMIT 1
                     FOR UPDATE SKIP LOCKED);
@@ -54,6 +67,7 @@ export class MySQLShardHandler implements ShardHandler {
                     this.testsTable,
                     runId,
                     TestStatus.Ready,
+                    ...filterParams,
                     this.testsTable,
                     TestStatus.Ongoing,
                     runId,
@@ -63,8 +77,17 @@ export class MySQLShardHandler implements ShardHandler {
             );
             await client.commit();
             if (result[2].length === 0) return undefined;
-            const { file, line, pos, project, timeout, order_num } = result[2][0];
-            return { file, position: `${line}:${pos}`, project, timeout, order: order_num };
+            const { file, line, pos, projects, timeout, ema, order_num, children, test_id } = result[2][0];
+            return {
+                file,
+                position: `${line}:${pos}`,
+                projects,
+                timeout,
+                ema,
+                order: order_num,
+                children,
+                testId: test_id,
+            };
         } catch (e) {
             await client.rollback();
             throw e;
@@ -106,7 +129,7 @@ export class MySQLShardHandler implements ShardHandler {
         } finally {
             client.release();
         }
-        return this.mapConfig(result[0]);
+        return result[0].config;
     }
 
     async finishShard(runId: string): Promise<void> {
@@ -115,10 +138,5 @@ export class MySQLShardHandler implements ShardHandler {
             RunStatus.Finished,
             runId,
         ]);
-    }
-
-    private mapConfig(dbValue: any): TestRunConfig {
-        const { updated, status, config } = dbValue;
-        return { ...config, updated: updated.getTime(), status } as TestRunConfig;
     }
 }

@@ -1,17 +1,48 @@
 import type { TestReportResult } from './reporter.js';
-import type { TestRunConfig, TestRunInfo, TestStatus } from './test-info.js';
+import type { RunStatus, TestConfig, TestStatus } from './test-info.js';
 import type { TestDetailsAnnotation } from '@playwright/test';
 
-export interface TestItem {
-    file: string;
-    position: string;
-    project: string;
-    order: number;
-    timeout: number;
+export const BatchMode = {
+    Off: 'off',
+    Time: 'time',
+    Count: 'count',
+} as const;
+export type BatchMode = (typeof BatchMode)[keyof typeof BatchMode];
+
+export const Grouping = {
+    Test: 'test',
+    Project: 'project',
+} as const;
+export type Grouping = (typeof Grouping)[keyof typeof Grouping];
+
+export interface TestRunConfig extends TestConfig {
+    args: string[];
+    options: BaseOptions;
+    version?: string;
 }
 
-export interface ReporterTestItem extends TestItem {
+export interface TestRun {
+    status: RunStatus;
+    updated: number;
+    config: TestRunConfig;
+}
+
+export interface BaseOptions {
+    batchMode: BatchMode;
+    batchTarget?: number;
+    grouping: Grouping;
+    historyWindow: number;
+}
+
+export interface TestItem {
     testId: string;
+    file: string;
+    position: string;
+    projects: string[];
+    order: number;
+    timeout: number;
+    children?: string[];
+    ema: number;
 }
 
 export interface ResultTestParams {
@@ -23,13 +54,12 @@ export interface ResultTestParams {
 
 export interface SaveTestRunParams {
     runId: string;
-    testRun: TestRunInfo;
     args: string[];
-    historyWindow: number;
+    options: BaseOptions;
 }
 
 export interface GetTestIdParams {
-    project: string;
+    project?: string;
     file: string;
     title: string;
     annotations: TestDetailsAnnotation[];
@@ -53,10 +83,8 @@ export interface HistoryItem {
 
 export interface SaveTestResultParams {
     runId: string;
-    testId: string;
     test: TestItem;
     item: HistoryItem;
     historyWindow: number;
     newEma: number;
-    title: string;
 }

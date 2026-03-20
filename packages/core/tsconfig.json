@@ -2,9 +2,7 @@
     "extends": "../../tsconfig.base.json",
     "compilerOptions": {
         "outDir": "./dist",
-        "rootDir": "./src",
-        "experimentalDecorators": true,
-        "emitDecoratorMetadata": true
+        "rootDir": "./src"
     },
     "include": ["./src/**/*.ts", "src/playwright-tools/annotations.cts"],
     "exclude": ["dist", "package.json"]

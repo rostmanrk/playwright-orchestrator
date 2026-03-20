@@ -4,15 +4,15 @@ import { TestStatus } from '../types/test-info.js';
 import { calculateTrend, formatDuration } from './helpers.js';
 
 export async function ghaReporter(data: TestRunReport) {
-    const { config, runId, tests } = data;
+    const { tests } = data;
     await core.summary
         .addHeading(`🏃 Test run summary`)
         .addDetails('Run config', buildConfigData(data))
         .addTable([
             [
                 { data: '', header: true },
-                { data: '📁 Project', header: true },
-                { data: '📝 Title', header: true },
+                { data: '📁 Projects', header: true },
+                { data: '📝 Test Id', header: true },
                 { data: '⏱️ Duration', header: true },
                 { data: '📊 Trend', header: true },
                 { data: '✨ Last successful run', header: true },
@@ -22,7 +22,7 @@ export async function ghaReporter(data: TestRunReport) {
                 const { percentage, trendIcon } = calculateTrend(test);
                 return [
                     test.status === TestStatus.Passed ? '✅' : '❌',
-                    test.project,
+                    test.projects.join('|'),
                     test.title,
                     formatDuration(test.duration),
                     `${trendIcon} ${percentage}%`,
@@ -36,10 +36,15 @@ export async function ghaReporter(data: TestRunReport) {
         .write();
 }
 
-function buildConfigData({ config, runId }: TestRunReport) {
+function buildConfigData({
+    config: {
+        options: { historyWindow },
+    },
+    runId,
+}: TestRunReport) {
     return `
 <table>
 <tr><td>Run Id</td><td>${runId}</td></tr>    
-<tr><td>History Window</td><td>${config.historyWindow}</td></tr>    
+<tr><td>History Window</td><td>${historyWindow}</td></tr>    
 </table>`;
 }

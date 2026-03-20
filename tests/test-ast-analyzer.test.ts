@@ -1,5 +1,5 @@
 import { test, expect } from 'vitest';
-import { TestRunInfo } from '@playwright-orchestrator/core';
+import { ReporterTestRunInfo } from '@playwright-orchestrator/core';
 import path from 'node:path';
 import { spawnAsync } from '../packages/core/src/helpers/spawn.js';
 import { createRequire } from 'node:module';
@@ -14,12 +14,12 @@ test('test custom info reporter', async () => {
         'test',
         '--list',
         '--reporter',
-        '@playwright-orchestrator/core/tests-info-reporter',
+        '@playwright-orchestrator/core/run-info-reporter',
         '-j',
         '2',
     ]);
 
-    const testRunInfo = JSON.parse(commandResult.stdout) as TestRunInfo;
+    const testRunInfo = JSON.parse(commandResult.stdout) as ReporterTestRunInfo;
     /// Make the outputDir relative to the current working directory to make the snapshot stable.
     if (testRunInfo.config.configFile) {
         testRunInfo.config.configFile = path.relative(process.cwd(), testRunInfo.config.configFile);

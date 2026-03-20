@@ -2,7 +2,7 @@ import {
     BaseAdapter,
     TestRunConfig,
     TestRunReport,
-    ReporterTestItem,
+    TestItem,
     TestStatus,
     HistoryItem,
     SaveTestResultParams,
@@ -15,7 +15,7 @@ import { existsSync } from 'node:fs';
 import { FILE_CONFIG } from './symbols.js';
 import { getRunConfigPath, getHistoryRunPath, getResultsRunPath } from './file-paths.js';
 
-interface ResultTestItem extends ReporterTestItem {
+interface ResultTestItem extends TestItem {
     status: TestStatus;
     report: {
         duration: number;
@@ -51,14 +51,14 @@ export class FileAdapter extends BaseAdapter {
         return {
             runId,
             config,
-            tests: tests.map(({ file, status, project, position, report }) => ({
+            tests: tests.map(({ file, status, projects, position, report }) => ({
                 averageDuration: report.ema,
                 duration: report.duration,
                 fails: report.fails,
                 title: report.title,
                 file,
                 position,
-                project,
+                projects,
                 status,
                 lastSuccessfulRunTimestamp: report.lastSuccessfulRunTimestamp,
             })),
@@ -72,21 +72,13 @@ export class FileAdapter extends BaseAdapter {
         return history[testId]?.ema ?? 0;
     }
 
-    async saveTestResult({
-        runId,
-        testId,
-        test,
-        item,
-        historyWindow,
-        newEma,
-        title,
-    }: SaveTestResultParams): Promise<void> {
+    async saveTestResult({ runId, test, item, historyWindow, newEma }: SaveTestResultParams): Promise<void> {
         const historyFile = getHistoryRunPath(this.dir);
         let testItem: TestHistoryItem;
         const releaseHistory = await lock(historyFile, { retries: 100 });
         try {
             const history = JSON.parse(await readFile(historyFile, 'utf-8')) as Record<string, TestHistoryItem>;
-            testItem = history[testId];
+            testItem = history[test.testId];
             testItem.history.push({ duration: item.duration, status: item.status, updated: item.updated });
             if (testItem.history.length > historyWindow) {
                 testItem.history.splice(0, testItem.history.length - historyWindow);
@@ -101,13 +93,12 @@ export class FileAdapter extends BaseAdapter {
             duration: h.duration,
             updated: h.updated,
         }));
-        const report = this.buildReport(test, item, title, newEma, historyItems);
+        const report = this.buildReport(test, item, newEma, historyItems);
         const resultsFile = getResultsRunPath(this.dir, runId);
         const releaseResults = await lock(resultsFile, { retries: 100 });
         try {
             const results = JSON.parse(await readFile(resultsFile, 'utf-8')) as ResultTestItem[];
             results.push({
-                testId,
                 ...test,
                 status: report.status,
                 report: {

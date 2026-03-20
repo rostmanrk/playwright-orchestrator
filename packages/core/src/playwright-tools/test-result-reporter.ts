@@ -1,67 +1,38 @@
-import type { FullConfig, FullResult, Reporter, Suite, TestCase, TestResult } from '@playwright/test/reporter';
-import type { TestReportResult } from '../types/reporter.js';
+import type { Reporter, TestCase, TestResult } from '@playwright/test/reporter';
+import { TestCaseKeys, TestLocationKeys, TestReportEvent, TestResultKeys } from '../types/reporter.js';
+import { getTestId } from '../helpers/get-test-id.js';
+import { pick } from '../helpers/pick.js';
+import { Grouping } from '../types/adapters.js';
 
 export default class TestResultReporter implements Reporter {
-    private testResults: TestResult[] = [];
-    private testCases: TestCase[] = [];
-    private commonParent: Suite | undefined;
+    private readonly grouping = process.env.PLAYWRIGHT_ORCHESTRATOR_GROUPING;
 
-    onBegin(config: FullConfig, suite: Suite): void {
-        const tests = suite.allTests();
-        if (tests.length > 1) {
-            const path = [];
-            let current: Suite | undefined = tests[0].parent;
-            while (current) {
-                path.push(current);
-                current = current.parent;
-            }
-            let lastCommonParent = path.length - 1;
-            for (const test of tests.slice(1)) {
-                current = test.parent;
-                while (current) {
-                    const index = path.indexOf(current!);
-                    if (index !== -1 && index < lastCommonParent) {
-                        lastCommonParent = index;
-                        break;
-                    }
-                    current = current?.parent;
-                }
-            }
-            this.commonParent = path[lastCommonParent];
-        }
+    onTestBegin(test: TestCase, result: TestResult): void {
+        console.log(this.prepareTestResult('begin', test, result));
     }
 
     onTestEnd(test: TestCase, result: TestResult): void {
-        this.testResults.push(result);
-        this.testCases.push(test);
+        console.log(this.prepareTestResult('end', test, result));
     }
-    onEnd(result: FullResult): Promise<{ status?: FullResult['status'] } | undefined | void> | void {
-        const { status, error } = this.testResults.at(-1)!;
-        const duration = this.testResults.reduce((acc, { duration }) => acc + duration, 0);
-        const existingAnnotations = new Set<string>();
-        const annotations = this.testCases
-            .flatMap((test) => test.annotations)
-            .filter(({ type, description }) => {
-                if (existingAnnotations.has(type + (description ?? ''))) return false;
-                existingAnnotations.add(type + (description ?? ''));
-                return true;
-            });
-        const { title } = this.commonParent ?? this.testCases.at(-1)!;
-        const output: TestReportResult = {
-            status,
-            duration,
-            error,
-            title,
-            annotations,
-            tests: this.testResults.map(({ status, duration, error, retry }, i) => ({
-                status,
-                duration,
-                error,
-                annotations: this.testCases[i].annotations,
-                title: this.testCases[i].title,
-                retry,
-            })),
+
+    private prepareTestResult(type: TestReportEvent['type'], test: TestCase, result: TestResult): string {
+        const [_, project, file] = test.titlePath();
+        const event: TestReportEvent = {
+            type,
+            project,
+            test: {
+                ...pick(test, ...TestCaseKeys),
+                location: pick(test.location, ...TestLocationKeys),
+                ok: test.ok(),
+                testId: getTestId({
+                    project: this.grouping === Grouping.Project ? project : undefined,
+                    file,
+                    title: test.title,
+                    annotations: test.annotations,
+                }),
+            },
+            result: pick(result, ...TestResultKeys),
         };
-        console.log(JSON.stringify(output));
+        return JSON.stringify(event);
     }
 }
