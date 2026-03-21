@@ -7,7 +7,6 @@ exports[`test custom info reporter 1`] = `
     "projects": [
       {
         "name": "chromium",
-        "outputDir": "test-results/chromium",
         "use": {
           "defaultBrowserType": "chromium",
           "deviceScaleFactor": 1,
@@ -27,7 +26,6 @@ exports[`test custom info reporter 1`] = `
       },
       {
         "name": "firefox",
-        "outputDir": "test-results",
         "use": {
           "defaultBrowserType": "firefox",
           "deviceScaleFactor": 1,

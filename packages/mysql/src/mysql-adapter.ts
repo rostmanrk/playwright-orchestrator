@@ -1,11 +1,4 @@
-import {
-    BaseAdapter,
-    TestRunConfig,
-    TestStatus,
-    TestRunReport,
-    HistoryItem,
-    SaveTestResultParams,
-} from '@playwright-orchestrator/core';
+import { BaseAdapter, TestStatus, TestRunReport, SaveTestResultParams } from '@playwright-orchestrator/core';
 import { injectable, inject } from 'inversify';
 import type { CreateArgs } from './create-args.js';
 import { MySQLPool } from './mysql-pool.js';
@@ -68,12 +61,13 @@ export class MySQLAdapter extends BaseAdapter {
     }
 
     async getReportData(runId: string): Promise<TestRunReport> {
-        const [[run]] = await this.pool.query<Run[]>({
-            sql: `SELECT * FROM ??
+        const [[row]] = await this.pool.query<Run[]>({
+            sql: `SELECT config FROM ??
             WHERE id = UUID_TO_BIN(?)`,
             values: [this.configTable, runId],
         });
-        if (!run) throw new Error(`Run ${runId} not found`);
+        const config = row?.config;
+        if (!config) throw new Error(`Run ${runId} not found`);
         const [tests] = await this.pool.query<Test[]>({
             sql: `SELECT * FROM ??
             WHERE run_id = UUID_TO_BIN(?)`,
@@ -82,7 +76,7 @@ export class MySQLAdapter extends BaseAdapter {
 
         return {
             runId,
-            config: this.mapConfig(run),
+            config,
             tests: tests.map(({ file, projects, report, line, pos }) => {
                 return {
                     averageDuration: report?.ema ?? 0,
@@ -200,10 +194,5 @@ export class MySQLAdapter extends BaseAdapter {
         } finally {
             client.release();
         }
-    }
-
-    private mapConfig(dbValue: any): TestRunConfig {
-        const { updated, status, config } = dbValue;
-        return { ...config, updated: updated.getTime(), status } as TestRunConfig;
     }
 }

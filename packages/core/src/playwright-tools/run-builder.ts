@@ -1,6 +1,7 @@
 import type { FullConfig, Suite, TestCase } from '@playwright/test/reporter';
 import { TestASTAnalyzer } from './test-ats-analyzer.js';
 import type { TestConfig, ReporterTestRun, ReporterTestRunInfo } from '../types/test-info.js';
+import path from 'node:path';
 
 export class RunBuilder {
     private readonly testRun: ReporterTestRun = {};
@@ -11,13 +12,12 @@ export class RunBuilder {
         return this;
     }
 
-    parseConfig(config: FullConfig) {
+    parseConfig({ workers, configFile, projects }: FullConfig) {
         this.config = {
-            workers: config.workers,
-            configFile: config.configFile,
-            projects: config.projects.map((project) => ({
+            workers: workers,
+            configFile: configFile ? path.relative(process.cwd(), configFile) : undefined,
+            projects: projects.map((project) => ({
                 name: project.name,
-                outputDir: project.outputDir,
                 use: project.use,
             })),
         };

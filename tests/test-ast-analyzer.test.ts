@@ -20,12 +20,5 @@ test('test custom info reporter', async () => {
     ]);
 
     const testRunInfo = JSON.parse(commandResult.stdout) as ReporterTestRunInfo;
-    /// Make the outputDir relative to the current working directory to make the snapshot stable.
-    if (testRunInfo.config.configFile) {
-        testRunInfo.config.configFile = path.relative(process.cwd(), testRunInfo.config.configFile);
-    }
-    for (const project of testRunInfo.config.projects) {
-        project.outputDir = path.relative(process.cwd(), project.outputDir);
-    }
     expect(testRunInfo).toMatchSnapshot();
 }, 60000);

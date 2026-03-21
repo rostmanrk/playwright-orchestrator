@@ -6,6 +6,7 @@ import {
     TestStatus,
     HistoryItem,
     SaveTestResultParams,
+    TestRun,
 } from '@playwright-orchestrator/core';
 import { injectable, inject } from 'inversify';
 import type { CreateArgs } from './create-args.js';
@@ -46,7 +47,7 @@ export class FileAdapter extends BaseAdapter {
     }
 
     async getReportData(runId: string): Promise<TestRunReport> {
-        const config = JSON.parse(await readFile(getRunConfigPath(this.dir, runId), 'utf-8')) as TestRunConfig;
+        const { config } = JSON.parse(await readFile(getRunConfigPath(this.dir, runId), 'utf-8')) as TestRun;
         const tests = JSON.parse(await readFile(getResultsRunPath(this.dir, runId), 'utf-8')) as ResultTestItem[];
         return {
             runId,

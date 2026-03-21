@@ -40,19 +40,12 @@ export class RedisAdapter extends BaseAdapter {
             JSON.parse(el),
         );
 
-        const reportTests = new Set<string>();
-        reports = reports.filter((report) => {
-            if (reportTests.has(report.testId)) {
-                return false;
-            }
-            reportTests.add(report.testId);
-            return true;
-        });
-
         return {
             runId,
             config,
-            tests: reports,
+            tests: reports.map(({ testId, ...report }) => ({
+                ...report,
+            })),
         };
     }
 
@@ -99,18 +92,10 @@ export class RedisAdapter extends BaseAdapter {
     private async loadTestRunConfig(runId: string): Promise<TestRunConfig> {
         const client = await this.connection.getClient();
         const baseKey = `${this._namePrefix}:${TEST_RUN}:${runId}`;
-        const [config, status, updated] = await client.mGet([
-            `${baseKey}:config`,
-            `${baseKey}:status`,
-            `${baseKey}:updated`,
-        ]);
-        if (!config || !status || !updated) {
+        const config = await client.get(`${baseKey}:config`);
+        if (!config) {
             throw new Error(`Run ${runId} not found`);
         }
-        return {
-            ...JSON.parse(config),
-            status: +status,
-            updated: +updated,
-        };
+        return JSON.parse(config);
     }
 }

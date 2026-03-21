@@ -31,19 +31,19 @@ export class PostgreSQLAdapter extends BaseAdapter {
 
     async getReportData(runId: string): Promise<TestRunReport> {
         const {
-            rows: [dbConfig],
+            rows: [{ config }],
         } = await this.pool.query({
-            text: `SELECT * FROM ${this.configTable} WHERE id = $1`,
+            text: `SELECT config FROM ${this.configTable} WHERE id = $1`,
             values: [runId],
         });
-        if (!dbConfig) throw new Error(`Run ${runId} not found`);
+        if (!config) throw new Error(`Run ${runId} not found`);
         const { rows } = await this.pool.query({
             text: `SELECT * FROM ${this.testsTable} WHERE run_id = $1`,
             values: [runId],
         });
         return {
             runId,
-            config: this.mapConfig(dbConfig),
+            config,
             tests: rows.map(({ file, projects, line, character, report }) => ({
                 averageDuration: report?.ema ?? 0,
                 duration: report?.duration ?? 0,
@@ -129,13 +129,5 @@ export class PostgreSQLAdapter extends BaseAdapter {
         } finally {
             client.release();
         }
-    }
-
-    private mapConfig(dbConfig: any): TestRunConfig {
-        return {
-            ...dbConfig.config,
-            updated: dbConfig.updated.getTime(),
-            status: dbConfig.status,
-        };
     }
 }

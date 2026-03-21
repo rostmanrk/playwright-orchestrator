@@ -1,0 +1,211 @@
+{
+  "config": {
+    "args": [
+      "--config",
+      "tests-playwright.config.ts"
+    ],
+    "configFile": "tests-playwright.config.ts",
+    "options": {
+      "batchMode": "count",
+      "batchTarget": 4,
+      "grouping": "test",
+      "historyWindow": 10
+    },
+    "projects": [
+      {
+        "name": "chromium",
+        "use": {
+          "defaultBrowserType": "chromium",
+          "deviceScaleFactor": 1,
+          "hasTouch": false,
+          "isMobile": false,
+          "screen": {
+            "height": 1080,
+            "width": 1920
+          },
+          "trace": "on-first-retry",
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.7632.6 Safari/537.36",
+          "viewport": {
+            "height": 720,
+            "width": 1280
+          }
+        }
+      },
+      {
+        "name": "firefox",
+        "use": {
+          "defaultBrowserType": "firefox",
+          "deviceScaleFactor": 1,
+          "hasTouch": false,
+          "isMobile": false,
+          "screen": {
+            "height": 1080,
+            "width": 1920
+          },
+          "trace": "on-first-retry",
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:146.0.1) Gecko/20100101 Firefox/146.0.1",
+          "viewport": {
+            "height": 720,
+            "width": 1280
+          }
+        }
+      }
+    ]
+  },
+  "tests": [
+    {
+      "averageDuration": 0,
+      "duration": 0,
+      "fails": 0,
+      "file": "serial.spec.ts",
+      "lastSuccessfulRunTimestamp": 0,
+      "position": "14:10",
+      "projects": [
+        "chromium",
+        "firefox"
+      ],
+      "status": 30,
+      "title": "#serial_id"
+    },
+    {
+      "averageDuration": 0,
+      "duration": 0,
+      "fails": 0,
+      "file": "basic-case.spec.ts",
+      "lastSuccessfulRunTimestamp": 0,
+      "position": "9:9",
+      "projects": [
+        "chromium",
+        "firefox"
+      ],
+      "status": 30,
+      "title": "basic-case.spec.ts > inside group"
+    },
+    {
+      "averageDuration": 0,
+      "duration": 0,
+      "fails": 0,
+      "file": "basic-case.spec.ts",
+      "lastSuccessfulRunTimestamp": 0,
+      "position": "3:5",
+      "projects": [
+        "chromium",
+        "firefox"
+      ],
+      "status": 30,
+      "title": "basic-case.spec.ts > outside of group"
+    },
+    {
+      "averageDuration": 0,
+      "duration": 0,
+      "fails": 0,
+      "file": "constant-timeout.spec.ts",
+      "lastSuccessfulRunTimestamp": 0,
+      "position": "11:9",
+      "projects": [
+        "chromium",
+        "firefox"
+      ],
+      "status": 30,
+      "title": "constant-timeout.spec.ts > inside group"
+    },
+    {
+      "averageDuration": 0,
+      "duration": 0,
+      "fails": 0,
+      "file": "constant-timeout.spec.ts",
+      "lastSuccessfulRunTimestamp": 0,
+      "position": "15:9",
+      "projects": [
+        "chromium",
+        "firefox"
+      ],
+      "status": 30,
+      "title": "constant-timeout.spec.ts > inside group override timeout"
+    },
+    {
+      "averageDuration": 0,
+      "duration": 0,
+      "fails": 0,
+      "file": "constant-timeout.spec.ts",
+      "lastSuccessfulRunTimestamp": 0,
+      "position": "21:13",
+      "projects": [
+        "chromium",
+        "firefox"
+      ],
+      "status": 30,
+      "title": "constant-timeout.spec.ts > inside nested group and slow"
+    },
+    {
+      "averageDuration": 0,
+      "duration": 0,
+      "fails": 0,
+      "file": "constant-timeout.spec.ts",
+      "lastSuccessfulRunTimestamp": 0,
+      "position": "3:5",
+      "projects": [
+        "chromium",
+        "firefox"
+      ],
+      "status": 30,
+      "title": "constant-timeout.spec.ts > timeout outside of group"
+    },
+    {
+      "averageDuration": 0,
+      "duration": 0,
+      "fails": 0,
+      "file": "failed.spec.ts",
+      "lastSuccessfulRunTimestamp": 0,
+      "position": "3:5",
+      "projects": [
+        "chromium",
+        "firefox"
+      ],
+      "status": 20,
+      "title": "failed.spec.ts > should failing"
+    },
+    {
+      "averageDuration": 0,
+      "duration": 0,
+      "fails": 0,
+      "file": "serial-top-level.spec.ts",
+      "lastSuccessfulRunTimestamp": 0,
+      "position": "0:0",
+      "projects": [
+        "chromium",
+        "firefox"
+      ],
+      "status": 30,
+      "title": "serial-top-level.spec.ts"
+    },
+    {
+      "averageDuration": 0,
+      "duration": 0,
+      "fails": 0,
+      "file": "serial.spec.ts",
+      "lastSuccessfulRunTimestamp": 0,
+      "position": "10:9",
+      "projects": [
+        "chromium",
+        "firefox"
+      ],
+      "status": 30,
+      "title": "serial.spec.ts > inside group"
+    },
+    {
+      "averageDuration": 0,
+      "duration": 0,
+      "fails": 0,
+      "file": "serial.spec.ts",
+      "lastSuccessfulRunTimestamp": 0,
+      "position": "4:5",
+      "projects": [
+        "chromium",
+        "firefox"
+      ],
+      "status": 30,
+      "title": "serial.spec.ts > outside of group"
+    }
+  ]
+}
