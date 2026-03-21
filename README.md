@@ -1,26 +1,68 @@
 # Playwright Orchestrator
 
-A CLI tool for orchestrating and managing Playwright test execution.
+Smart Playwright test orchestration — distributes tests by predicted duration, not test count.
 
-Helps to orchestrate Playwright test execution through smart sharding using existing database.
+[![npm version](https://img.shields.io/npm/v/@playwright-orchestrator/core)](https://www.npmjs.com/package/@playwright-orchestrator/core)
+[![License](https://img.shields.io/npm/l/@playwright-orchestrator/core)](LICENSE.md)
+[![CI](https://github.com/rostmanrk/playwright-orchestrator/actions/workflows/pr.yml/badge.svg)](https://github.com/rostmanrk/playwright-orchestrator/actions/workflows/test.yml)
+[![Node.js](https://img.shields.io/node/v/@playwright-orchestrator/core)](https://nodejs.org)
 
-![Timeline](https://github.com/rostmanrk/playwright-orchestrator/raw/main/assets/timeline.png)
+## The Problem
 
-## 🎯 Overview
+Playwright's built-in `--shard` flag splits tests evenly by count. If one shard gets the slow tests, it blocks everything while the others sit idle. Playwright Orchestrator tracks historical run durations and uses an Exponential Moving Average (EMA) to distribute tests by predicted time — so all shards finish approximately together.
 
-The project provides tooling to analyze and orchestrate Playwright tests using available storage plugin options. Currently available plugin options:
+## Quick Start
 
-- file: Basic storage that uses a local file as storage.
-- dynamo-db: Amazon's DynamoDB adapter.
-- pg: PostgreSQL adapter.
-- mysql: MySQL adapter.
-- mongo: MongoDB adapter.
-- redis: Redis adapter.
+Links to full CI workflow examples: [MongoDB](.github/workflows/mongo.yml) · [DynamoDB](.github/workflows/dynamo-db.yml) · [PostgreSQL](.github/workflows/pg.yml)
+
+**1. Initialize storage** (one-time, requires write table permissions):
+
+```bash
+npx playwright-orchestrator init pg --connection-string "postgres://username:password@localhost:5432/postgres"
+```
+
+**2. Create a run** (once per CI run, outputs a `runId`):
+
+```bash
+npx playwright-orchestrator create pg --connection-string "postgres://username:password@localhost:5432/postgres" --workers 2
+> 019464f7-1488-75d1-b5c0-5e7d3dde9195
+```
+
+**3. Start shards** (run in parallel across N machines):
+
+```bash
+npx playwright-orchestrator run pg --connection-string "postgres://username:password@localhost:5432/postgres" --run-id 019464f7-1488-75d1-b5c0-5e7d3dde9195
+```
+
+**4. Re-run failed tests** — repeat step 3 using the same `runId` (rerun any shard). The tool automatically picks up only failed tests from the previous run.
+
+**5. Merge reports** using [Playwright's merge-reports CLI](https://playwright.dev/docs/test-sharding#merge-reports-cli):
+
+```bash
+npx playwright merge-reports ./blob-reports --reporter html
+```
+
+## How It Works
+
+[View diagram](https://mermaid.ai/live/edit#pako:eNpVkMtqwzAQRX9FzLZ2sCQ_Ii0KTbIplC66bNSFiCaOIZaMLNFHyL9XsROazmru3DN3YE6wcwZBwv7oPncH7QN5eVOWpHraKuhsF5SyzmIeuh7JiCEOCj5Inj-SVQJ2HnXACxLDEMNIfLTPJhFzxmoC13SbxmRM8YbQ_xa7s9h_i99Zr1drTSdvs-3Rt5h7HJxPVx_I3KG_cWzmrorPCjJofWdABh8xg5TR64uE04VTEA7YowKZWoN7HY9BgbLntDZo--5cf9v0LrYHkHt9HJOKg0lP2HS69foPQWvQr120AWQ1JYA8wRdIShdUUN40VdMsOStEBt9pWpcLITirWEVFUfB6ec7gZ7pZLOqmEqKmrGzKsqQVP_8Cv7ODNQ)
+
+```mermaid
+flowchart LR
+    A["init\none-time setup"] --> B["create\noutputs runId"]
+    B --> C1[run shard 1]
+    B --> C2[run shard 2]
+    B --> C3[run shard N]
+    C1 --> D[merge-reports + reporter]
+    C2 --> D
+    C3 --> D
+```
+
+### EMA Scheduling
 
 **Tests are ordered as follows:**
 
 1. If there are no previous test runs, use the default timeout.
-2. Take the [EMA (Exponential Moving Average)](https://en.wikipedia.org/wiki/Moving_average#Exponential_moving_average) of the test duration. The window size can be changed in [`create`](#create) command, default value is 10.
+2. Take the [EMA (Exponential Moving Average)](https://en.wikipedia.org/wiki/Moving_average#Exponential_moving_average) of the test duration. The window size can be changed in [`create`](#create) command, default value is 10. **Smaller value strips previous history.**
 3. If there was a failed test in the chosen window, it is more likely to fail again. Therefore, the formula is adjusted as follows:
 
     - Calculate the EMA of the test duration.
@@ -38,10 +80,11 @@ The project provides tooling to analyze and orchestrate Playwright tests using a
 
 In order to keep history of tests, they need to be identified. There are multiple possible cases:
 
-1. Default id: `[{project}] {file} > {title of the test}`.
-2. Serial test id: `[{project}] {file} > {title of the parent group}`.
-3. Serial test defined at the file level: `[{project}] {file}`.
-4. Custom Id: `[{project}] {custom id}`.
+1. Default id: `{file} > {title of the test}`.
+2. Serial test id: `{file} > {title of the parent group}`.
+3. Serial test defined at the file level: `{file}`.
+4. Custom Id: `{custom id}`.
+5. `[{project}] ` added to beginning if `--grouping project`
 
 In case some of these attributes changed, test history would be recreated. To preserve test history between changes, you can add a **static** attribute. Adding an id to an existing test would recreate the history as well.
 
@@ -71,6 +114,17 @@ test.describe('test', () => {
 }
 ```
 
+## Storage Adapters
+
+- file: Basic storage that uses a local file as storage.
+- dynamo-db: Amazon's DynamoDB adapter.
+- pg: PostgreSQL adapter.
+- mysql: MySQL adapter.
+- mongo: MongoDB adapter.
+- redis: Redis adapter.
+
+Each adapter is an optional peer dependency — install only what you need.
+
 ## 📦 Installation
 
 Make sure Playwright is installed by following [Playwright's installation guide](https://playwright.dev/docs/intro#installation).
@@ -81,48 +135,36 @@ npm install @playwright-orchestrator/core --save-dev
 npm install @playwright-orchestrator/<storage_plugin_name> --save-dev
 ```
 
-## 🚀 Usage
+## Why Not Native Sharding?
 
-Run the CLI tool:
+Playwright's `--shard` distributes tests by count. Playwright Orchestrator distributes by predicted duration:
 
-```bash
-npx playwright-orchestrator <command> <storage_type> [options]
-```
+![Timeline](https://github.com/rostmanrk/playwright-orchestrator/raw/main/assets/timeline.png)
 
-## 📝 Example
+| Feature            | Playwright `--shard` | Playwright Orchestrator                           |
+| ------------------ | -------------------- | ------------------------------------------------- |
+| Split method       | By test count        | By predicted duration (EMA)                       |
+| Rerun strategy     | Re-run entire shard  | Start a new shard for failed tests only           |
+| Persistent history | No                   | Yes — ordering improves over time                 |
+| Storage            | None                 | File, PostgreSQL, MySQL, MongoDB, DynamoDB, Redis |
 
-- [Mongo](/.github/workflows/mongo.yml)
+## Batching and Grouping
 
-- [DynamoDB](/.github/workflows/dynamo-db.yml)
+### Batching
 
-- [PostgreSQL](/.github/workflows/pg.yml)
+Batching groups multiple tests into a single Playwright process invocation. This reduces per-test overhead and is most effective when individual tests are short and launch time dominates runtime.
 
-1. Run the `init` command. Required to run once to set up storage. Make sure that executing credentials have all permissions.
+**`--batch-mode off` (default):** Each test runs in its own process. Safe for all workloads.
 
-```bash
-npx playwright-orchestrator init pg --connection-string "postgres://username:password@localhost:5432/postgres"
-```
+**`--batch-mode time`:** Groups tests until their predicted total duration approximately reaches `--batch-target` seconds. Produces batches of roughly equal wall-clock length — best for even distribution across shards.
 
-2. Run the `create` command. Required to run once per run.
+**`--batch-mode count`:** Groups exactly `--batch-target` tests per batch. Predictable batch sizes regardless of individual test duration.
 
-```bash
-npx playwright-orchestrator create pg --connection-string "postgres://username:password@localhost:5432/postgres" --workers 2
-> 019464f7-1488-75d1-b5c0-5e7d3dde9195
-```
+### Grouping
 
-3. Start the desired count of shards using the `run` command. Run ID is generated in the previous step. All Playwright options are already saved in the previous step.
+**`--grouping test` (default):** Each test is a separate scheduling unit \* each project. Most granular control; recommended for most setups.
 
-```bash
-npx playwright-orchestrator run pg --connection-string "postgres://username:password@localhost:5432/postgres" --run-id 019464f7-1488-75d1-b5c0-5e7d3dde9195
-```
-
-4. Failed tests can be started again using step 3.
-
-5. Merge report using [Playwright's Merge-reports CLI](https://playwright.dev/docs/test-sharding#merge-reports-cli)
-
-```bash
-npx playwright merge-reports ./blob-reports --reporter html
-```
+**`--grouping project`:** Tests are grouped by Playwright project before scheduling. Uses a less optimized query. Only consider this if your workload has a specific reason to prefer project-level grouping — the default (`test`) is recommended.
 
 ## ⚙️ Commands and Options
 
@@ -137,7 +179,7 @@ Creates and configures a new test run. Outputs created run ID. Supports most of 
 
 | Option             | Description                                                                                                                          | Type                   | Default | Required?                            |
 | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------ | ---------------------- | ------- | ------------------------------------ |
-| `--history-window` | Count of runs history kept and window for average duration. More [here](#-overview)                                                  | `number`               | `10`    | no                                   |
+| `--history-window` | Count of runs history kept and window for average duration. More [here](#how-it-works)                                               | `number`               | `10`    | no                                   |
 | `--batch-mode`     | Batch grouping mode. `off` uses current single-test behaviour                                                                        | `off \| time \| count` | `off`   | no                                   |
 | `--batch-target`   | Batch size: seconds (time mode) or test count (count mode)                                                                           | `number`               | -       | yes when `--batch-mode` is not `off` |
 | `--grouping`       | How tests are grouped. Experiment on your workload, but per project query is less optimized, using default behaviour is recommended. | `test \| project`      | `test`  | no                                   |
@@ -249,7 +291,6 @@ Use MongoDB as storage.
 | `--tls-passphrase`                 | SSL passphrase                        | `string` | -                         | no        |
 | `--tls-allow-invalid-certificates` | Allow invalid certificates            | -        | -                         | no        |
 | `--tls-allow-invalid-hostnames`    | Allow invalid hostnames               | -        | -                         | no        |
-| `--tls-allow-invalid-certificates` | Allow invalid certificates            | -        | -                         | no        |
 | `--tls-insecure`                   | Allow insecure                        | -        | -                         | no        |
 | `--debug`                          | Add extra fields for some collections | `string` | -                         | no        |
 
@@ -257,7 +298,7 @@ Use MongoDB as storage.
 
 ### Upgrading to v1.3
 
-**SQL storage adapters (`pg`, `mysql`) require re-running `init`** to apply schema updates:
+**SQL storage adapters (`pg`, `mysql`) require re-running `init` to apply schema updates.**
 
 ## 💻 Development
 
@@ -267,9 +308,11 @@ Build with `pnpm build` or use `pnpm watch`.
 
 See packages.json .scripts section for more commands.
 
-## ⚖️ License
+## Contributing
 
-Licensed under the Apache License 2.0. See LICENSE.md for details.
+Issues and pull requests are welcome. If something doesn't work as expected, please [open an issue](https://github.com/rostmanrk/playwright-orchestrator/issues).
+
+The best way to support this project is to star it on GitHub and share it with your colleagues or the community.
 
 ## 🔮 Future plans/ideas
 
@@ -285,15 +328,11 @@ Licensed under the Apache License 2.0. See LICENSE.md for details.
 - ✅ Redis adapter
 - ✅ Browser reuse (performance improvement)
 - ✅ Test batching and grouping (performance improvement)
-- ⬜ Even more adapters (by request)
 - ⬜ More examples
 - ⬜ Create Documentation site.
-- ? Restore unfinished tests in case shard terminated (Can be simply fixed by creating new run)
+- ❓ Even more adapters (by request)
+- ❓ Restore unfinished tests in case shard terminated (Can be simply fixed by creating new run)
 
-## ⚠️ Disclaimer
+## ⚖️ License
 
-This library was created in a couple weeks of free time, so issues may occur, but I try to address them as quickly as I can. Don't hesitate to create an issue report or contribute.
-
-## 🤝 Support
-
-For now, the best way to support this project is to star it on GitHub and share it with your colleagues or the community.
+Licensed under the Apache License 2.0. See LICENSE.md for details.
