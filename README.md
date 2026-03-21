@@ -1,17 +1,21 @@
 # Playwright Orchestrator
 
-Smart Playwright test orchestration — distributes tests by predicted duration, not test count.
+A distributed, queue-based test runner for Playwright — replaces static sharding with dynamic worker scheduling.
 
 [![npm version](https://img.shields.io/npm/v/@playwright-orchestrator/core)](https://www.npmjs.com/package/@playwright-orchestrator/core)
 [![License](https://img.shields.io/npm/l/@playwright-orchestrator/core)](LICENSE.md)
-[![CI](https://github.com/rostmanrk/playwright-orchestrator/actions/workflows/pr.yml/badge.svg)](https://github.com/rostmanrk/playwright-orchestrator/actions/workflows/test.yml)
+[![CI](https://github.com/rostmanrk/playwright-orchestrator/actions/workflows/pr.yml/badge.svg)](https://github.com/rostmanrk/playwright-orchestrator/actions/workflows/pr.yml)
 [![Node.js](https://img.shields.io/node/v/@playwright-orchestrator/core)](https://nodejs.org)
 
 ## The Problem
 
-Playwright's built-in `--shard` flag splits tests evenly by count. If one shard gets the slow tests, it blocks everything while the others sit idle. Playwright Orchestrator tracks historical run durations and uses an Exponential Moving Average (EMA) to distribute tests by predicted time — so all shards finish approximately together.
+Playwright's `--shard` assigns tests to shards before execution starts. The assignment is fixed: if one shard draws the slow tests, it runs long while the others finish and sit idle. You can't rebalance mid-run, you can't retry just the failures without re-running the whole shard, and there's no history to learn from.
+
+Playwright Orchestrator replaces pre-assignment with a shared queue. Workers pull tests at runtime — fast workers pick up more work automatically. Slow tests, flaky tests, and machine variance stop blocking your CI.
 
 ## Quick Start
+
+Each `run` command is a worker. Start as many as you need — on one machine or distributed across a fleet.
 
 Links to full CI workflow examples: [MongoDB](.github/workflows/mongo.yml) · [DynamoDB](.github/workflows/dynamo-db.yml) · [PostgreSQL](.github/workflows/pg.yml)
 
@@ -28,7 +32,7 @@ npx playwright-orchestrator create pg --connection-string "postgres://username:p
 > 019464f7-1488-75d1-b5c0-5e7d3dde9195
 ```
 
-**3. Start shards** (run in parallel across N machines):
+**3. Start workers** (run in parallel — each pulls tests from the queue independently):
 
 ```bash
 npx playwright-orchestrator run pg --connection-string "postgres://username:password@localhost:5432/postgres" --run-id 019464f7-1488-75d1-b5c0-5e7d3dde9195
@@ -44,18 +48,22 @@ npx playwright merge-reports ./blob-reports --reporter html
 
 ## How It Works
 
-[View diagram](https://mermaid.ai/live/edit#pako:eNpVkMtqwzAQRX9FzLZ2sCQ_Ii0KTbIplC66bNSFiCaOIZaMLNFHyL9XsROazmru3DN3YE6wcwZBwv7oPncH7QN5eVOWpHraKuhsF5SyzmIeuh7JiCEOCj5Inj-SVQJ2HnXACxLDEMNIfLTPJhFzxmoC13SbxmRM8YbQ_xa7s9h_i99Zr1drTSdvs-3Rt5h7HJxPVx_I3KG_cWzmrorPCjJofWdABh8xg5TR64uE04VTEA7YowKZWoN7HY9BgbLntDZo--5cf9v0LrYHkHt9HJOKg0lP2HS69foPQWvQr120AWQ1JYA8wRdIShdUUN40VdMsOStEBt9pWpcLITirWEVFUfB6ec7gZ7pZLOqmEqKmrGzKsqQVP_8Cv7ODNQ)
-
-```mermaid
-flowchart LR
-    A["init\none-time setup"] --> B["create\noutputs runId"]
-    B --> C1[run shard 1]
-    B --> C2[run shard 2]
-    B --> C3[run shard N]
-    C1 --> D[merge-reports + reporter]
-    C2 --> D
-    C3 --> D
 ```
+Shared Queue (Redis / PostgreSQL / MongoDB / ...)
+       ↓              ↓              ↓
+  [Worker 1]     [Worker 2]     [Worker N]
+       ↓              ↓              ↓
+  Playwright     Playwright     Playwright
+```
+
+Each worker runs the same `playwright-orchestrator run` command and loops independently:
+
+1. Pull the next test (or batch) from the shared queue
+2. Execute with Playwright, emit a blob report
+3. Report the result — duration and pass/fail update the scheduling model
+4. Repeat until the queue is empty
+
+Workers don't coordinate directly. Fast workers naturally pick up more tests. Slow machines or flaky tests don't block the others.
 
 ### EMA Scheduling
 
@@ -116,7 +124,7 @@ test.describe('test', () => {
 
 ## Storage Adapters
 
-- file: Basic storage that uses a local file as storage.
+- file: Basic storage that uses a local file as storage. Created purely for testing, but still may work for someone.
 - dynamo-db: Amazon's DynamoDB adapter.
 - pg: PostgreSQL adapter.
 - mysql: MySQL adapter.
@@ -137,16 +145,19 @@ npm install @playwright-orchestrator/<storage_plugin_name> --save-dev
 
 ## Why Not Native Sharding?
 
-Playwright's `--shard` distributes tests by count. Playwright Orchestrator distributes by predicted duration:
+Playwright's `--shard` pre-assigns tests before execution. Playwright Orchestrator uses a shared queue workers pull from at runtime:
 
 ![Timeline](https://github.com/rostmanrk/playwright-orchestrator/raw/main/assets/timeline.png)
 
-| Feature            | Playwright `--shard` | Playwright Orchestrator                           |
-| ------------------ | -------------------- | ------------------------------------------------- |
-| Split method       | By test count        | By predicted duration (EMA)                       |
-| Rerun strategy     | Re-run entire shard  | Start a new shard for failed tests only           |
-| Persistent history | No                   | Yes — ordering improves over time                 |
-| Storage            | None                 | File, PostgreSQL, MySQL, MongoDB, DynamoDB, Redis |
+| Feature            | Playwright `--shard`       | Playwright Orchestrator                           |
+| ------------------ | -------------------------- | ------------------------------------------------- |
+| Execution model    | Pre-assigned static shards | Workers pull from shared queue                    |
+| Split method       | By test count              | By predicted duration (EMA)                       |
+| Dynamic balancing  | No — fixed at run start    | Yes — fast workers pick up more                   |
+| Flakiness-aware    | No                         | Yes — flaky tests scheduled first                 |
+| Rerun strategy     | Re-run entire shard        | Start a new worker for failed tests only          |
+| Persistent history | No                         | Yes — ordering improves over time                 |
+| Storage            | None                       | File, PostgreSQL, MySQL, MongoDB, DynamoDB, Redis |
 
 ## Batching and Grouping
 
