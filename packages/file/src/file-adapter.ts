@@ -1,13 +1,4 @@
-import {
-    BaseAdapter,
-    TestRunConfig,
-    TestRunReport,
-    TestItem,
-    TestStatus,
-    HistoryItem,
-    SaveTestResultParams,
-    TestRun,
-} from '@playwright-orchestrator/core';
+import { BaseAdapter, TestRunReport, HistoryItem, SaveTestResultParams, TestRun } from '@playwright-orchestrator/core';
 import { injectable, inject } from 'inversify';
 import type { CreateArgs } from './create-args.js';
 import { lock } from 'proper-lockfile';
@@ -15,27 +6,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { FILE_CONFIG } from './symbols.js';
 import { getRunConfigPath, getHistoryRunPath, getResultsRunPath } from './file-paths.js';
-
-interface ResultTestItem extends TestItem {
-    status: TestStatus;
-    report: {
-        duration: number;
-        ema: number;
-        fails: number;
-        title: string;
-        lastSuccessfulRunTimestamp?: number;
-    };
-}
-
-interface TestHistoryItem {
-    ema: number;
-    created: number;
-    history: {
-        duration: number;
-        updated: number;
-        status: TestStatus;
-    }[];
-}
+import { ResultTestItem, TestHistoryItem } from './types.js';
 
 @injectable()
 export class FileAdapter extends BaseAdapter {

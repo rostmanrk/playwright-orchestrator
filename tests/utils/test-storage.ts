@@ -37,14 +37,17 @@ export async function testStorage(storageOptions: string[], reportsFolder: strin
     // run command
     const command = [orchestratorCli, 'run', ...storageOptions, '--run-id', runId, '--output', reportsFolder];
     await Promise.all([spawnAsync(process.execPath, command), spawnAsync(process.execPath, command)]);
-    const { stdout, stderr } = await spawnAsync(process.execPath, [
+
+    const reporterArgs = [
         playwrightCli,
         'merge-reports',
         reportsFolder,
         '--reporter',
         'tests/utils/test-consistent-reporter.ts',
-    ]);
-    await expect(stdout, `Merge reports command failed. Error: ${stderr}`).toMatchFileSnapshot(
+    ];
+    const { stdout: mergeStdOut, stderr: mergeStderr } = await spawnAsync(process.execPath, reporterArgs);
+
+    await expect(mergeStdOut, `Merge reports command failed. Error: ${mergeStderr}`).toMatchFileSnapshot(
         '../__snapshots__/test-run.output.snap',
     );
 
@@ -64,6 +67,13 @@ export async function testStorage(storageOptions: string[], reportsFolder: strin
         clearReportForSnapshot(report),
         `Create report command failed. Error: ${reportStderr}`,
     ).toMatchFileSnapshot(`../__snapshots__/test-report-${grouping}.report.snap`);
+
+    // restart command to check if it reruns only failed tests
+    await spawnAsync(process.execPath, command);
+    const { stdout: mergeStdOut2, stderr: mergeStderr2 } = await spawnAsync(process.execPath, reporterArgs);
+    await expect(mergeStdOut2, `Merge reports command failed. Error: ${mergeStderr2}`).toMatchFileSnapshot(
+        '../__snapshots__/test-run-repeat.output.snap',
+    );
 }
 
 function clearReportForSnapshot(report: TestRunReport) {
