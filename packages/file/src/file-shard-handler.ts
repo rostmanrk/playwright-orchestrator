@@ -7,17 +7,7 @@ import { lock } from 'proper-lockfile';
 import { readFile, writeFile } from 'node:fs/promises';
 import { FILE_CONFIG } from './symbols.js';
 import { getRunIdFilePath, getRunConfigPath, getResultsRunPath } from './file-paths.js';
-
-interface ResultTestItem {
-    file: string;
-    testId: string;
-    order: number;
-    position: string;
-    project: string;
-    timeout: number;
-    status: TestStatus;
-    report: any;
-}
+import { ResultTestItem } from './types.js';
 
 @injectable()
 export class FileShardHandler implements ShardHandler {
@@ -40,18 +30,21 @@ export class FileShardHandler implements ShardHandler {
                     const results = JSON.parse(
                         await readFile(getResultsRunPath(this.dir, runId), 'utf-8'),
                     ) as ResultTestItem[];
-                    const failed = results
+                    const failed: TestItem[] = results
                         .filter((r) => r.status === TestStatus.Failed)
-                        .map(({ file, testId, order, position, project, timeout }) => ({
+                        .map(({ file, testId, order, position, projects, timeout, children, ema }) => ({
                             file,
                             testId,
                             order,
                             position,
-                            project,
+                            projects,
                             timeout,
+                            children,
+                            ema,
                         }));
+
                     const rest = results.filter((r) => r.status !== TestStatus.Failed);
-                    await writeFile(getRunIdFilePath(this.dir, runId), JSON.stringify(failed, null, 2));
+                    await writeFile(getRunIdFilePath(this.dir, runId), JSON.stringify(failed, null, 2), 'utf-8');
                     await writeFile(getResultsRunPath(this.dir, runId), JSON.stringify(rest, null, 2), 'utf-8');
                 }
             }

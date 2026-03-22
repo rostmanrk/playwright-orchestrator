@@ -6,16 +6,7 @@ import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { FILE_CONFIG } from './symbols.js';
 import { getRunIdFilePath, getRunConfigPath, getHistoryRunPath, getResultsRunPath } from './file-paths.js';
-
-interface TestHistoryItem {
-    ema: number;
-    created: number;
-    history: {
-        duration: number;
-        updated: number;
-        status: TestStatus;
-    }[];
-}
+import { TestHistoryItem } from './types.js';
 
 @injectable()
 @injectFromBase({ extendProperties: true, extendConstructorArguments: false })
