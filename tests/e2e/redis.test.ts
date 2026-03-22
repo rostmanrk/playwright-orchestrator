@@ -6,7 +6,6 @@ import { TEST_TIMEOUT } from '../utils/constants.js';
 import { Grouping } from '../../packages/core/src/types/adapters.js';
 
 const reportsFolder = './test-reports-folder-redis';
-const config = 'tests-playwright.config.ts';
 const storageOptions = [
     'redis',
     '--connection-string',
@@ -28,7 +27,7 @@ describe('Redis plugin', () => {
     it(
         'test redis plugin',
         async () => {
-            await testStorage(storageOptions, config, reportsFolder, Grouping.Test);
+            await testStorage(storageOptions, reportsFolder, Grouping.Test);
         },
         TEST_TIMEOUT,
     );
@@ -36,7 +35,7 @@ describe('Redis plugin', () => {
     it(
         'grouping by project',
         async () => {
-            await testStorage(storageOptions, config, reportsFolder, Grouping.Project);
+            await testStorage(storageOptions, reportsFolder, Grouping.Project);
         },
         TEST_TIMEOUT,
     );

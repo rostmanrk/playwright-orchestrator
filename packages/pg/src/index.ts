@@ -2,7 +2,7 @@ import { Command, Option } from '@commander-js/extra-typings';
 import { Container } from 'inversify';
 import { SYMBOLS } from '@playwright-orchestrator/core';
 import type { CreateArgs } from './create-args.js';
-import { PostgreSQLAdapter } from './postgresql-adapter.js';
+import { PostgreSQLAdapter } from './pg-adapter.js';
 import { PgShardHandler } from './pg-shard-handler.js';
 import { PgInitializer } from './pg-initializer.js';
 import { PgTestRunCreator } from './pg-test-run-creator.js';

@@ -6,7 +6,6 @@ import { Grouping } from '../../packages/core/src/types/adapters.js';
 
 const filesFolder = 'test-runs-folder';
 const reportsFolder = './test-reports-folder';
-const config = 'tests-playwright.config.ts';
 const storageOptions = ['file', '--directory', filesFolder];
 
 afterAll(async () => {
@@ -19,7 +18,7 @@ describe('File plugin', () => {
     it(
         'grouping by test',
         async () => {
-            await testStorage(storageOptions, config, reportsFolder, Grouping.Test);
+            await testStorage(storageOptions, reportsFolder, Grouping.Test);
         },
         TEST_TIMEOUT,
     );
@@ -27,7 +26,7 @@ describe('File plugin', () => {
     it(
         'grouping by project',
         async () => {
-            await testStorage(storageOptions, config, reportsFolder, Grouping.Project);
+            await testStorage(storageOptions, reportsFolder, Grouping.Project);
         },
         TEST_TIMEOUT,
     );

@@ -6,7 +6,6 @@ import { TEST_TIMEOUT } from '../utils/constants.js';
 import { Grouping } from '../../packages/core/src/types/adapters.js';
 
 const reportsFolder = './test-reports-folder-mongo';
-const config = 'tests-playwright.config.ts';
 const storageOptions = ['mongo', '--connection-string', 'mongodb://root:password@localhost:27018/', '--db', 'test'];
 
 beforeAll(async () => {
@@ -24,14 +23,14 @@ describe('MongoDB plugin', () => {
     it(
         'grouping by test',
         async () => {
-            await testStorage(storageOptions, config, reportsFolder, Grouping.Test);
+            await testStorage(storageOptions, reportsFolder, Grouping.Test);
         },
         TEST_TIMEOUT,
     );
     it(
         'grouping by project',
         async () => {
-            await testStorage(storageOptions, config, reportsFolder, Grouping.Project);
+            await testStorage(storageOptions, reportsFolder, Grouping.Project);
         },
         TEST_TIMEOUT,
     );

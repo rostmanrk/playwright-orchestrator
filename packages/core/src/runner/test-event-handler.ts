@@ -57,7 +57,7 @@ export class PlaywrightTestEventHandler implements TestEventHandler {
         return { onData, onExit, batchResolver: this.batchResolver };
     }
 
-    private extractTestId(event: TestReportEvent) {
+    private extractChildTestId(event: TestReportEvent) {
         const {
             test: { testId, title },
             project,
@@ -66,10 +66,7 @@ export class PlaywrightTestEventHandler implements TestEventHandler {
         if (!childId.endsWith(title)) {
             childId += ` > ${title}`;
         }
-        return {
-            testId,
-            childId,
-        };
+        return childId;
     }
 
     private handleBegin(event: TestReportEvent) {
@@ -77,9 +74,9 @@ export class PlaywrightTestEventHandler implements TestEventHandler {
             test: { testId: eventTestId },
         } = event;
         const test = this.testMapping.get(eventTestId)!;
-        const { testId, childId } = this.extractTestId(event);
-        if (!this.testResolvers.has(testId)) {
-            this.reporter.addGroup(this.batchName, test, this.createTestPromise(testId));
+        const childId = this.extractChildTestId(event);
+        if (!this.testResolvers.has(test.testId)) {
+            this.reporter.addGroup(this.batchName, test, this.createTestPromise(test.testId));
         }
         if (!this.childResolvers.has(childId)) {
             this.reporter.addTest(test, childId, this.createChildPromise(childId));
@@ -92,19 +89,19 @@ export class PlaywrightTestEventHandler implements TestEventHandler {
             result: { duration, status, retry, error },
         } = event;
         const test = this.testMapping.get(eventTestId)!;
-        const { testId, childId } = this.extractTestId(event);
+        const childId = this.extractChildTestId(event);
 
         if (ok || retries === retry) {
-            this.testCounts.set(testId, this.testCounts.get(testId)! - 1);
+            this.testCounts.set(test.testId, this.testCounts.get(test.testId)! - 1);
             const childResolver = this.childResolvers.get(childId);
             if (childResolver) {
                 ok ? childResolver.success() : childResolver.fail();
             }
         }
-        if (!this.testResults.has(testId)) this.testResults.set(testId, []);
-        this.testResults.get(testId)!.push({ duration, status, retry, error, ok });
-        if ((this.testCounts.get(testId) ?? 0) === 0) {
-            const { success, fail } = this.testResolvers.get(testId)!;
+        if (!this.testResults.has(test.testId)) this.testResults.set(test.testId, []);
+        this.testResults.get(test.testId)!.push({ duration, status, retry, error, ok });
+        if ((this.testCounts.get(test.testId) ?? 0) === 0) {
+            const { success, fail } = this.testResolvers.get(test.testId)!;
             this.pending.push(
                 this.saveTestResult(test, this.testResults, this.config).then(() => {
                     ok ? success() : fail();

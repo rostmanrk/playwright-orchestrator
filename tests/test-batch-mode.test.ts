@@ -7,7 +7,12 @@ const req = createRequire(join(process.cwd(), 'package.json'));
 const orchestratorCli = req.resolve('@playwright-orchestrator/core/cli');
 
 async function createWithArgs(args: string[]): Promise<{ stdout: string; stderr: string }> {
-    return spawnAsync(process.execPath, [orchestratorCli, 'create', 'file', ...args]).catch((e) => e);
+    return spawnAsync(process.execPath, [orchestratorCli, 'create', 'file', ...args], {
+        env: {
+            ...process.env,
+            VSCODE_INSPECTOR_OPTIONS: undefined,
+        },
+    }).catch((e) => e);
 }
 
 test('batch-mode time without batch-target fails with required error', async () => {

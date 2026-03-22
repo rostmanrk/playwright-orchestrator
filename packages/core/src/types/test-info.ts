@@ -4,7 +4,6 @@ export type UseOptions = FullConfig['projects'][number]['use'];
 
 export interface Project {
     name: string;
-    outputDir: string;
     use: UseOptions;
 }
 

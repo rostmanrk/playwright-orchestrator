@@ -82,7 +82,7 @@ export abstract class BaseTestRunCreator implements TestRunCreator {
     ): TestItem[] {
         const extractValue = this.extractCompareValue.bind(this, testInfoMap, historyWindow);
         return tests
-            .map((test) => ({ ...test, ema: extractValue(test) } as TestItem))
+            .map((test) => ({ ...test, ema: extractValue(test) }) as TestItem)
             .sort((a, b) => (b.ema - a.ema) * (reverse ? -1 : 1))
             .map((test, i) => ({ ...test, order: reverse ? tests.length - i : i + 1 }));
     }

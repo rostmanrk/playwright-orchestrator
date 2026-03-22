@@ -22,7 +22,7 @@ export async function ghaReporter(data: TestRunReport) {
                 const { percentage, trendIcon } = calculateTrend(test);
                 return [
                     test.status === TestStatus.Passed ? '✅' : '❌',
-                    test.projects.join('|'),
+                    test.projects.join(' | '),
                     test.title,
                     formatDuration(test.duration),
                     `${trendIcon} ${percentage}%`,
