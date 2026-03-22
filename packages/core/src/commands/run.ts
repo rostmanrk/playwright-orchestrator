@@ -24,6 +24,7 @@ export default async () => {
                 'Output folder for blob reports. Existing content is deleted before writing the new report.',
                 'blob-reports',
             )
+            .option('--fail-on-test-failure', 'Exit with non-zero code if at least one test failed')
             .action(
                 withErrorHandling(async (options) => {
                     const container = createContainer();
@@ -52,7 +53,10 @@ export default async () => {
                     container.bind<TestRunner>(SYMBOLS.TestRunner).to(TestRunner);
                     const runner = container.get<TestRunner>(SYMBOLS.TestRunner);
                     try {
-                        await runner.runTests();
+                        const passed = await runner.runTests();
+                        if (options.failOnTestFailure && !passed) {
+                            process.exitCode = 1;
+                        }
                         console.log('Run completed');
                     } finally {
                         await container.unbindAllAsync();

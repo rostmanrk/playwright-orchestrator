@@ -1,5 +1,6 @@
 import { TestItem, TestRunConfig } from '../types/adapters.js';
 import { rm, writeFile } from 'node:fs/promises';
+import { rmSync } from 'node:fs';
 import { TestExecutionReporter } from './test-execution-reporter.js';
 import path from 'node:path';
 import * as uuid from 'uuid';
@@ -16,6 +17,8 @@ import { cliVersion } from '../commands/version.js';
 
 @injectable()
 export class TestRunner {
+    private cleanupFs = new Set<string>();
+
     constructor(
         @inject(SYMBOLS.RunId) private readonly runId: string,
         @inject(SYMBOLS.OutputFolder) private readonly outputFolder: string,
@@ -26,23 +29,24 @@ export class TestRunner {
         @inject(SYMBOLS.TestEventHandlerFactory) private readonly testEventHandlerFactory: TestEventHandlerFactory,
     ) {}
 
-    async runTests() {
+    async runTests(): Promise<boolean> {
         await this.removePreviousReports();
         const config = await this.shardHandler.startShard(this.runId);
         if (config.version !== cliVersion) {
             console.error(
                 `Version mismatch: Orchestrator CLI version is ${cliVersion} but test run was created with version ${config.version}. Please make sure to use the same version of Playwright Orchestrator across all your machines.`,
             );
-            process.exit(1);
+            process.exitCode = 1;
+            return false;
         }
         const browsers = await this.browserManager.runBrowsers(config);
         config.configFile = await this.createTempConfig(config.configFile);
+        if (config.configFile) {
+            this.cleanupFs.add(config.configFile);
+        }
 
-        const cleanupTempFile = () => {
-            if (config.configFile) rm(config.configFile, { force: true }).catch(() => {});
-        };
         const signalHandler = () => {
-            cleanupTempFile();
+            this.cleanupTemp();
             process.exit(1);
         };
         process.once('SIGINT', signalHandler);
@@ -57,9 +61,21 @@ export class TestRunner {
             try {
                 await this.shardHandler.finishShard(this.runId);
             } finally {
-                cleanupTempFile();
+                this.cleanupTemp();
             }
         }
+        return !this.reporter.hasFailed();
+    }
+
+    private cleanupTemp() {
+        for (const entry of this.cleanupFs) {
+            try {
+                rmSync(entry, { force: true, recursive: true });
+            } catch (err) {
+                // Ignore errors during cleanup.
+            }
+        }
+        this.cleanupFs.clear();
     }
 
     private async runTestsUntilAvailable(config: TestRunConfig, browsers: Record<string, string>) {
@@ -114,19 +130,24 @@ export class TestRunner {
                         },
                     },
                 );
+                this.cleanupFs.add(batchFolder);
+                this.cleanupFs.add(batchArtifactsFolder);
                 createInterface({ input: playwright.stdout, crlfDelay: Infinity }).on('line', onData);
                 playwright.on('exit', () => onExit().then(resolve, reject));
             });
             await cp(batchFolder, this.outputFolder, { recursive: true });
             await cp(batchArtifactsFolder, this.outputFolder, { recursive: true });
-            await Promise.all([
-                rm(batchFolder, { recursive: true, force: true }),
-                rm(batchArtifactsFolder, { recursive: true, force: true }),
-            ]);
             batchResolver.success();
         } catch (err) {
             batchResolver.fail(err);
             throw err;
+        } finally {
+            await Promise.all([
+                rm(batchFolder, { recursive: true, force: true }),
+                rm(batchArtifactsFolder, { recursive: true, force: true }),
+            ]);
+            this.cleanupFs.delete(batchFolder);
+            this.cleanupFs.delete(batchArtifactsFolder);
         }
     }
 
