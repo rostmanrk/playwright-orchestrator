@@ -184,6 +184,10 @@ export class TestExecutionReporter {
         }
     }
 
+    hasFailed(): boolean {
+        return this.failedTests.length > 0;
+    }
+
     printSummary() {
         clearInterval(this.spinnerInterval);
         if (IS_TTY) logUpdate.clear();
