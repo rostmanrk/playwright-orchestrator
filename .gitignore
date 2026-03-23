@@ -12,3 +12,4 @@ node_modules/
 /tmp*/
 /test-runs/
 **.tsbuildinfo
+.worktrees/
