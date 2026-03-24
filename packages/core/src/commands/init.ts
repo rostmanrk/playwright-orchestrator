@@ -1,7 +1,6 @@
 import { loadPlugins } from '../helpers/plugin.js';
-import { withErrorHandling } from './error-handler.js';
+import { handle } from './command-hoc.js';
 import { program } from './program.js';
-import { createContainer } from '../container.js';
 import type { Initializer } from '../adapters/initializer.js';
 import { SYMBOLS } from '../symbols.js';
 
@@ -10,16 +9,11 @@ export default async () => {
 
     for await (const { register, subCommand } of loadPlugins(command)) {
         subCommand.action(
-            withErrorHandling(async (options) => {
-                const container = createContainer();
+            handle(async (container, options) => {
                 await register(container, options);
                 const initializer = container.get<Initializer>(SYMBOLS.Initializer);
-                try {
-                    await initializer.initialize();
-                    console.log('Storage initialized');
-                } finally {
-                    await container.unbindAllAsync();
-                }
+                await initializer.initialize();
+                console.log('Storage initialized');
             }),
         );
     }

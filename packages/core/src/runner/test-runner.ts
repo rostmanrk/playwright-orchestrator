@@ -8,12 +8,14 @@ import { injectable, inject } from 'inversify';
 import type { ShardHandler } from '../adapters/shard-handler.js';
 import type { BatchHandlerFactory } from '../commands/run.js';
 import { BrowserManager } from './browser-manager.js';
+import { WebServerManager } from './web-server-manager.js';
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import { cp } from 'node:fs/promises';
 import { SYMBOLS } from '../symbols.js';
 import type { TestEventHandlerFactory } from './test-event-handler.js';
 import { cliVersion } from '../commands/version.js';
+import { registerOnExit } from '../helpers/register-on-exit.js';
 
 @injectable()
 export class TestRunner {
@@ -24,10 +26,15 @@ export class TestRunner {
         @inject(SYMBOLS.OutputFolder) private readonly outputFolder: string,
         @inject(SYMBOLS.ShardHandler) private readonly shardHandler: ShardHandler,
         @inject(SYMBOLS.BrowserManager) private readonly browserManager: BrowserManager,
+        @inject(SYMBOLS.WebServerManager) private readonly webServerManager: WebServerManager,
         @inject(SYMBOLS.BatchHandlerFactory) private readonly batchHandlerFactory: BatchHandlerFactory,
         @inject(SYMBOLS.TestExecutionReporter) private readonly reporter: TestExecutionReporter,
         @inject(SYMBOLS.TestEventHandlerFactory) private readonly testEventHandlerFactory: TestEventHandlerFactory,
-    ) {}
+    ) {
+        registerOnExit(() => {
+            this.cleanupTemp();
+        });
+    }
 
     async runTests(): Promise<boolean> {
         await this.removePreviousReports();
@@ -39,41 +46,27 @@ export class TestRunner {
             process.exitCode = 1;
             return false;
         }
-        const browsers = await this.browserManager.runBrowsers(config);
+        const [browsers] = await Promise.all([
+            this.browserManager.runBrowsers(config),
+            this.webServerManager.startServers(config),
+        ]);
         config.configFile = await this.createTempConfig(config.configFile);
         if (config.configFile) {
             this.cleanupFs.add(config.configFile);
         }
 
-        const signalHandler = () => {
-            this.cleanupTemp();
-            process.exit(1);
-        };
-        process.once('SIGINT', signalHandler);
-        process.once('SIGTERM', signalHandler);
-
         try {
             await this.runTestsUntilAvailable(config, browsers);
         } finally {
-            process.off('SIGINT', signalHandler);
-            process.off('SIGTERM', signalHandler);
             this.reporter.printSummary();
-            try {
-                await this.shardHandler.finishShard(this.runId);
-            } finally {
-                this.cleanupTemp();
-            }
+            await this.shardHandler.finishShard(this.runId);
         }
         return !this.reporter.hasFailed();
     }
 
     private cleanupTemp() {
         for (const entry of this.cleanupFs) {
-            try {
-                rmSync(entry, { force: true, recursive: true });
-            } catch (err) {
-                // Ignore errors during cleanup.
-            }
+            rmSync(entry, { force: true, recursive: true });
         }
         this.cleanupFs.clear();
     }

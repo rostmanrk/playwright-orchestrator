@@ -1,7 +1,6 @@
 export * from './types/adapters.js';
 export * from './types/reporter.js';
 export * from './types/test-info.js';
-export * from './container.js';
 export * from './adapters/adapter.js';
 export * from './adapters/base-adapter.js';
 export * from './adapters/initializer.js';

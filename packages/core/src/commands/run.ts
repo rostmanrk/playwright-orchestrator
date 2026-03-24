@@ -1,8 +1,7 @@
 import { loadPlugins } from '../helpers/plugin.js';
 import { TestRunner } from '../runner/test-runner.js';
-import { withErrorHandling } from './error-handler.js';
+import { handle } from './command-hoc.js';
 import { program } from './program.js';
-import { createContainer } from '../container.js';
 import { SequentialBatcher } from '../batch/sequential-batcher.js';
 import { TimeBatchHandler } from '../batch/time-batch-handler.js';
 import { CountBatchHandler } from '../batch/count-batch-handler.js';
@@ -10,6 +9,10 @@ import { BatchMode, TestItem, TestRunConfig } from '../types/adapters.js';
 import type { BatchHandler } from '../batch/batch-handler.js';
 import { SYMBOLS } from '../symbols.js';
 import { PlaywrightTestEventHandler, TestEventHandler, TestEventHandlerFactory } from '../runner/test-event-handler.js';
+import { WebServerManager } from '../runner/web-server-manager.js';
+import { BrowserManager } from '../runner/browser-manager.js';
+import { TestExecutionReporter } from '../runner/test-execution-reporter.js';
+import { Container } from 'inversify';
 
 export type BatchHandlerFactory = (mode: BatchMode) => BatchHandler;
 
@@ -26,42 +29,41 @@ export default async () => {
             )
             .option('--fail-on-test-failure', 'Exit with non-zero code if at least one test failed')
             .action(
-                withErrorHandling(async (options) => {
-                    const container = createContainer();
+                handle(async (container, options) => {
                     await register(container, options);
                     container.bind<string>(SYMBOLS.RunId).toConstantValue(options.runId);
                     container.bind<string>(SYMBOLS.OutputFolder).toConstantValue(options.output);
-                    container.bind<BatchHandler>(SYMBOLS.BatchHandler).to(SequentialBatcher).whenNamed(BatchMode.Off);
-                    container.bind<BatchHandler>(SYMBOLS.BatchHandler).to(CountBatchHandler).whenNamed(BatchMode.Count);
-                    container.bind<BatchHandler>(SYMBOLS.BatchHandler).to(TimeBatchHandler).whenNamed(BatchMode.Time);
-                    container
-                        .bind<BatchHandlerFactory>(SYMBOLS.BatchHandlerFactory)
-                        .toFactory((ctx) => (mode: BatchMode): BatchHandler => {
-                            return ctx.get<BatchHandler>(SYMBOLS.BatchHandler, { name: mode });
-                        });
-                    container
-                        .bind<TestEventHandler>(SYMBOLS.TestEventHandler)
-                        .to(PlaywrightTestEventHandler)
-                        .inTransientScope();
-                    container.bind<TestEventHandlerFactory>(SYMBOLS.TestEventHandlerFactory).toFactory((ctx) => {
-                        return (tests: TestItem[], config: TestRunConfig, batchName: string) => {
-                            const handler = ctx.get<TestEventHandler>(SYMBOLS.TestEventHandler);
-                            return handler.init(tests, config, batchName);
-                        };
-                    });
-
-                    container.bind<TestRunner>(SYMBOLS.TestRunner).to(TestRunner);
+                    registerServices(container);
                     const runner = container.get<TestRunner>(SYMBOLS.TestRunner);
-                    try {
-                        const passed = await runner.runTests();
-                        if (options.failOnTestFailure && !passed) {
-                            process.exitCode = 1;
-                        }
-                        console.log('Run completed');
-                    } finally {
-                        await container.unbindAllAsync();
+                    const passed = await runner.runTests();
+                    if (options.failOnTestFailure && !passed) {
+                        process.exitCode = 1;
                     }
+                    console.log('Run completed');
                 }),
             );
     }
 };
+
+function registerServices(container: Container) {
+    container.bind<BatchHandler>(SYMBOLS.BatchHandler).to(SequentialBatcher).whenNamed(BatchMode.Off);
+    container.bind<BatchHandler>(SYMBOLS.BatchHandler).to(CountBatchHandler).whenNamed(BatchMode.Count);
+    container.bind<BatchHandler>(SYMBOLS.BatchHandler).to(TimeBatchHandler).whenNamed(BatchMode.Time);
+    container
+        .bind<BatchHandlerFactory>(SYMBOLS.BatchHandlerFactory)
+        .toFactory((ctx) => (mode: BatchMode): BatchHandler => {
+            return ctx.get<BatchHandler>(SYMBOLS.BatchHandler, { name: mode });
+        });
+    container.bind<TestEventHandler>(SYMBOLS.TestEventHandler).to(PlaywrightTestEventHandler).inTransientScope();
+    container.bind<TestEventHandlerFactory>(SYMBOLS.TestEventHandlerFactory).toFactory((ctx) => {
+        return (tests: TestItem[], config: TestRunConfig, batchName: string) => {
+            const handler = ctx.get<TestEventHandler>(SYMBOLS.TestEventHandler);
+            return handler.init(tests, config, batchName);
+        };
+    });
+    container.bind(SYMBOLS.TestExecutionReporter).to(TestExecutionReporter).inSingletonScope();
+    container.bind(SYMBOLS.BrowserManager).to(BrowserManager).inSingletonScope();
+    container.bind(SYMBOLS.WebServerManager).to(WebServerManager).inSingletonScope();
+
+    container.bind<TestRunner>(SYMBOLS.TestRunner).to(TestRunner);
+}

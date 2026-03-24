@@ -2,8 +2,9 @@ import { inject, injectable } from 'inversify';
 import { Grouping, TestItem, TestRunConfig } from '../types/adapters.js';
 import { TestInfoResult, TestReportEvent } from '../types/reporter.js';
 import { TestExecutionReporter } from './test-execution-reporter.js';
-import { SYMBOLS, TestStatus } from '../index.js';
-import type { Adapter } from '../index.js';
+import type { Adapter } from '../adapters/adapter.js';
+import { SYMBOLS } from '../symbols.js';
+import { TestStatus } from '../types/test-info.js';
 
 type HandlerResult = { onData: (data: any) => void; onExit: () => Promise<void>; batchResolver: Resolver };
 type Resolver = { success: () => void; fail: (reason?: any) => void };

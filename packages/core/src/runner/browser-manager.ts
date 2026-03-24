@@ -33,13 +33,20 @@ export class BrowserManager {
         if (!project.use?.defaultBrowserType) {
             return;
         }
-        const browserLauncher = playwright[project.use.defaultBrowserType];
-        const message = `Setting up browser for project: ${project.name} with type: ${project.use.defaultBrowserType}`;
-        const setup = browserLauncher.launchServer(project?.use?.launchOptions).then((browser) => {
-            this.browsers.set(project.name, browser);
-        });
-        this.reporter.addLoading(message, setup);
-        await setup;
+        try {
+            const browserLauncher = playwright[project.use.defaultBrowserType];
+            const message = `[ Setting up browser for project "${project.name}" with type: ${project.use.defaultBrowserType} ]`;
+            const setup = browserLauncher.launchServer(project?.use?.launchOptions).then((browser) => {
+                this.browsers.set(project.name, browser);
+            });
+            this.reporter.addLoading(message, setup);
+            await setup;
+        } catch (e) {
+            this.reporter.error(
+                `Failed to launch browser for project "${project.name}": ${e instanceof Error ? e.message : String(e)}`,
+            );
+            throw e;
+        }
     }
 
     private async teardownBrowser(projectName: string): Promise<void> {

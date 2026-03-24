@@ -10,9 +10,10 @@ import type {
     TestRun,
 } from '../types/adapters.js';
 import type { ReporterTestRun } from '../types/test-info.js';
-import { RunStatus, SYMBOLS } from '../index.js';
-import type { RunInfoLoader } from '../index.js';
+import { RunStatus } from '../types/test-info.js';
+import type { RunInfoLoader } from '../adapters/run-info-loader.js';
 import { cliVersion } from '../commands/version.js';
+import { SYMBOLS } from '../symbols.js';
 
 @injectable()
 export abstract class BaseTestRunCreator implements TestRunCreator {
