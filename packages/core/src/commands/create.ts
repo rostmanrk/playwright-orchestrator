@@ -1,13 +1,13 @@
 import * as uuid from 'uuid';
 import { program } from './program.js';
 import { loadPlugins } from '../helpers/plugin.js';
-import { withErrorHandling } from './error-handler.js';
+import { handle } from './command-hoc.js';
 import { Option } from '@commander-js/extra-typings';
-import { createContainer } from '../container.js';
 import type { TestRunCreator } from '../adapters/test-run-creator.js';
 import { SYMBOLS } from '../symbols.js';
 import { pick } from '../helpers/pick.js';
 import { BatchMode, Grouping } from '../types/adapters.js';
+import { PlaywrightRunInfoLoader } from '../adapters/playwright-run-info-loader.js';
 
 export default async () => {
     const command = program
@@ -36,7 +36,7 @@ export default async () => {
             .allowUnknownOption()
             .allowExcessArguments()
             .action(
-                withErrorHandling(async (options) => {
+                handle(async (container, options) => {
                     if (options.batchMode !== BatchMode.Off && options.batchTarget === undefined) {
                         program.error(`--batch-target is required when --batch-mode is '${options.batchMode}'`, {
                             exitCode: 1,
@@ -44,23 +44,21 @@ export default async () => {
                     }
                     const runId = uuid.v7();
                     const args = subCommand.args.slice(subCommand.registeredArguments.length);
-                    const container = createContainer();
                     await register(container, options);
+                    container.bind(SYMBOLS.RunInfoLoader).to(PlaywrightRunInfoLoader).inSingletonScope();
                     const creator = container.get<TestRunCreator>(SYMBOLS.TestRunCreator);
-                    options = pick(options, 'batchMode', 'batchTarget', 'grouping', 'historyWindow');
-                    options.historyWindow = +options.historyWindow;
-                    options.batchTarget = options.batchTarget !== undefined ? +options.batchTarget : undefined;
+                    const parsedOptions = {
+                        ...pick(options, 'batchMode', 'grouping'),
+                        historyWindow: +options.historyWindow,
+                        batchTarget: options.batchTarget !== undefined ? +options.batchTarget : undefined,
+                    };
 
-                    try {
-                        await creator.create({
-                            runId,
-                            args,
-                            options,
-                        });
-                        console.log(runId);
-                    } finally {
-                        await container.unbindAllAsync();
-                    }
+                    await creator.create({
+                        runId,
+                        args,
+                        options: parsedOptions,
+                    });
+                    console.log(runId);
                 }),
             );
     }

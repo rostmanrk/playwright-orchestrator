@@ -1,4 +1,4 @@
-import { TestStatus } from '../index.js';
+import { TestStatus } from '../types/test-info.js';
 import type { ResultTestParams } from '../types/adapters.js';
 import type { TestRunReport } from '../types/reporter.js';
 

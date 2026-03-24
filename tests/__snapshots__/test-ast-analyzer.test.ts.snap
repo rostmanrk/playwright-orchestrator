@@ -8,6 +8,7 @@ exports[`test custom info reporter 1`] = `
       {
         "name": "chromium",
         "use": {
+          "baseURL": "http://localhost:4321",
           "defaultBrowserType": "chromium",
           "deviceScaleFactor": 1,
           "hasTouch": false,
@@ -27,6 +28,7 @@ exports[`test custom info reporter 1`] = `
       {
         "name": "firefox",
         "use": {
+          "baseURL": "http://localhost:4321",
           "defaultBrowserType": "firefox",
           "deviceScaleFactor": 1,
           "hasTouch": false,
@@ -48,7 +50,7 @@ exports[`test custom info reporter 1`] = `
   },
   "testRun": {
     "basic-case.spec.ts": {
-      "10:9": {
+      "11:9": {
         "annotations": [],
         "projects": [
           "chromium",
@@ -68,7 +70,7 @@ exports[`test custom info reporter 1`] = `
       },
     },
     "constant-timeout.spec.ts": {
-      "12:9": {
+      "13:9": {
         "annotations": [],
         "projects": [
           "chromium",
@@ -77,7 +79,7 @@ exports[`test custom info reporter 1`] = `
         "timeout": 45000,
         "title": "inside group",
       },
-      "16:9": {
+      "18:9": {
         "annotations": [],
         "projects": [
           "chromium",
@@ -86,7 +88,7 @@ exports[`test custom info reporter 1`] = `
         "timeout": 50000,
         "title": "inside group override timeout",
       },
-      "23:13": {
+      "26:13": {
         "annotations": [],
         "projects": [
           "chromium",
@@ -132,7 +134,7 @@ exports[`test custom info reporter 1`] = `
       },
     },
     "serial.spec.ts": {
-      "11:9": {
+      "12:9": {
         "annotations": [],
         "projects": [
           "chromium",
@@ -141,7 +143,7 @@ exports[`test custom info reporter 1`] = `
         "timeout": 30000,
         "title": "inside group",
       },
-      "15:10": {
+      "17:10": {
         "annotations": [
           {
             "description": "#serial_id",

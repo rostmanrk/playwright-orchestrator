@@ -8,6 +8,7 @@ export const SYMBOLS = {
     TestRunCreator: Symbol.for('TestRunCreator'),
     TestRunner: Symbol.for('TestRunner'),
     BrowserManager: Symbol.for('BrowserManager'),
+    WebServerManager: Symbol.for('WebServerManager'),
     BatchHandler: Symbol.for('BatchHandler'),
     BatchHandlerFactory: Symbol.for('BatchHandlerFactory'),
     TestExecutionReporter: Symbol.for('TestExecutionReporter'),

@@ -201,7 +201,7 @@ Starts a test shard for the provided test run. If used with a finished run, it w
 
 Command generate blob reports into `--output` directory. To merge it use [Playwright's Merge-reports CLI](https://playwright.dev/docs/test-sharding#merge-reports-cli)
 
-**`webServer` property is not supported and is ignored; make sure the app run beforehand.**
+`webServer` property is supported starting from v1.3.3
 
 | Option                   | Description                                    | Type     | Default        | Required? |
 | ------------------------ | ---------------------------------------------- | -------- | -------------- | --------- |

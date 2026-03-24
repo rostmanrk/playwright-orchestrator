@@ -173,15 +173,12 @@ export class TestExecutionReporter {
     }
 
     info(message: string) {
-        this.persistLine(`${chalk.blue('ℹ')} ${message}`);
+        this.persistLine(`${chalk.blue('info:')} ${message}`);
     }
 
     error(message: string) {
-        if (IS_TTY) {
-            this.persistLine(`${chalk.red('✗')} ${message}`);
-        } else {
-            console.error(`${chalk.red('✗')} ${message}`);
-        }
+        const log = IS_TTY ? this.persistLine.bind(this) : console.error;
+        log(`${chalk.red('error:')} ${message}`);
     }
 
     hasFailed(): boolean {

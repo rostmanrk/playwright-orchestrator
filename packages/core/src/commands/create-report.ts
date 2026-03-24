@@ -1,12 +1,12 @@
 import { Option } from '@commander-js/extra-typings';
 import { loadPlugins } from '../helpers/plugin.js';
 import { generateReport, REPORTERS } from '../reporters/reporter-factory.js';
-import { withErrorHandling } from './error-handler.js';
+import { handle } from './command-hoc.js';
 import { program } from './program.js';
-import { createContainer } from '../container.js';
 import type { Adapter } from '../adapters/adapter.js';
 import { SYMBOLS } from '../symbols.js';
 import { TestStatus } from '../types/test-info.js';
+import { Container } from 'inversify';
 
 export default async () => {
     const command = program.command('create-report').description('Create for selected storage type.');
@@ -17,19 +17,14 @@ export default async () => {
             .addOption(new Option('--reporter <string>', 'Reporter type').choices(REPORTERS).default('json'))
             .option('--fail-on-test-failure', 'Exit with non-zero code if at least one test failed')
             .action(
-                withErrorHandling(async (options) => {
-                    const container = createContainer();
+                handle(async (container: Container, options) => {
                     await register(container, options);
                     const adapter = container.get<Adapter>(SYMBOLS.Adapter);
-                    try {
-                        const reportData = await adapter.getReportData(options.runId);
-                        if (options.failOnTestFailure && reportData.tests.some((t) => t.status === TestStatus.Failed)) {
-                            process.exitCode = 1;
-                        }
-                        await generateReport(reportData, options.reporter);
-                    } finally {
-                        await container.unbindAllAsync();
+                    const reportData = await adapter.getReportData(options.runId);
+                    if (options.failOnTestFailure && reportData.tests.some((t) => t.status === TestStatus.Failed)) {
+                        process.exitCode = 1;
                     }
+                    await generateReport(reportData, options.reporter);
                 }),
             );
     }
