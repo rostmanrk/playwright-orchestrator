@@ -19,6 +19,7 @@ export class RunBuilder {
             projects: projects.map((project) => ({
                 name: project.name,
                 use: project.use,
+                repeatEach: project.repeatEach,
             })),
         };
         return this;
@@ -47,7 +48,9 @@ export class RunBuilder {
         const fileTests = this.getFileTests(file);
         const position = `${entry.location?.line}:${entry.location?.column}`;
         if (fileTests[position]) {
-            fileTests[position].projects.push(project);
+            if (!fileTests[position].projects.includes(project)) {
+                fileTests[position].projects.push(project);
+            }
             return true;
         }
         if (entry.type === 'test' || analyzer.suiteIsSerial(entry)) {

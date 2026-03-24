@@ -1,4 +1,4 @@
-import { TestItem, TestStatus } from '@playwright-orchestrator/core';
+import { HistoryItem, TestItem, TestStatus } from '@playwright-orchestrator/core';
 
 export interface ResultTestItem extends TestItem {
     status: TestStatus;
@@ -14,9 +14,5 @@ export interface ResultTestItem extends TestItem {
 export interface TestHistoryItem {
     ema: number;
     created: number;
-    history: {
-        duration: number;
-        updated: number;
-        status: TestStatus;
-    }[];
+    history: HistoryItem[];
 }

@@ -12,6 +12,7 @@ interface SubTestState {
     startTime: number;
     endTime?: number;
     ok?: boolean;
+    displayName: string;
 }
 
 interface GroupState {
@@ -68,7 +69,7 @@ export class TestExecutionReporter {
         if (IS_TTY) logUpdate(this.renderLines());
     }
 
-    addTest(test: TestItem, subId: string, run: Promise<any>) {
+    addTest(test: TestItem, subId: string, displayName: string, run: Promise<any>) {
         const batchName = this.testBatchMap.get(test.testId);
         if (!batchName) throw new Error(`Unknown group: ${test.testId}`);
         const group = this.runningBatches.get(batchName)!.groups.get(test.testId)!;
@@ -78,8 +79,18 @@ export class TestExecutionReporter {
         if (this.countRunning(group) === 0) {
             group.resumedAt = Date.now();
         }
-        group.subTests.set(subId, { startTime: Date.now() });
+        group.subTests.set(subId, { startTime: Date.now(), displayName: displayName });
         if (IS_TTY) logUpdate(this.renderLines());
+    }
+
+    updateTestDisplayName(testId: string, subId: string, displayName: string) {
+        const batchName = this.testBatchMap.get(testId);
+        if (!batchName) return;
+        const sub = this.runningBatches.get(batchName)?.groups.get(testId)?.subTests.get(subId);
+        if (sub) {
+            sub.displayName = displayName;
+            if (IS_TTY) logUpdate(this.renderLines());
+        }
     }
 
     addLoading(message: string, run: Promise<any>) {
@@ -97,6 +108,7 @@ export class TestExecutionReporter {
         if (sub) {
             sub.endTime = Date.now();
             sub.ok = ok;
+            sub.displayName = subId;
         }
         if (this.countRunning(group) === 0 && group.resumedAt !== null) {
             group.accumulatedMs += Date.now() - group.resumedAt;
@@ -149,10 +161,10 @@ export class TestExecutionReporter {
         for (const [groupId, group] of batch.groups) {
             const groupIcon = group.ok ? chalk.green('✓') : chalk.red('✗');
             lines.push(`  └─ ${groupIcon} ${groupId} — ${formatElapsed(this.getGroupElapsed(group))}`);
-            for (const [subId, sub] of group.subTests) {
+            for (const [, sub] of group.subTests) {
                 const subIcon = sub.ok ? chalk.green('✓') : chalk.red('✗');
                 const subElapsed = sub.endTime !== undefined ? formatElapsed(sub.endTime - sub.startTime) : '?';
-                lines.push(`       └─ ${subIcon} ${subId} — ${subElapsed}`);
+                lines.push(`       └─ ${subIcon} ${sub.displayName} — ${subElapsed}`);
             }
         }
         this.persistLine(lines.join('\n'));
@@ -233,12 +245,16 @@ export class TestExecutionReporter {
                 } else {
                     lines.push(`  └─ ${tick} ${groupId} — ${groupElapsed}`);
                 }
-                for (const [subId, sub] of group.subTests) {
+                for (const [, sub] of group.subTests) {
                     if (sub.endTime !== undefined) {
                         const icon = sub.ok ? chalk.green('✓') : chalk.red('✗');
-                        lines.push(`       └─ ${icon} ${subId} — ${formatElapsed(sub.endTime - sub.startTime)}`);
+                        lines.push(
+                            `       └─ ${icon} ${sub.displayName} — ${formatElapsed(sub.endTime - sub.startTime)}`,
+                        );
                     } else {
-                        lines.push(`       └─ ${tick} ${subId} — ${formatElapsed(Date.now() - sub.startTime)}`);
+                        lines.push(
+                            `       └─ ${tick} ${sub.displayName} — ${formatElapsed(Date.now() - sub.startTime)}`,
+                        );
                     }
                 }
             }
