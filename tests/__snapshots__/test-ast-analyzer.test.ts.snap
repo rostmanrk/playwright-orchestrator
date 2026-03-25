@@ -7,6 +7,7 @@ exports[`test custom info reporter 1`] = `
     "projects": [
       {
         "name": "chromium",
+        "repeatEach": 1,
         "use": {
           "baseURL": "http://localhost:4321",
           "defaultBrowserType": "chromium",
@@ -27,6 +28,7 @@ exports[`test custom info reporter 1`] = `
       },
       {
         "name": "firefox",
+        "repeatEach": 1,
         "use": {
           "baseURL": "http://localhost:4321",
           "defaultBrowserType": "firefox",

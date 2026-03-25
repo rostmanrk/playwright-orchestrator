@@ -42,7 +42,7 @@ describe('TestExecutionReporter groups', () => {
     it('addTest throws if group does not exist', () => {
         const t = makeTest('a');
         const { promise } = deferred();
-        expect(() => reporter.addTest(t, 'sub-1', promise)).toThrow(`Unknown group: ${t.testId}`);
+        expect(() => reporter.addTest(t, 'sub-1', 'sub-1', promise)).toThrow(`Unknown group: ${t.testId}`);
     });
 
     it('batch persists as multi-line block with all groups and subtests', async () => {
@@ -54,9 +54,9 @@ describe('TestExecutionReporter groups', () => {
 
         reporter.addBatch('Batch 1', batch.promise);
         reporter.addGroup('Batch 1', t, group.promise);
-        reporter.addTest(t, 'sub-1', child1.promise);
+        reporter.addTest(t, 'sub-1', 'sub-1', child1.promise);
         vi.advanceTimersByTime(1000);
-        reporter.addTest(t, 'sub-2', child2.promise);
+        reporter.addTest(t, 'sub-2', 'sub-2', child2.promise);
         vi.advanceTimersByTime(1000);
         child1.resolve();
         await Promise.resolve();
@@ -96,7 +96,7 @@ describe('TestExecutionReporter groups', () => {
         reporter.addBatch('Batch 1', batch.promise);
         reporter.addGroup('Batch 1', t, group.promise);
 
-        reporter.addTest(t, 'sub-1', child1.promise);
+        reporter.addTest(t, 'sub-1', 'sub-1', child1.promise);
         vi.advanceTimersByTime(2000);
         child1.resolve();
         await Promise.resolve();
@@ -105,7 +105,7 @@ describe('TestExecutionReporter groups', () => {
         // Idle 1s — should NOT count
         vi.advanceTimersByTime(1000);
 
-        reporter.addTest(t, 'sub-2', child2.promise);
+        reporter.addTest(t, 'sub-2', 'sub-2', child2.promise);
         vi.advanceTimersByTime(3000);
         child2.resolve();
         await Promise.resolve();
@@ -133,9 +133,9 @@ describe('TestExecutionReporter groups', () => {
 
         reporter.addBatch('Batch 1', batch.promise);
         reporter.addGroup('Batch 1', t, group.promise);
-        reporter.addTest(t, 'sub-1', child1.promise);
+        reporter.addTest(t, 'sub-1', 'sub-1', child1.promise);
         vi.advanceTimersByTime(1000);
-        reporter.addTest(t, 'sub-2', child2.promise);
+        reporter.addTest(t, 'sub-2', 'sub-2', child2.promise);
         vi.advanceTimersByTime(2000);
         child1.resolve();
         await Promise.resolve();
@@ -166,7 +166,7 @@ describe('TestExecutionReporter groups', () => {
 
         reporter.addBatch('Batch 1', batch.promise);
         reporter.addGroup('Batch 1', t, group.promise);
-        reporter.addTest(t, 'sub-1', child.promise);
+        reporter.addTest(t, 'sub-1', 'sub-1', child.promise);
         vi.advanceTimersByTime(1000);
         child.reject();
         await Promise.resolve();

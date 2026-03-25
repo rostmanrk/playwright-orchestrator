@@ -72,7 +72,7 @@ export async function testStorage(storageOptions: string[], reportsFolder: strin
     await spawnAsync(process.execPath, command);
     const { stdout: mergeStdOut2, stderr: mergeStderr2 } = await spawnAsync(process.execPath, reporterArgs);
     await expect(mergeStdOut2, `Merge reports command failed. Error: ${mergeStderr2}`).toMatchFileSnapshot(
-        '../__snapshots__/test-run-repeat.output.snap',
+        `../__snapshots__/test-run-repeat-${grouping}.output.snap`,
     );
 }
 

@@ -5,6 +5,7 @@ export type UseOptions = FullConfig['projects'][number]['use'];
 export interface Project {
     name: string;
     use: UseOptions;
+    repeatEach: number;
 }
 
 export interface TestConfig {

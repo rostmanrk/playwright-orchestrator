@@ -11,7 +11,6 @@ import { BrowserManager } from './browser-manager.js';
 import { WebServerManager } from './web-server-manager.js';
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
-import { cp } from 'node:fs/promises';
 import { SYMBOLS } from '../symbols.js';
 import type { TestEventHandlerFactory } from './test-event-handler.js';
 import { cliVersion } from '../commands/version.js';
@@ -37,7 +36,7 @@ export class TestRunner {
     }
 
     async runTests(): Promise<boolean> {
-        await this.removePreviousReports();
+        await this.removePreviousOutput();
         const config = await this.shardHandler.startShard(this.runId);
         if (config.version !== cliVersion) {
             console.error(
@@ -71,6 +70,10 @@ export class TestRunner {
         this.cleanupFs.clear();
     }
 
+    private async removePreviousOutput() {
+        await rm(this.outputFolder, { recursive: true, force: true });
+    }
+
     private async runTestsUntilAvailable(config: TestRunConfig, browsers: Record<string, string>) {
         const batchHandler = this.batchHandlerFactory(config.options.batchMode);
         const runningBatches = new Set<Promise<void>>();
@@ -91,10 +94,6 @@ export class TestRunner {
         await Promise.all(runningBatches);
     }
 
-    private async removePreviousReports() {
-        await rm(`./${this.outputFolder}`, { recursive: true, force: true });
-    }
-
     private async runTestBatch(
         tests: TestItem[],
         config: TestRunConfig,
@@ -105,42 +104,27 @@ export class TestRunner {
         const { onData, onExit, batchResolver } = this.testEventHandlerFactory(tests, config, batchName);
 
         const batchId = uuid.v7();
-        const batchFolder = `batch-${batchId}`;
-        const batchArtifactsFolder = `batch-artifacts-${batchId}`;
+
+        const batchArtifact = path.relative(process.cwd(), `${this.outputFolder}/${batchId}.zip`);
         try {
             await new Promise<void>((resolve, reject) => {
-                const playwright = spawn(
-                    'npx',
-                    ['playwright', 'test', ...this.buildParams(tests, config), '--output', batchArtifactsFolder],
-                    {
-                        env: {
-                            ...process.env,
-                            PLAYWRIGHT_BLOB_OUTPUT_DIR: batchFolder,
-                            ...(config.configFile && {
-                                PLAYWRIGHT_ORCHESTRATOR_BROWSERS: JSON.stringify(browsers),
-                            }),
-                            PLAYWRIGHT_ORCHESTRATOR_GROUPING: config.options.grouping,
-                        },
+                const playwright = spawn('npx', ['playwright', 'test', ...this.buildParams(tests, config)], {
+                    env: {
+                        ...process.env,
+                        PLAYWRIGHT_BLOB_OUTPUT_FILE: batchArtifact,
+                        ...(config.configFile && {
+                            PLAYWRIGHT_ORCHESTRATOR_BROWSERS: JSON.stringify(browsers),
+                        }),
+                        PLAYWRIGHT_ORCHESTRATOR_GROUPING: config.options.grouping,
                     },
-                );
-                this.cleanupFs.add(batchFolder);
-                this.cleanupFs.add(batchArtifactsFolder);
+                });
                 createInterface({ input: playwright.stdout, crlfDelay: Infinity }).on('line', onData);
                 playwright.on('exit', () => onExit().then(resolve, reject));
             });
-            await cp(batchFolder, this.outputFolder, { recursive: true });
-            await cp(batchArtifactsFolder, this.outputFolder, { recursive: true });
             batchResolver.success();
         } catch (err) {
             batchResolver.fail(err);
             throw err;
-        } finally {
-            await Promise.all([
-                rm(batchFolder, { recursive: true, force: true }),
-                rm(batchArtifactsFolder, { recursive: true, force: true }),
-            ]);
-            this.cleanupFs.delete(batchFolder);
-            this.cleanupFs.delete(batchArtifactsFolder);
         }
     }
 

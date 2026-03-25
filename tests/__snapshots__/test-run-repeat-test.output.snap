@@ -1,0 +1,4 @@
+1  x  [chromium]  failed.spec.ts:4:5  should failing
+2  x  [firefox]   failed.spec.ts:4:5  should failing
+3  o  [chromium]  failed.spec.ts:9:5  should failing for firefox
+4  x  [firefox]   failed.spec.ts:9:5  should failing for firefox

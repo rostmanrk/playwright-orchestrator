@@ -32,7 +32,9 @@ export interface TestInfoResult extends BaseTestResult {
     ok: boolean;
     error: TestResult['error'];
     retry: number;
+    repeatEachIndex: number;
     status: TestResult['status'];
+    project: string;
 }
 
 export type TestReportResultMap = Record<string, { case: TestCase; result: TestResult }[]>;
