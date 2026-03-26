@@ -1,14 +1,29 @@
 import type { FullConfig, Suite, TestCase } from '@playwright/test/reporter';
-import { TestASTAnalyzer } from './test-ats-analyzer.js';
 import type { TestConfig, ReporterTestRun, ReporterTestRunInfo } from '../types/test-info.js';
 import path from 'node:path';
+
+interface SuiteInternal extends Suite {
+    _parallelMode?: 'none' | 'default' | 'serial' | 'parallel';
+}
+
+function isSuiteSerial(suite: Suite): boolean {
+    return (suite as SuiteInternal)._parallelMode === 'serial';
+}
+
+function getEntryTimeout(entry: TestCase | Suite): number {
+    if (entry.type === 'test') return entry.timeout;
+    return (entry as Suite).allTests().reduce((sum, test) => sum + test.timeout, 0);
+}
 
 export class RunBuilder {
     private readonly testRun: ReporterTestRun = {};
     private config: TestConfig | undefined = undefined;
 
     parseEntry(entry: TestCase | Suite) {
-        this.parseSuitesHelper(entry);
+        if (this.tryParseEntry(entry)) return this;
+        for (const item of (entry as Suite).entries()) {
+            this.parseEntry(item);
+        }
         return this;
     }
 
@@ -32,31 +47,21 @@ export class RunBuilder {
         });
     }
 
-    private parseSuitesHelper(entry: TestCase | Suite, analyzer?: TestASTAnalyzer) {
-        const currentAnalyzer = (entry.type === 'file' ? TestASTAnalyzer.create(entry.location?.file) : analyzer)!;
-        if (this.tryParseEntry(entry, currentAnalyzer)) {
-            return;
-        }
-        for (const item of (entry as Suite).entries()) {
-            this.parseSuitesHelper(item, currentAnalyzer);
-        }
-    }
-
-    private tryParseEntry(entry: TestCase | Suite, analyzer: TestASTAnalyzer) {
+    private tryParseEntry(entry: TestCase | Suite) {
         const [_, project, file] = entry.titlePath();
         if (!file) return false;
         const fileTests = this.getFileTests(file);
-        const position = `${entry.location?.line}:${entry.location?.column}`;
+        const position = entry.location ? `${entry.location.line}:${entry.location.column}` : '0:0';
         if (fileTests[position]) {
             if (!fileTests[position].projects.includes(project)) {
                 fileTests[position].projects.push(project);
             }
             return true;
         }
-        if (entry.type === 'test' || analyzer.suiteIsSerial(entry)) {
+        if (entry.type === 'test' || isSuiteSerial(entry as Suite)) {
             const children = entry.type === 'test' ? undefined : entry.allTests().map((test) => test.title);
             fileTests[position] = {
-                timeout: analyzer.getTimeout(entry),
+                timeout: getEntryTimeout(entry),
                 projects: [project],
                 annotations: this.getAnnotations(entry),
                 title: entry.title,
