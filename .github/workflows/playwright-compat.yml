@@ -1,0 +1,89 @@
+name: Playwright Internals Compatibility Check
+
+on:
+  schedule:
+    - cron: "0 9 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check-compat:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get latest Playwright version
+        id: pw-version
+        run: echo "version=$(npm view @playwright/test version)" >> "$GITHUB_OUTPUT"
+
+      - name: Check for existing issue
+        id: issue-check
+        run: |
+          COUNT=$(gh issue list \
+            --search "Playwright v${{ steps.pw-version.outputs.version }} internals breaking" \
+            --state open \
+            --limit 1 \
+            --json number \
+            | jq '. | length')
+          echo "exists=${COUNT}" >> "$GITHUB_OUTPUT"
+          if [ "$COUNT" -gt 0 ]; then
+            echo "Issue already open for Playwright v${{ steps.pw-version.outputs.version }}. Skipping."
+          fi
+
+      - name: Setup Node.js
+        if: steps.issue-check.outputs.exists == '0'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Install latest Playwright
+        if: steps.issue-check.outputs.exists == '0'
+        run: |
+          mkdir -p /tmp/pw-check
+          cd /tmp/pw-check
+          echo '{"private":true}' > package.json
+          npm install @playwright/test@latest playwright@latest --no-save --silent
+
+      - name: Run compatibility check
+        if: steps.issue-check.outputs.exists == '0'
+        id: compat-check
+        run: node ${{ github.workspace }}/scripts/check-playwright-internals.js > /tmp/check-output.txt 2>&1
+        working-directory: /tmp/pw-check
+        continue-on-error: true
+
+      - name: Open GitHub Issue
+        if: steps.issue-check.outputs.exists == '0' && steps.compat-check.outcome == 'failure'
+        run: |
+          cat > /tmp/issue-body.md << EOF
+          ## Playwright Internals Breaking Change
+
+          **Playwright version:** ${{ steps.pw-version.outputs.version }}
+          **Detected:** $(date -u +%Y-%m-%d)
+
+          ### Check Results
+
+          \`\`\`
+          $(cat /tmp/check-output.txt)
+          \`\`\`
+
+          ### Affected internal APIs
+
+          The following private Playwright APIs are used by this project and need to be reviewed:
+
+          | API | Used in |
+          |-----|---------|
+          | \`playwright/lib/common/configLoader\` — \`loadConfig\`, \`resolveConfigLocation\` | \`packages/core/src/runner/web-server-manager.ts\` |
+          | \`playwright/lib/plugins\` — \`webServer\` | \`packages/core/src/runner/web-server-manager.ts\` |
+          | \`Suite._parallelMode\` | \`packages/core/src/playwright-tools/run-builder.ts\` |
+
+          [View workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          EOF
+
+          gh issue create \
+            --title "⚠️ Playwright v${{ steps.pw-version.outputs.version }} internals breaking change detected" \
+            --body-file /tmp/issue-body.md
