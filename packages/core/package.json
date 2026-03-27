@@ -1,6 +1,6 @@
 {
     "name": "@playwright-orchestrator/core",
-    "version": "1.3.3",
+    "version": "1.3.4",
     "description": "Core lib and cli for Playwright test orchestration",
     "keywords": [
         "playwright",
