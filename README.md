@@ -69,7 +69,7 @@ Workers don't coordinate directly. Fast workers naturally pick up more tests. Sl
 
 **Tests are ordered as follows:**
 
-1. If there are no previous test runs, use the default timeout.
+1. If there are no previous test runs, use the default timeout (runtime timeouts are ignored, see [this PR](https://github.com/rostmanrk/playwright-orchestrator/pull/34)).
 2. Take the [EMA (Exponential Moving Average)](https://en.wikipedia.org/wiki/Moving_average#Exponential_moving_average) of the test duration. The window size can be changed in [`create`](#create) command, default value is 10. **Smaller value strips previous history.**
 3. If there was a failed test in the chosen window, it is more likely to fail again. Therefore, the formula is adjusted as follows:
 
@@ -316,6 +316,10 @@ Use MongoDB as storage.
 `webServer` is now fully supported.
 `repeatEach` is now properly handled: status is considered as `Passed` when any of the repeats is successful.
 
+## Adding new adapter
+
+If you need specific adapters create an issue, I will implement once I have time. Or you are welcome to contribute.
+
 ## 💻 Development
 
 Make sure podman and compose is installed. They used for tests and local development.
@@ -332,21 +336,7 @@ The best way to support this project is to star it on GitHub and share it with y
 
 ## 🔮 Future plans/ideas
 
-- ✅ Tests
-- ✅ Better Error Handling
-- ✅ MySQL adapter
-- ✅ MongoDB adapter
-- ✅ Tests improvements
-- ✅ Better Logging
-- ✅ Test History statistics (test duration trends, count of test failures for past n days, etc.)
-- ✅ Smarter test ordering based on previous execution duration
-- ✅ GHA reporter
-- ✅ Redis adapter
-- ✅ Browser reuse (performance improvement)
-- ✅ Test batching and grouping (performance improvement)
-- ⬜ More examples
 - ⬜ Create Documentation site.
-- ❓ Even more adapters (by request)
 - ❓ Restore unfinished tests in case shard terminated (Can be simply fixed by creating new run)
 
 ## ⚖️ License
