@@ -25,6 +25,7 @@ export class PgInitializer implements Initializer {
                 updated TIMESTAMP NOT NULL DEFAULT NOW(),
                 config JSONB NOT NULL
             );
+            ALTER TABLE ${configTable} ADD COLUMN IF NOT EXISTS shards JSONB;
             CREATE TABLE IF NOT EXISTS ${testsTable} (
                 run_id UUID NOT NULL,
                 order_num INT NOT NULL,

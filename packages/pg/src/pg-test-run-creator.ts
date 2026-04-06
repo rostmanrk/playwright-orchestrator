@@ -70,11 +70,21 @@ export class PgTestRunCreator extends BaseTestRunCreator {
         try {
             await client.query('BEGIN');
             await client.query({
-                text: `INSERT INTO ${this.configTable} (id, status, config) VALUES ($1, $2, $3)`,
+                text: `INSERT INTO ${this.configTable} (id, status, config, shards) VALUES ($1, $2, $3, '{}')`,
                 values: [runId, RunStatus.Created, JSON.stringify(run.config)],
             });
             if (tests.length > 0) {
-                const fields = ['order_num', 'file', 'line', 'character', 'projects', 'timeout', 'ema', 'children', 'test_id'];
+                const fields = [
+                    'order_num',
+                    'file',
+                    'line',
+                    'character',
+                    'projects',
+                    'timeout',
+                    'ema',
+                    'children',
+                    'test_id',
+                ];
                 await client.query({
                     text: `INSERT INTO ${this.testsTable} (run_id, ${fields.join(', ')}) VALUES ${tests
                         .map((_, i) => {

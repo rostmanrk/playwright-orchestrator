@@ -1,6 +1,6 @@
 import { injectable, inject } from 'inversify';
-import type { ShardHandler } from '@playwright-orchestrator/core';
-import { RunStatus, TestStatus } from '@playwright-orchestrator/core';
+import type { ShardHandler, TestRunContext, TestShard } from '@playwright-orchestrator/core';
+import { RunStatus, SYMBOLS, TestStatus } from '@playwright-orchestrator/core';
 import type { TestItem, TestRunConfig } from '@playwright-orchestrator/core';
 import type { CreateArgs } from './create-args.js';
 import { PgPool } from './pg-pool.js';
@@ -13,16 +13,22 @@ export class PgShardHandler implements ShardHandler {
     private readonly testsTable: string;
     private readonly pool: pg.Pool;
 
-    constructor(@inject(PG_CONFIG) { tableNamePrefix }: CreateArgs, @inject(PG_POOL) pgPool: PgPool) {
+    constructor(
+        @inject(PG_CONFIG) { tableNamePrefix }: CreateArgs,
+        @inject(PG_POOL) pgPool: PgPool,
+        @inject(SYMBOLS.RunContext) private readonly runContext: TestRunContext,
+    ) {
         this.pool = pgPool.pool;
         this.configTable = pg.escapeIdentifier(`${tableNamePrefix}_test_runs`);
         this.testsTable = pg.escapeIdentifier(`${tableNamePrefix}_tests`);
     }
-    async getNextTest(runId: string, _config: TestRunConfig): Promise<TestItem | undefined> {
+    async getNextTest(_config: TestRunConfig): Promise<TestItem | undefined> {
+        const { runId } = this.runContext;
         return this.claimNextTest(runId);
     }
 
-    async getNextTestByProject(runId: string, project: string): Promise<TestItem | undefined> {
+    async getNextTestByProject(project: string): Promise<TestItem | undefined> {
+        const { runId } = this.runContext;
         return this.claimNextTest(runId, project);
     }
 
@@ -70,7 +76,8 @@ export class PgShardHandler implements ShardHandler {
         }
     }
 
-    async startShard(runId: string): Promise<TestRunConfig> {
+    async startShard(): Promise<TestRunConfig> {
+        const { runId, shardId } = this.runContext;
         const client = await this.pool.connect();
         try {
             await client.query('BEGIN');
@@ -89,18 +96,27 @@ export class PgShardHandler implements ShardHandler {
                     WHERE run_id = $1 AND status = $2 AND updated <= $4;`,
                     values: [runId, TestStatus.Failed, TestStatus.Ready, updatedBefore],
                 });
-                result = await client.query({
+                await client.query({
                     text: `UPDATE ${this.configTable}
                     SET status = (CASE
                         WHEN status = $2 THEN ${RunStatus.Run}
                         ELSE ${RunStatus.RepeatRun}
                     END),
                     updated = NOW()
-                    WHERE id = $1
-                    RETURNING *;`,
+                    WHERE id = $1;`,
                     values: [runId, RunStatus.Created],
                 });
             }
+            await client.query({
+                text: `UPDATE ${this.configTable}
+                SET shards = jsonb_set(
+                    shards,
+                    $2,
+                    jsonb_build_object('shardId', $3, 'started', (EXTRACT(EPOCH FROM NOW()) * 1000)::bigint)
+                )
+                WHERE id = $1 AND (shards->>$3 IS NULL);`,
+                values: [runId, `{${shardId}}`, shardId],
+            });
             await client.query('COMMIT');
             return result.rows[0].config;
         } catch (e) {
@@ -111,10 +127,15 @@ export class PgShardHandler implements ShardHandler {
         }
     }
 
-    async finishShard(runId: string): Promise<void> {
-        await this.pool.query({
-            text: `UPDATE ${this.configTable} SET status = $1, updated = NOW() WHERE id = $2`,
-            values: [RunStatus.Finished, runId],
-        });
+    async finishShard(): Promise<void> {
+        const { runId, shardId } = this.runContext;
+        await this.pool.query(
+            `UPDATE ${this.configTable}
+            SET status = $2,
+            updated = NOW(),
+            shards = jsonb_set(shards, $3, to_jsonb((EXTRACT(EPOCH FROM NOW()) * 1000)::bigint))
+            WHERE id = $1 AND shards #>> $3::text[] IS NULL;`,
+            [runId, RunStatus.Finished, `{${shardId},finished}`],
+        );
     }
 }

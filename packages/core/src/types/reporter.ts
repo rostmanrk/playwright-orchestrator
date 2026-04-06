@@ -1,6 +1,6 @@
 import type { TestCase, TestResult } from '@playwright/test/reporter';
 import type { TestStatus } from './test-info.js';
-import { TestRunConfig } from './adapters.js';
+import { TestRun, TestRunConfig } from './adapters.js';
 
 export interface TestReport {
     file: string;
@@ -17,6 +17,7 @@ export interface TestReport {
 export interface TestRunReport {
     runId: string;
     config: TestRunConfig;
+    shards: TestRun['shards'];
     tests: TestReport[];
 }
 

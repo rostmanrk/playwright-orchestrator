@@ -1,7 +1,7 @@
 import { injectable, inject } from 'inversify';
-import type { ShardHandler, TestRunConfig } from '@playwright-orchestrator/core';
-import { RunStatus } from '@playwright-orchestrator/core';
-import type { TestItem, TestRun } from '@playwright-orchestrator/core';
+import type { ShardHandler, TestRunConfig, TestRunContext } from '@playwright-orchestrator/core';
+import { RunStatus, SYMBOLS } from '@playwright-orchestrator/core';
+import type { TestItem } from '@playwright-orchestrator/core';
 import type { CreateArgs } from './create-args.js';
 import { RedisConnection } from './redis-connection.js';
 import { REDIS_CONFIG, REDIS_CONNECTION } from './symbols.js';
@@ -18,18 +18,21 @@ export class RedisShardHandler implements ShardHandler {
     constructor(
         @inject(REDIS_CONFIG) { namePrefix, ttl }: CreateArgs,
         @inject(REDIS_CONNECTION) connection: RedisConnection,
+        @inject(SYMBOLS.RunContext) private readonly runContext: TestRunContext,
     ) {
         this._namePrefix = namePrefix;
         this.connection = connection;
         this.ttl = ttl * 24 * 60 * 60;
     }
-    async getNextTestByProject(runId: string, project: string): Promise<TestItem | undefined> {
+    async getNextTestByProject(project: string): Promise<TestItem | undefined> {
+        const { runId } = this.runContext;
         const client = await this.connection.getClient();
         const res = await client.lPop(`${this._namePrefix}:${TESTS}:${runId}:queue:${project}`);
         return res ? JSON.parse(res) : undefined;
     }
 
-    async getNextTest(runId: string, config: TestRunConfig): Promise<TestItem | undefined> {
+    async getNextTest(config: TestRunConfig): Promise<TestItem | undefined> {
+        const { runId } = this.runContext;
         const script = `
 local item = redis.call('LPOP', KEYS[1])
 if item then
@@ -61,12 +64,17 @@ return nil`;
         return res ? JSON.parse(res) : undefined;
     }
 
-    async startShard(runId: string): Promise<TestRunConfig> {
+    async startShard(): Promise<TestRunConfig> {
+        const { runId, shardId } = this.runContext;
         const client = await this.connection.getClient();
         const key = `${this._namePrefix}:${TEST_RUN}:${runId}`;
         const statusKey = `${key}:status`;
         const updatedKey = `${key}:updated`;
-        const dbStatus = await client.get(statusKey);
+        const shardsKey = `${key}:shards`;
+        const [dbStatus, existingShard] = (await client.multi().get(statusKey).hGet(shardsKey, shardId).exec()) as [
+            string | null,
+            string | null,
+        ];
         if (!dbStatus) throw new Error(`Run ${runId} not found`);
         const status = +dbStatus as RunStatus;
 
@@ -92,28 +100,38 @@ return nil`;
             transaction.set(updatedKey, new Date().getTime(), { EX: this.ttl });
             await transaction.exec();
         }
-        return (await this.loadTestRun(runId)).config;
+        if (!existingShard) {
+            await client
+                .multi()
+                .hSet(shardsKey, { [shardId]: JSON.stringify({ shardId, started: new Date().getTime() }) })
+                .expire(shardsKey, this.ttl)
+                .exec();
+        }
+        return this.loadConfig();
     }
 
-    async finishShard(runId: string): Promise<void> {
+    async finishShard(): Promise<void> {
+        const { runId, shardId } = this.runContext;
         const key = `${this._namePrefix}:${TEST_RUN}:${runId}`;
         const client = await this.connection.getClient();
-        await client
+        const dbShards = await client.hGet(`${key}:shards`, shardId);
+        const multi = client
             .multi()
             .set(`${key}:status`, RunStatus.Finished, { EX: this.ttl })
-            .set(`${key}:updated`, new Date().getTime(), { EX: this.ttl })
-            .exec();
+            .set(`${key}:updated`, new Date().getTime(), { EX: this.ttl });
+        if (dbShards) {
+            const shardData = JSON.parse(dbShards);
+            shardData.finished ??= new Date().getTime();
+            multi.hSet(`${key}:shards`, { [shardId]: JSON.stringify(shardData) }).expire(`${key}:shards`, this.ttl);
+        }
+        await multi.exec();
     }
 
-    private async loadTestRun(runId: string): Promise<TestRun> {
+    private async loadConfig(): Promise<TestRunConfig> {
+        const { runId } = this.runContext;
         const client = await this.connection.getClient();
-        const baseKey = `${this._namePrefix}:${TEST_RUN}:${runId}`;
-        const [config, status, updated] = await client.mGet([
-            `${baseKey}:config`,
-            `${baseKey}:status`,
-            `${baseKey}:updated`,
-        ]);
-        if (!config || !status || !updated) throw new Error(`Run ${runId} not found`);
-        return { status: +status as RunStatus, updated: +updated, config: JSON.parse(config) };
+        const config = await client.get(`${this._namePrefix}:${TEST_RUN}:${runId}:config`);
+        if (!config) throw new Error(`Run ${runId} not found`);
+        return JSON.parse(config);
     }
 }

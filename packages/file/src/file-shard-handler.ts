@@ -1,6 +1,6 @@
 import { injectable, inject } from 'inversify';
-import type { ShardHandler, TestRun } from '@playwright-orchestrator/core';
-import { RunStatus, TestStatus } from '@playwright-orchestrator/core';
+import type { ShardHandler, TestRun, TestRunContext, TestShard } from '@playwright-orchestrator/core';
+import { RunStatus, SYMBOLS, TestStatus } from '@playwright-orchestrator/core';
 import type { TestItem, TestRunConfig } from '@playwright-orchestrator/core';
 import type { CreateArgs } from './create-args.js';
 import { lock } from 'proper-lockfile';
@@ -13,19 +13,25 @@ import { ResultTestItem } from './types.js';
 export class FileShardHandler implements ShardHandler {
     private readonly dir: string;
 
-    constructor(@inject(FILE_CONFIG) createArgs: CreateArgs) {
+    constructor(
+        @inject(FILE_CONFIG) createArgs: CreateArgs,
+        @inject(SYMBOLS.RunContext) private readonly runContext: TestRunContext,
+    ) {
         this.dir = createArgs.directory;
     }
 
-    async startShard(runId: string): Promise<TestRunConfig> {
+    async startShard(): Promise<TestRunConfig> {
+        const { runId, shardId } = this.runContext;
         const file = getRunConfigPath(this.dir, runId);
         const release = await lock(file, { retries: 100 });
         try {
             const testRun = JSON.parse(await readFile(file, 'utf-8')) as TestRun;
+            if (!testRun.shards[shardId]) {
+                testRun.shards[shardId] = { shardId, started: Date.now() };
+            }
             if (testRun.status === RunStatus.Created || testRun.status === RunStatus.Finished) {
                 testRun.status = testRun.status === RunStatus.Created ? RunStatus.Run : RunStatus.RepeatRun;
                 testRun.updated = Date.now();
-                await writeFile(file, JSON.stringify(testRun));
                 if (testRun.status === RunStatus.RepeatRun) {
                     const results = JSON.parse(
                         await readFile(getResultsRunPath(this.dir, runId), 'utf-8'),
@@ -48,30 +54,37 @@ export class FileShardHandler implements ShardHandler {
                     await writeFile(getResultsRunPath(this.dir, runId), JSON.stringify(rest, null, 2), 'utf-8');
                 }
             }
+            await writeFile(file, JSON.stringify(testRun));
             return testRun.config;
         } finally {
             await release();
         }
     }
 
-    async finishShard(runId: string): Promise<void> {
+    async finishShard(): Promise<void> {
+        const { runId, shardId } = this.runContext;
         const file = getRunConfigPath(this.dir, runId);
         const release = await lock(file, { retries: 100 });
         try {
             const testRun = JSON.parse(await readFile(file, 'utf-8')) as TestRun;
             testRun.status = RunStatus.Finished;
             testRun.updated = Date.now();
+            if (testRun.shards[shardId]) {
+                testRun.shards[shardId].finished ??= Date.now();
+            }
             await writeFile(file, JSON.stringify(testRun, null, 2));
         } finally {
             await release();
         }
     }
 
-    async getNextTest(runId: string, _config: TestRunConfig): Promise<TestItem | undefined> {
+    async getNextTest(_config: TestRunConfig): Promise<TestItem | undefined> {
+        const { runId } = this.runContext;
         return this.popNextTest(runId);
     }
 
-    async getNextTestByProject(runId: string, project: string): Promise<TestItem | undefined> {
+    async getNextTestByProject(project: string): Promise<TestItem | undefined> {
+        const { runId } = this.runContext;
         return this.popNextTest(runId, project);
     }
 

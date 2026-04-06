@@ -1,4 +1,4 @@
-import { BaseAdapter, TestStatus, TestRunReport, SaveTestResultParams } from '@playwright-orchestrator/core';
+import { BaseAdapter, TestStatus, TestRunReport, SaveTestResultParams, TestShard } from '@playwright-orchestrator/core';
 import { injectable, inject } from 'inversify';
 import type { CreateArgs } from './create-args.js';
 import { MySQLPool } from './mysql-pool.js';
@@ -27,6 +27,7 @@ interface Run extends RowDataPacket {
     status: number;
     updated: Date;
     config: any;
+    shards: Record<string, TestShard>;
 }
 
 interface TestInfo extends RowDataPacket {
@@ -62,11 +63,11 @@ export class MySQLAdapter extends BaseAdapter {
 
     async getReportData(runId: string): Promise<TestRunReport> {
         const [[row]] = await this.pool.query<Run[]>({
-            sql: `SELECT config FROM ??
+            sql: `SELECT config, shards FROM ??
             WHERE id = UUID_TO_BIN(?)`,
             values: [this.configTable, runId],
         });
-        const config = row?.config;
+        const { config, shards } = row ?? {};
         if (!config) throw new Error(`Run ${runId} not found`);
         const [tests] = await this.pool.query<Test[]>({
             sql: `SELECT * FROM ??
@@ -77,6 +78,7 @@ export class MySQLAdapter extends BaseAdapter {
         return {
             runId,
             config,
+            shards,
             tests: tests.map(({ file, projects, report, line, pos }) => {
                 return {
                     averageDuration: report?.ema ?? 0,

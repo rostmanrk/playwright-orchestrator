@@ -1,7 +1,5 @@
-import { TestRunConfig } from '@playwright-orchestrator/core';
 import { Binary } from 'mongodb';
 import * as uuid from 'uuid';
-import type { TestRunDocument } from './types.js';
 
 export function generateTestId(runId: string, order: number): Binary {
     const binaryRunId = uuid.parse(runId);

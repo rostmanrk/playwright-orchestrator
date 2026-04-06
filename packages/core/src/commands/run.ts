@@ -5,7 +5,7 @@ import { program } from './program.js';
 import { SequentialBatcher } from '../batch/sequential-batcher.js';
 import { TimeBatchHandler } from '../batch/time-batch-handler.js';
 import { CountBatchHandler } from '../batch/count-batch-handler.js';
-import { BatchMode, TestItem, TestRunConfig } from '../types/adapters.js';
+import { BatchMode, TestItem, TestRunConfig, TestRunContext } from '../types/adapters.js';
 import type { BatchHandler } from '../batch/batch-handler.js';
 import { SYMBOLS } from '../symbols.js';
 import { PlaywrightTestEventHandler, TestEventHandler, TestEventHandlerFactory } from '../runner/test-event-handler.js';
@@ -13,6 +13,7 @@ import { WebServerManager } from '../runner/web-server-manager.js';
 import { BrowserManager } from '../runner/browser-manager.js';
 import { TestExecutionReporter } from '../runner/test-execution-reporter.js';
 import { Container } from 'inversify';
+import * as uuid from 'uuid';
 
 export type BatchHandlerFactory = (mode: BatchMode) => BatchHandler;
 
@@ -28,11 +29,21 @@ export default async () => {
                 'blob-reports',
             )
             .option('--fail-on-test-failure', 'Exit with non-zero code if at least one test failed')
+            .option(
+                '--shard-id <string>',
+                'Shard id for the current run (alphanumeric, hyphens, and underscores only). If not provided, a random shard id will be generated. This option is used for tracking the status of individual shards in the test run.',
+            )
             .action(
                 handle(async (container, options) => {
+                    if (options.shardId && !/^[\w-]+$/.test(options.shardId)) {
+                        throw new Error('--shard-id must contain only alphanumeric characters, hyphens, and underscores');
+                    }
                     await register(container, options);
-                    container.bind<string>(SYMBOLS.RunId).toConstantValue(options.runId);
-                    container.bind<string>(SYMBOLS.OutputFolder).toConstantValue(options.output);
+                    container.bind<TestRunContext>(SYMBOLS.RunContext).toConstantValue({
+                        runId: options.runId,
+                        shardId: options.shardId ?? uuid.v7(),
+                        outputFolder: options.output,
+                    });
                     registerServices(container);
                     const runner = container.get<TestRunner>(SYMBOLS.TestRunner);
                     const passed = await runner.runTests();

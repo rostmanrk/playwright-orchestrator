@@ -18,11 +18,12 @@ export class FileAdapter extends BaseAdapter {
     }
 
     async getReportData(runId: string): Promise<TestRunReport> {
-        const { config } = JSON.parse(await readFile(getRunConfigPath(this.dir, runId), 'utf-8')) as TestRun;
+        const { config, shards } = JSON.parse(await readFile(getRunConfigPath(this.dir, runId), 'utf-8')) as TestRun;
         const tests = JSON.parse(await readFile(getResultsRunPath(this.dir, runId), 'utf-8')) as ResultTestItem[];
         return {
             runId,
             config,
+            shards,
             tests: tests.map(({ file, status, projects, position, report }) => ({
                 averageDuration: report.ema,
                 duration: report.duration,

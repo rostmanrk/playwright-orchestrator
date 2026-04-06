@@ -56,18 +56,21 @@ export function mapTestRunToDb(runId: string, ttl: number, { config, status, upd
         [Fields.Updated]: updated,
         [Fields.Status]: status,
         [Fields.Ttl]: ttl,
+        [Fields.Shards]: {},
     };
 }
 
 export function mapDbToTestRun({
     [Fields.Config]: config,
     [Fields.Updated]: updated,
+    [Fields.Shards]: shards,
     [Fields.Status]: status,
 }: TestRunDb): TestRun {
     return {
         config,
         updated,
         status: status as RunStatus,
+        shards,
     };
 }
 

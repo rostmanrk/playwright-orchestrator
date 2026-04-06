@@ -11,10 +11,12 @@
     "scripts": {
         "watch": "tsc -b -w",
         "test": "vitest run --pool=threads",
+        "build": "tsc -b --clean && tsc -b --sourceMap false",
         "test:unit": "vitest run --pool=threads --exclude=**/e2e/**",
         "test:e2e": "npx http-server ./e2e/web-server-simulation -p 4321 --silent & SERVER_PID=$!; trap 'kill $SERVER_PID' EXIT && vitest run **/e2e/** --pool=threads --poolOptions.threads.maxThreads=2",
         "test:ci": "npx http-server ./e2e/web-server-simulation -p 4321 --silent & SERVER_PID=$!; trap 'kill $SERVER_PID' EXIT && vitest run --pool=threads --poolOptions.threads.maxThreads=1",
-        "build": "tsc -b --clean && tsc -b --sourceMap false",
+        "run:web-server": "npx http-server ./e2e/web-server-simulation -p 4321 --silent > /dev/null 2>&1 &",
+        "stop:web-server": "kill -9 $(lsof -ti:4321)",
         "test-update": "vitest -u",
         "start": "node --inspect packages/core/dist/cli",
         "dynamo-local": "podman compose -f ./packages/dynamo-db/compose.yml",

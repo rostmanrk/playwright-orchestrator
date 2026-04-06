@@ -1,6 +1,5 @@
 import {
     BaseAdapter,
-    TestRunConfig,
     TestStatus,
     TestRunReport,
     HistoryItem,
@@ -12,7 +11,7 @@ import { TransactionCanceledException } from '@aws-sdk/client-dynamodb';
 import { QueryCommand, GetCommand, TransactWriteCommand } from '@aws-sdk/lib-dynamodb';
 import { idToStatus, mapTestItemToDb, getTtl } from './helpers.js';
 import { Fields, StatusOffset } from './constants.js';
-import { TestInfoItem, TestItemDb } from './types.js';
+import { TestInfoItem, TestItemDb, TestRunDb } from './types.js';
 import { DynamoDbConnection } from './dynamo-db-connection.js';
 import { DYNAMO_CONFIG, DYNAMO_CONNECTION } from './symbols.js';
 
@@ -38,11 +37,12 @@ export class DynamoDbAdapter extends BaseAdapter {
     }
 
     async getReportData(runId: string): Promise<TestRunReport> {
-        const config = await this.getConfig(runId);
+        const { [Fields.Config]: config, [Fields.Shards]: shards } = await this.getTestRun(runId);
         const tests = await this.queryAllTests(runId);
         return {
             runId,
             config: config,
+            shards,
             tests: tests.map((test) => {
                 const report = test[Fields.Report];
                 return {
@@ -141,7 +141,7 @@ export class DynamoDbAdapter extends BaseAdapter {
         }
     }
 
-    private async getConfig(runId: string): Promise<TestRunConfig> {
+    private async getTestRun(runId: string): Promise<TestRunDb> {
         const configRequest = await this.connection.docClient.send(
             new GetCommand({
                 TableName: this.testsTableName,
@@ -151,7 +151,7 @@ export class DynamoDbAdapter extends BaseAdapter {
         if (!configRequest.Item) {
             throw new Error(`Run ${runId} not found.`);
         }
-        return configRequest.Item[Fields.Config] as TestRunConfig;
+        return configRequest.Item as TestRunDb;
     }
 
     private async getTestInfo(id: string): Promise<TestInfoItem | null> {

@@ -1,4 +1,4 @@
-import { ResultTestParams, TestRunConfig } from '@playwright-orchestrator/core';
+import { ResultTestParams, TestRunConfig, TestShard } from '@playwright-orchestrator/core';
 import { Fields } from './constants.js';
 
 export interface TestItemDb {
@@ -30,6 +30,7 @@ export interface TestRunDb {
     [Fields.Updated]: number;
     [Fields.Status]: number;
     [Fields.Config]: TestRunConfig;
+    [Fields.Shards]: Record<string, TestShard>;
     [Fields.Ttl]: number;
 }
 

@@ -65,6 +65,7 @@ export class MySQLInitializer implements Initializer {
         await this.addColumnIfMissing(testsTable, 'children', 'JSON');
         await this.addColumnIfMissing(testsTable, 'ema', 'FLOAT', false, '0');
         await this.addColumnIfMissing(testsTable, 'test_id', 'TEXT', false, "''");
+        await this.addColumnIfMissing(configTable, 'shards', 'JSON', false, "'{}'");
         await this.migrateProjectsToJson(testsTable);
     }
 

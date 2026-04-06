@@ -99,7 +99,9 @@ export class MySQLTestRunCreator extends BaseTestRunCreator {
             ];
         });
 
-        const statements: string[] = [`INSERT INTO ?? (id, status, config) VALUES (UUID_TO_BIN(?), ?, ?)`];
+        const statements: string[] = [
+            `INSERT INTO ?? (id, status, config, shards) VALUES (UUID_TO_BIN(?), ?, ?, '{}')`,
+        ];
         const values: (string | number | object | null | undefined)[] = [
             this.configTable,
             runId,

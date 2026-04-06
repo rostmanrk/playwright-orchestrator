@@ -36,13 +36,14 @@ export class MongoDbAdapter extends BaseAdapter {
         if (!run) {
             throw new Error(`Run ${runId} not found`);
         }
-        const config = run.config;
+        const { config, shards } = run;
         const tests = await this.tests
             .find(this.generateTestIdQuery(runId, TestStatus.Failed, TestStatus.Passed))
             .toArray();
         return {
             runId,
             config,
+            shards,
             tests: tests.map(({ file, line, column, status, report, projects }) => {
                 const position = `${line}:${column}`;
                 const { duration, fails, title, lastSuccessfulRun, ema } = report!;

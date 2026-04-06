@@ -21,9 +21,16 @@ export interface TestRunConfig extends TestConfig {
     version?: string;
 }
 
+export interface TestShard {
+    shardId: string;
+    started: number;
+    finished?: number;
+}
+
 export interface TestRun {
     status: RunStatus;
     updated: number;
+    shards: Record<string, TestShard>;
     config: TestRunConfig;
 }
 
@@ -87,4 +94,10 @@ export interface SaveTestResultParams {
     item: HistoryItem;
     historyWindow: number;
     newEma: number;
+}
+
+export interface TestRunContext {
+    runId: string;
+    shardId: string;
+    outputFolder: string;
 }
