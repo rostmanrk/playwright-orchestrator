@@ -6,11 +6,11 @@ import { BaseBatchHandler } from './base-batch-handler.js';
 @injectable()
 @injectFromBase({ extendProperties: true, extendConstructorArguments: false })
 export class CountBatchHandler extends BaseBatchHandler implements BatchHandler {
-    async getNextBatch(runId: string, config: TestRunConfig): Promise<TestItem[] | undefined> {
+    async getNextBatch(config: TestRunConfig): Promise<TestItem[] | undefined> {
         const batch: TestItem[] = [];
         let test: TestItem | undefined;
         for (let i = 0; i < config.options.batchTarget!; i++) {
-            test = await this.getNextTest(runId, config, test?.projects[0]);
+            test = await this.getNextTest(config, test?.projects[0]);
             if (!test) break;
             batch.push(test);
         }

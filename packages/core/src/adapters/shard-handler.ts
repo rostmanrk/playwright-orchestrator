@@ -1,8 +1,8 @@
 import type { TestItem, TestRunConfig } from '../types/adapters.js';
 
 export interface ShardHandler {
-    startShard(runId: string): Promise<TestRunConfig>;
-    finishShard(runId: string): Promise<void>;
-    getNextTest(runId: string, config: TestRunConfig): Promise<TestItem | undefined>;
-    getNextTestByProject(runId: string, project: string): Promise<TestItem | undefined>;
+    startShard(): Promise<TestRunConfig>;
+    finishShard(): Promise<void>;
+    getNextTest(config: TestRunConfig): Promise<TestItem | undefined>;
+    getNextTestByProject(project: string): Promise<TestItem | undefined>;
 }

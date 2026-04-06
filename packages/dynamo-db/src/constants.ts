@@ -33,4 +33,5 @@ export enum Fields {
     Config = 'cfg',
     Created = 'cr',
     Children = 'chl',
+    Shards = 'sh',
 }

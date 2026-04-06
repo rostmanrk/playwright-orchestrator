@@ -1,9 +1,10 @@
-import { RunStatus, TestItem, TestRunConfig, TestStatus } from '@playwright-orchestrator/core';
+import { RunStatus, TestItem, TestRunConfig, TestShard, TestStatus } from '@playwright-orchestrator/core';
 import { Binary, Document } from 'mongodb';
 
 export interface TestRunDocument extends Document {
     _id: Binary;
     status: RunStatus;
+    shards: Record<string, TestShard>;
     config: TestRunConfig;
     updated: Date;
 }

@@ -2,8 +2,6 @@ export const SYMBOLS = {
     Adapter: Symbol.for('Adapter'),
     Initializer: Symbol.for('Initializer'),
     RunInfoLoader: Symbol.for('RunInfoLoader'),
-    RunId: Symbol.for('RunId'),
-    OutputFolder: Symbol.for('OutputFolder'),
     ShardHandler: Symbol.for('ShardHandler'),
     TestRunCreator: Symbol.for('TestRunCreator'),
     TestRunner: Symbol.for('TestRunner'),
@@ -14,4 +12,5 @@ export const SYMBOLS = {
     TestExecutionReporter: Symbol.for('TestExecutionReporter'),
     TestEventHandler: Symbol.for('TestEventHandler'),
     TestEventHandlerFactory: Symbol.for('TestEventHandlerFactory'),
+    RunContext: Symbol.for('RunContext'),
 } as const;

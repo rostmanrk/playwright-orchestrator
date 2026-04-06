@@ -1,4 +1,4 @@
-import { TestItem, TestRunConfig } from '../types/adapters.js';
+import type { TestItem, TestRunConfig, TestRunContext } from '../types/adapters.js';
 import { rm, writeFile } from 'node:fs/promises';
 import { rmSync } from 'node:fs';
 import { TestExecutionReporter } from './test-execution-reporter.js';
@@ -21,8 +21,7 @@ export class TestRunner {
     private cleanupFs = new Set<string>();
 
     constructor(
-        @inject(SYMBOLS.RunId) private readonly runId: string,
-        @inject(SYMBOLS.OutputFolder) private readonly outputFolder: string,
+        @inject(SYMBOLS.RunContext) private readonly runContext: TestRunContext,
         @inject(SYMBOLS.ShardHandler) private readonly shardHandler: ShardHandler,
         @inject(SYMBOLS.BrowserManager) private readonly browserManager: BrowserManager,
         @inject(SYMBOLS.WebServerManager) private readonly webServerManager: WebServerManager,
@@ -37,7 +36,7 @@ export class TestRunner {
 
     async runTests(): Promise<boolean> {
         await this.removePreviousOutput();
-        const config = await this.shardHandler.startShard(this.runId);
+        const config = await this.shardHandler.startShard();
         if (config.version !== cliVersion) {
             console.error(
                 `Version mismatch: Orchestrator CLI version is ${cliVersion} but test run was created with version ${config.version}. Please make sure to use the same version of Playwright Orchestrator across all your machines.`,
@@ -58,7 +57,7 @@ export class TestRunner {
             await this.runTestsUntilAvailable(config, browsers);
         } finally {
             this.reporter.printSummary();
-            await this.shardHandler.finishShard(this.runId);
+            await this.shardHandler.finishShard();
         }
         return !this.reporter.hasFailed();
     }
@@ -71,14 +70,14 @@ export class TestRunner {
     }
 
     private async removePreviousOutput() {
-        await rm(this.outputFolder, { recursive: true, force: true });
+        await rm(this.runContext.outputFolder, { recursive: true, force: true });
     }
 
     private async runTestsUntilAvailable(config: TestRunConfig, browsers: Record<string, string>) {
         const batchHandler = this.batchHandlerFactory(config.options.batchMode);
         const runningBatches = new Set<Promise<void>>();
         let batchNumber = 0;
-        let nextBatch = await batchHandler.getNextBatch(this.runId, config);
+        let nextBatch = await batchHandler.getNextBatch(config);
         while (nextBatch || runningBatches.size > 0) {
             if (nextBatch && runningBatches.size < config.workers) {
                 batchNumber++;
@@ -86,7 +85,7 @@ export class TestRunner {
                     runningBatches.delete(batchPromise);
                 });
                 runningBatches.add(batchPromise);
-                nextBatch = await batchHandler.getNextBatch(this.runId, config);
+                nextBatch = await batchHandler.getNextBatch(config);
             } else {
                 await Promise.race(runningBatches);
             }
@@ -105,7 +104,7 @@ export class TestRunner {
 
         const batchId = uuid.v7();
 
-        const batchArtifact = path.relative(process.cwd(), `${this.outputFolder}/${batchId}.zip`);
+        const batchArtifact = path.relative(process.cwd(), `${this.runContext.outputFolder}/${batchId}.zip`);
         try {
             await new Promise<void>((resolve, reject) => {
                 const playwright = spawn('npx', ['playwright', 'test', ...this.buildParams(tests, config)], {

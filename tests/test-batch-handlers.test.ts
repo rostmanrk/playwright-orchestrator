@@ -61,20 +61,20 @@ describe('BaseBatchHandler.getNextTest routing', () => {
     });
 
     it('Grouping.Test always calls getNextTest regardless of project arg', async () => {
-        await handler.getNextTest('run-1', makeConfig({ grouping: Grouping.Test }), 'chrome');
-        expect(mock.getNextTest).toHaveBeenCalledWith('run-1', makeConfig({ grouping: Grouping.Test }));
+        await handler.getNextTest(makeConfig({ grouping: Grouping.Test }), 'chrome');
+        expect(mock.getNextTest).toHaveBeenCalledWith(makeConfig({ grouping: Grouping.Test }));
         expect(mock.getNextTestByProject).not.toHaveBeenCalled();
     });
 
     it('Grouping.Project with project calls getNextTestByProject', async () => {
-        await handler.getNextTest('run-1', makeConfig({ grouping: Grouping.Project }), 'chrome');
-        expect(mock.getNextTestByProject).toHaveBeenCalledWith('run-1', 'chrome');
+        await handler.getNextTest(makeConfig({ grouping: Grouping.Project }), 'chrome');
+        expect(mock.getNextTestByProject).toHaveBeenCalledWith('chrome');
         expect(mock.getNextTest).not.toHaveBeenCalled();
     });
 
     it('Grouping.Project without project falls back to getNextTest', async () => {
-        await handler.getNextTest('run-1', makeConfig({ grouping: Grouping.Project }), undefined);
-        expect(mock.getNextTest).toHaveBeenCalledWith('run-1', makeConfig({ grouping: Grouping.Project }));
+        await handler.getNextTest(makeConfig({ grouping: Grouping.Project }), undefined);
+        expect(mock.getNextTest).toHaveBeenCalledWith(makeConfig({ grouping: Grouping.Project }));
         expect(mock.getNextTestByProject).not.toHaveBeenCalled();
     });
 });
@@ -99,7 +99,7 @@ describe('CountBatchHandler.getNextBatch', () => {
             .mockResolvedValueOnce(makeTest('b', 'chrome'))
             .mockResolvedValueOnce(makeTest('c', 'chrome'));
 
-        const result = await handler.getNextBatch('r', makeConfig({ batchTarget: 3 }));
+        const result = await handler.getNextBatch(makeConfig({ batchTarget: 3 }));
         expect(result).toHaveLength(3);
         expect(result!.map((t) => t.testId)).toEqual(['a', 'b', 'c']);
     });
@@ -108,24 +108,24 @@ describe('CountBatchHandler.getNextBatch', () => {
         mock.getNextTest.mockResolvedValueOnce(makeTest('a', 'chrome'));
         mock.getNextTestByProject.mockResolvedValueOnce(makeTest('b', 'chrome'));
 
-        await handler.getNextBatch('r', makeConfig({ batchTarget: 2 }));
+        await handler.getNextBatch(makeConfig({ batchTarget: 2 }));
 
         expect(mock.getNextTest).toHaveBeenCalledTimes(1);
-        expect(mock.getNextTestByProject).toHaveBeenCalledWith('r', 'chrome');
+        expect(mock.getNextTestByProject).toHaveBeenCalledWith('chrome');
     });
 
     it('returns fewer tests when queue is exhausted before batchTarget', async () => {
         mock.getNextTest.mockResolvedValueOnce(makeTest('a'));
         mock.getNextTestByProject.mockResolvedValueOnce(undefined);
 
-        const result = await handler.getNextBatch('r', makeConfig({ batchTarget: 5 }));
+        const result = await handler.getNextBatch(makeConfig({ batchTarget: 5 }));
         expect(result).toHaveLength(1);
     });
 
     it('returns undefined when queue is empty', async () => {
         mock.getNextTest.mockResolvedValueOnce(undefined);
 
-        const result = await handler.getNextBatch('r', makeConfig({ batchTarget: 3 }));
+        const result = await handler.getNextBatch(makeConfig({ batchTarget: 3 }));
         expect(result).toBeUndefined();
     });
 
@@ -135,7 +135,7 @@ describe('CountBatchHandler.getNextBatch', () => {
             .mockResolvedValueOnce(makeTest('b'))
             .mockResolvedValueOnce(undefined);
 
-        await handler.getNextBatch('r', makeConfig({ batchTarget: 5, grouping: Grouping.Test }));
+        await handler.getNextBatch(makeConfig({ batchTarget: 5, grouping: Grouping.Test }));
         expect(mock.getNextTestByProject).not.toHaveBeenCalled();
     });
 });
@@ -166,7 +166,7 @@ describe('TimeBatchHandler.getNextBatch', () => {
             .mockResolvedValueOnce(makeTest('a', 'chrome', 3000))
             .mockResolvedValueOnce(makeTest('b', 'chrome', 4000));
 
-        const result = await handler.getNextBatch('r', configTime(10));
+        const result = await handler.getNextBatch(configTime(10));
         expect(result!.map((t) => t.testId)).toEqual(['a', 'b']);
         expect(mock.getNextTest).toHaveBeenCalledTimes(2);
     });
@@ -176,7 +176,7 @@ describe('TimeBatchHandler.getNextBatch', () => {
         // iter2: cond 2000>9000 ✗, stop
         mock.getNextTest.mockResolvedValueOnce(makeTest('a', 'chrome', 9000));
 
-        const result = await handler.getNextBatch('r', configTime(10));
+        const result = await handler.getNextBatch(configTime(10));
         expect(result!.map((t) => t.testId)).toEqual(['a']);
     });
 
@@ -187,14 +187,14 @@ describe('TimeBatchHandler.getNextBatch', () => {
             .mockResolvedValueOnce(makeTest('c', 'chrome', 0))
             .mockResolvedValueOnce(undefined);
 
-        const result = await handler.getNextBatch('r', configTime(10));
+        const result = await handler.getNextBatch(configTime(10));
         expect(result!).toHaveLength(3);
     });
 
     it('returns undefined when queue is empty from the start', async () => {
         mock.getNextTest.mockResolvedValueOnce(undefined);
 
-        const result = await handler.getNextBatch('r', configTime(10));
+        const result = await handler.getNextBatch(configTime(10));
         expect(result).toBeUndefined();
     });
 });

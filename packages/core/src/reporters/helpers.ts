@@ -1,4 +1,4 @@
-import { TestReport } from '../types/reporter.js';
+import { TestReport, TestRunReport } from '../types/reporter.js';
 
 export function calculateTrend(test: TestReport) {
     const trend = test.averageDuration - test.duration;
@@ -33,4 +33,15 @@ export function formatElapsed(ms: number): string {
     const m = Math.floor(ms / 60_000);
     const s = Math.floor((ms % 60_000) / 1000);
     return s > 0 ? `${m}m ${s}s` : `${m}m`;
+}
+
+export function extractShardRunInfo(report: TestRunReport) {
+    const shards = report.shards ?? {};
+    const shardInfo = Object.entries(shards).map(([shardId, { started, finished }]) => ({
+        shardId,
+        started: new Date(started).toLocaleString(),
+        finished,
+        duration: finished ? finished - started : null,
+    }));
+    return shardInfo;
 }

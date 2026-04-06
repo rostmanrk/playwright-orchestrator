@@ -11,6 +11,7 @@ import type { CreateArgs } from './create-args.js';
 import { RedisConnection } from './redis-connection.js';
 import { SetOptions } from 'redis';
 import { REDIS_CONFIG, REDIS_CONNECTION } from './symbols.js';
+import type { TestShard } from '@playwright-orchestrator/core';
 
 const TEST_INFO = 'TI';
 const TESTS = 'T';
@@ -34,7 +35,7 @@ export class RedisAdapter extends BaseAdapter {
 
     async getReportData(runId: string): Promise<TestRunReport> {
         const client = await this.connection.getClient();
-        const config = await this.loadTestRunConfig(runId);
+        const { config, shards } = await this.loadTestRunConfig(runId);
         if (!config) throw new Error(`Run ${runId} not found`);
         let reports = (await client.lRange(`${this._namePrefix}:${TEST_RUN}:${runId}:report`, 0, -1)).map((el) =>
             JSON.parse(el),
@@ -43,6 +44,7 @@ export class RedisAdapter extends BaseAdapter {
         return {
             runId,
             config,
+            shards,
             tests: reports.map(({ testId, ...report }) => ({
                 ...report,
             })),
@@ -89,13 +91,27 @@ export class RedisAdapter extends BaseAdapter {
         await pipeline.exec();
     }
 
-    private async loadTestRunConfig(runId: string): Promise<TestRunConfig> {
+    private async loadTestRunConfig(
+        runId: string,
+    ): Promise<{ config: TestRunConfig; shards: Record<string, TestShard> }> {
         const client = await this.connection.getClient();
         const baseKey = `${this._namePrefix}:${TEST_RUN}:${runId}`;
-        const config = await client.get(`${baseKey}:config`);
+        const [config, shards] = (await client
+            .multi()
+            .get(`${baseKey}:config`)
+            .hGetAll(`${baseKey}:shards`)
+            .exec()) as [string | null, Record<string, string> | null];
         if (!config) {
             throw new Error(`Run ${runId} not found`);
         }
-        return JSON.parse(config);
+        return {
+            config: JSON.parse(config),
+            shards: Object.fromEntries(
+                Object.entries((shards as Record<string, string> | null) ?? {}).map(([id, data]) => [
+                    id,
+                    JSON.parse(data),
+                ]),
+            ) as Record<string, TestShard>,
+        };
     }
 }

@@ -36,8 +36,16 @@ export async function testStorage(storageOptions: string[], reportsFolder: strin
 
     // run command
     const command = [orchestratorCli, 'run', ...storageOptions, '--run-id', runId, '--output', reportsFolder];
-    await Promise.all([spawnAsync(process.execPath, command), spawnAsync(process.execPath, command)]);
-
+    const shardIds = ['shard1', 'shard2'];
+    const beforeRun = Date.now();
+    const shardResults = await Promise.all(
+        shardIds.map((shardId) => spawnAsync(process.execPath, [...command, '--shard-id', shardId])),
+    );
+    expect(
+        shardResults.every(({ stderr }) => !stderr.toLocaleLowerCase().includes('error')),
+        `Run command failed. Errors: ${shardResults.map(({ stderr }) => stderr).join('\n')}`,
+    ).toBeTruthy();
+    const afterRun = Date.now();
     const reporterArgs = [
         playwrightCli,
         'merge-reports',
@@ -62,6 +70,12 @@ export async function testStorage(storageOptions: string[], reportsFolder: strin
     ]);
     const report: TestRunReport = JSON.parse(reportStdout);
     expect(report.config.version).toBe(cliVersion);
+    for (const shardId of shardIds) {
+        expect(report.shards).toHaveProperty(shardId);
+        const shardInfo = report.shards[shardId];
+        expect(shardInfo.started).toBeGreaterThan(beforeRun);
+        expect(shardInfo.finished).toBeLessThan(afterRun);
+    }
 
     await expect(
         clearReportForSnapshot(report),

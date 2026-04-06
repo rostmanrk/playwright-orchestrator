@@ -1,6 +1,6 @@
 import { injectable, inject } from 'inversify';
-import type { ShardHandler } from '@playwright-orchestrator/core';
-import { RunStatus } from '@playwright-orchestrator/core';
+import type { ShardHandler, TestRunContext } from '@playwright-orchestrator/core';
+import { RunStatus, SYMBOLS } from '@playwright-orchestrator/core';
 import type { TestItem, TestRunConfig } from '@playwright-orchestrator/core';
 import type { CreateArgs } from './create-args.js';
 import { DynamoDbConnection } from './dynamo-db-connection.js';
@@ -12,7 +12,7 @@ import {
     UpdateCommand,
     QueryCommandInput,
 } from '@aws-sdk/lib-dynamodb';
-import { mapDbToTestItem, mapTestItemToDb, getTtl } from './helpers.js';
+import { mapDbToTestItem, mapTestItemToDb, getTtl, mapDbToTestRun } from './helpers.js';
 import { Fields, OFFSET_STEP, StatusOffset } from './constants.js';
 import type { TestItemDb, TestRunDb } from './types.js';
 import { DYNAMO_CONFIG, DYNAMO_CONNECTION } from './symbols.js';
@@ -26,34 +26,48 @@ export class DynamoDbShardHandler implements ShardHandler {
     constructor(
         @inject(DYNAMO_CONFIG) createArgs: CreateArgs,
         @inject(DYNAMO_CONNECTION) connection: DynamoDbConnection,
+        @inject(SYMBOLS.RunContext) private readonly runContext: TestRunContext,
     ) {
         this.connection = connection;
         this.testsTableName = `${createArgs.tableNamePrefix}-tests`;
         this.ttl = createArgs.ttl * 24 * 60 * 60;
     }
 
-    async startShard(runId: string): Promise<TestRunConfig> {
-        const testRun = await this.getTestRun(runId);
-        const status = testRun[Fields.Status] as RunStatus;
-        const config = testRun[Fields.Config];
+    async startShard(): Promise<TestRunConfig> {
+        const { runId, shardId } = this.runContext;
+        const testRun = mapDbToTestRun(await this.getTestRun(runId));
+
+        let status = testRun.status;
         if (status === RunStatus.Created || status === RunStatus.Finished) {
-            const newStatus = status === RunStatus.Finished ? RunStatus.RepeatRun : RunStatus.Run;
-            testRun[Fields.Status] = newStatus;
-            await this.updateConfigStatus(runId, newStatus);
-            await this.updateFailedTests(runId, config);
+            status = status === RunStatus.Finished ? RunStatus.RepeatRun : RunStatus.Run;
+            await this.updateFailedTests(runId, testRun.config);
         }
-        return config;
+        await this.updateTestRun(
+            status,
+            `#shards.#shardId = if_not_exists(#shards.#shardId, :shard)`,
+            { '#shards': Fields.Shards, '#shardId': shardId },
+            { ':shard': { shardId, started: Date.now() } },
+        );
+        return testRun.config;
     }
 
-    async finishShard(runId: string): Promise<void> {
-        await this.updateConfigStatus(runId, RunStatus.Finished);
+    async finishShard(): Promise<void> {
+        const { shardId } = this.runContext;
+        await this.updateTestRun(
+            RunStatus.Finished,
+            `#shards.#shardId.finished = if_not_exists(#shards.#shardId.finished, :finished)`,
+            { '#shards': Fields.Shards, '#shardId': shardId },
+            { ':finished': Date.now() },
+        );
     }
 
-    async getNextTest(runId: string, _config: TestRunConfig): Promise<TestItem | undefined> {
+    async getNextTest(_config: TestRunConfig): Promise<TestItem | undefined> {
+        const { runId } = this.runContext;
         return await this.getNextTestByStatus(runId, StatusOffset.Pending);
     }
 
-    async getNextTestByProject(runId: string, project: string): Promise<TestItem | undefined> {
+    async getNextTestByProject(project: string): Promise<TestItem | undefined> {
+        const { runId } = this.runContext;
         return await this.getNextTestByStatus(runId, StatusOffset.Pending, project);
     }
 
@@ -66,6 +80,32 @@ export class DynamoDbShardHandler implements ShardHandler {
         );
         if (!configRequest.Item) throw new Error(`Run ${runId} not found.`);
         return configRequest.Item as TestRunDb;
+    }
+
+    private async updateTestRun(
+        runStatus: RunStatus,
+        updateExpression: string,
+        expressionAttributeNames: Record<string, string>,
+        expressionAttributeValues: Record<string, unknown>,
+    ): Promise<void> {
+        const { runId } = this.runContext;
+        await this.connection.docClient.send(
+            new UpdateCommand({
+                TableName: this.testsTableName,
+                Key: { [Fields.Id]: runId, [Fields.Order]: 0 },
+                UpdateExpression: `SET #updated = :updated, #status = :status, ${updateExpression}`,
+                ExpressionAttributeNames: {
+                    '#updated': Fields.Updated,
+                    '#status': Fields.Status,
+                    ...expressionAttributeNames,
+                },
+                ExpressionAttributeValues: {
+                    ':updated': Date.now(),
+                    ':status': runStatus,
+                    ...expressionAttributeValues,
+                },
+            }),
+        );
     }
 
     private async getNextTestByStatus(
@@ -159,18 +199,6 @@ export class DynamoDbShardHandler implements ShardHandler {
         } while (exclusiveStartKey);
 
         return;
-    }
-
-    private async updateConfigStatus(runId: string, status: RunStatus): Promise<void> {
-        await this.connection.docClient.send(
-            new UpdateCommand({
-                TableName: this.testsTableName,
-                Key: { [Fields.Id]: runId, [Fields.Order]: 0 },
-                UpdateExpression: 'SET #status = :status, #updated = :updated',
-                ExpressionAttributeNames: { '#status': Fields.Status, '#updated': Fields.Updated },
-                ExpressionAttributeValues: { ':status': status, ':updated': Date.now() },
-            }),
-        );
     }
 
     private async tryToDeleteItem(runId: string, order: number): Promise<boolean> {

@@ -38,6 +38,7 @@ export abstract class BaseTestRunCreator implements TestRunCreator {
         const config: TestRun = {
             status: RunStatus.Created,
             updated: Date.now(),
+            shards: {},
             config: { ...reporterTestRun.config, options, args: this.cleanArgs(args), version: cliVersion },
         };
         await this.saveRunData(runId, config, tests);

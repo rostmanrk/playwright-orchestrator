@@ -1,6 +1,6 @@
 import { injectable, inject } from 'inversify';
-import type { ShardHandler } from '@playwright-orchestrator/core';
-import { RunStatus, TestStatus } from '@playwright-orchestrator/core';
+import type { ShardHandler, TestRunContext } from '@playwright-orchestrator/core';
+import { RunStatus, SYMBOLS, TestStatus } from '@playwright-orchestrator/core';
 import type { TestItem, TestRunConfig } from '@playwright-orchestrator/core';
 import type { CreateArgs } from './create-args.js';
 import { MongoConnection } from './mongo-connection.js';
@@ -19,18 +19,19 @@ export class MongoShardHandler implements ShardHandler {
     constructor(
         @inject(MONGO_CONFIG) { collectionNamePrefix }: CreateArgs,
         @inject(MONGO_CONNECTION) connection: MongoConnection,
+        @inject(SYMBOLS.RunContext) private readonly runContext: TestRunContext,
     ) {
         this.connection = connection;
         this.runsCollection = `${collectionNamePrefix}_test_runs`;
         this.testsCollection = `${collectionNamePrefix}_tests`;
     }
 
-    async getNextTest(runId: string, _config: TestRunConfig): Promise<TestItem | undefined> {
-        return this.claimNextTest(runId);
+    async getNextTest(_config: TestRunConfig): Promise<TestItem | undefined> {
+        return this.claimNextTest(this.runContext.runId);
     }
 
-    async getNextTestByProject(runId: string, project: string): Promise<TestItem | undefined> {
-        return this.claimNextTest(runId, project);
+    async getNextTestByProject(project: string): Promise<TestItem | undefined> {
+        return this.claimNextTest(this.runContext.runId, project);
     }
 
     private async claimNextTest(runId: string, project?: string): Promise<TestItem | undefined> {
@@ -46,8 +47,10 @@ export class MongoShardHandler implements ShardHandler {
         return { file, position: `${line}:${column}`, projects, timeout, ema, order, children, testId };
     }
 
-    async startShard(runId: string): Promise<TestRunConfig> {
+    async startShard(): Promise<TestRunConfig> {
+        const { runId, shardId } = this.runContext;
         const now = new Date();
+        const nowMs = now.getTime();
         const run = await this.runs.findOneAndUpdate({ _id: generateRunId(runId) }, [
             {
                 $set: {
@@ -57,6 +60,9 @@ export class MongoShardHandler implements ShardHandler {
                             then: RunStatus.Run,
                             else: RunStatus.RepeatRun,
                         },
+                    },
+                    [`shards.${shardId}`]: {
+                        $ifNull: [`$shards.${shardId}`, { shardId, started: nowMs }],
                     },
                     updated: now,
                 },
@@ -72,11 +78,21 @@ export class MongoShardHandler implements ShardHandler {
         return run.config;
     }
 
-    async finishShard(runId: string): Promise<void> {
-        await this.runs.updateOne(
-            { _id: generateRunId(runId) },
-            { $set: { status: RunStatus.Finished, updated: new Date() } },
-        );
+    async finishShard(): Promise<void> {
+        const { runId, shardId } = this.runContext;
+        const now = new Date();
+        const nowMs = now.getTime();
+        await this.runs.updateOne({ _id: generateRunId(runId) }, [
+            {
+                $set: {
+                    status: RunStatus.Finished,
+                    updated: now,
+                    [`shards.${shardId}.finished`]: {
+                        $ifNull: [`$shards.${shardId}.finished`, nowMs],
+                    },
+                },
+            },
+        ]);
     }
 
     private get runs() {

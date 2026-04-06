@@ -1,5 +1,6 @@
 import { inject, injectable } from 'inversify';
-import { Grouping, TestItem, TestRunConfig } from '../types/adapters.js';
+import type { TestItem, TestRunConfig, TestRunContext } from '../types/adapters.js';
+import { Grouping } from '../types/adapters.js';
 import { TestInfoResult, TestReportEvent } from '../types/reporter.js';
 import { TestExecutionReporter } from './test-execution-reporter.js';
 import type { Adapter } from '../adapters/adapter.js';
@@ -29,7 +30,7 @@ export class PlaywrightTestEventHandler implements TestEventHandler {
     private batchName!: string;
 
     constructor(
-        @inject(SYMBOLS.RunId) private readonly runId: string,
+        @inject(SYMBOLS.RunContext) private readonly runContext: TestRunContext,
         @inject(SYMBOLS.Adapter) private readonly adapter: Adapter,
         @inject(SYMBOLS.TestExecutionReporter) private readonly reporter: TestExecutionReporter,
     ) {}
@@ -180,7 +181,7 @@ export class PlaywrightTestEventHandler implements TestEventHandler {
             ? TestStatus.Passed
             : TestStatus.Failed;
         await this.adapter.updateTestWithResults(status, {
-            runId: this.runId,
+            runId: this.runContext.runId,
             test,
             testResult: {
                 // Summing durations of all retries and tests for the test to get total duration.
