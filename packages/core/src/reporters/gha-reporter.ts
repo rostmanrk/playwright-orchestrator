@@ -65,13 +65,20 @@ ${shardInfo
 
 function buildConfigData({
     config: {
-        options: { historyWindow },
+        options: { historyWindow, batchMode, grouping, batchTarget },
+        workers,
+        version,
     },
     runId,
 }: TestRunReport) {
     return `
 <table>
-<tr><td>Run Id</td><td>${runId}</td></tr>    
-<tr><td>History Window</td><td>${historyWindow}</td></tr>    
+<tr><td>PW Orchestrator Version</td><td>${version}</td></tr>
+<tr><td>Run Id</td><td>${runId}</td></tr>
+<tr><td>History Window</td><td>${historyWindow}</td></tr>
+<tr><td>Grouping</td><td>${grouping}</td></tr>
+<tr><td>Batch Mode</td><td>${batchMode}</td></tr>
+<tr><td>Batch Target</td><td>${batchTarget}</td></tr>
+<tr><td>Workers Per Shard</td><td>${workers}</td></tr>
 </table>`;
 }
