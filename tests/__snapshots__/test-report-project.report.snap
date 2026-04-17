@@ -13,8 +13,30 @@
     },
     "projects": [
       {
+        "dependencies": [],
+        "name": "setup",
+        "repeatEach": 1,
+        "use": {
+          "baseURL": "http://localhost:4321",
+          "trace": "on-first-retry"
+        }
+      },
+      {
+        "dependencies": [],
+        "name": "teardown",
+        "repeatEach": 1,
+        "use": {
+          "baseURL": "http://localhost:4321",
+          "trace": "on-first-retry"
+        }
+      },
+      {
+        "dependencies": [
+          "setup"
+        ],
         "name": "chromium",
         "repeatEach": 1,
+        "teardown": "teardown",
         "use": {
           "baseURL": "http://localhost:4321",
           "defaultBrowserType": "chromium",
@@ -34,8 +56,12 @@
         }
       },
       {
+        "dependencies": [
+          "setup"
+        ],
         "name": "firefox",
         "repeatEach": 1,
+        "teardown": "teardown",
         "use": {
           "baseURL": "http://localhost:4321",
           "defaultBrowserType": "firefox",

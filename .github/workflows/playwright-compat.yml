@@ -77,8 +77,9 @@ jobs:
 
           | API | Used in |
           |-----|---------|
-          | \`playwright/lib/common/configLoader\` — \`loadConfig\`, \`resolveConfigLocation\` | \`packages/core/src/runner/web-server-manager.ts\` |
+          | \`playwright/lib/common/configLoader\` — \`loadConfig\`, \`resolveConfigLocation\` | \`packages/core/src/helpers/playwright-config.ts\` |
           | \`playwright/lib/plugins\` — \`webServer\` | \`packages/core/src/runner/web-server-manager.ts\` |
+          | \`playwright/lib/runner/loadUtils\` — \`loadGlobalHook\` | \`packages/core/src/runner/global-setup-manager.ts\` |
           | \`Suite._parallelMode\` | \`packages/core/src/playwright-tools/run-builder.ts\` |
 
           [View workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})

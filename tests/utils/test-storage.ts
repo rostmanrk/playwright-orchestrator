@@ -2,9 +2,12 @@ import { expect } from 'vitest';
 import { spawnAsync } from '../../packages/core/src/helpers/spawn.js';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
+import { readFileSync } from 'node:fs';
 import type { Grouping } from '../../packages/core/src/types/adapters.js';
 import { TestRunReport } from '../../packages/core/src/types/reporter.js';
 import { cliVersion } from '../../packages/core/src/commands/version.js';
+import { tmpdir } from 'node:os';
+import { globalSetupMarkerFile, globalTeardownMarkerFile } from '../../e2e/globalHooks/constants.mts';
 
 const req = createRequire(join(process.cwd(), 'package.json'));
 const orchestratorCli = req.resolve('@playwright-orchestrator/core/cli');
@@ -37,10 +40,20 @@ export async function testStorage(storageOptions: string[], reportsFolder: strin
     // run command
     const command = [orchestratorCli, 'run', ...storageOptions, '--run-id', runId, '--output', reportsFolder];
     const shardIds = ['shard1', 'shard2'];
+    const globalMarkerFolder = join(tmpdir(), `playwright-orchestrator-test-${runId}`);
     const beforeRun = Date.now();
     const shardResults = await Promise.all(
-        shardIds.map((shardId) => spawnAsync(process.execPath, [...command, '--shard-id', shardId])),
+        shardIds.map((shardId) =>
+            spawnAsync(process.execPath, [...command, '--shard-id', shardId], {
+                env: { ...process.env, MARKER_FOLDER: globalMarkerFolder },
+            }),
+        ),
     );
+    const setupMarker = readFileSync(join(globalMarkerFolder, globalSetupMarkerFile), 'utf-8');
+    const teardownMarker = readFileSync(join(globalMarkerFolder, globalTeardownMarkerFile), 'utf-8');
+    // global setup and teardown + deps should be executed once per shard, so the marker files should contain the number of shards * 2
+    expect(setupMarker).toBe((shardIds.length * 2).toString());
+    expect(teardownMarker).toBe((shardIds.length * 2).toString());
     expect(
         shardResults.every(({ stderr }) => !stderr.toLocaleLowerCase().includes('error')),
         `Run command failed. Errors: ${shardResults.map(({ stderr }) => stderr).join('\n')}`,

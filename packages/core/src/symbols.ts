@@ -13,4 +13,6 @@ export const SYMBOLS = {
     TestEventHandler: Symbol.for('TestEventHandler'),
     TestEventHandlerFactory: Symbol.for('TestEventHandlerFactory'),
     RunContext: Symbol.for('RunContext'),
+    GlobalSetupManager: Symbol.for('GlobalSetupManager'),
+    PlaywrightConfigLoader: Symbol.for('PlaywrightConfigLoader'),
 } as const;

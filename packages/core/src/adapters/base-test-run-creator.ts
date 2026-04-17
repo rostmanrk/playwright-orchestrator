@@ -9,7 +9,7 @@ import type {
     BaseOptions,
     TestRun,
 } from '../types/adapters.js';
-import type { ReporterTestRun } from '../types/test-info.js';
+import type { Project, ReporterTestRun } from '../types/test-info.js';
 import { RunStatus } from '../types/test-info.js';
 import type { RunInfoLoader } from '../adapters/run-info-loader.js';
 import { cliVersion } from '../commands/version.js';
@@ -30,6 +30,7 @@ export abstract class BaseTestRunCreator implements TestRunCreator {
     async create({ runId, args, options }: SaveTestRunParams): Promise<void> {
         const reporterTestRun = await this.runInfoLoader.load(args);
         let tests = this.transformTestRunToItems(reporterTestRun.testRun, options);
+        tests = this.filterInfrastructureProjects(tests, reporterTestRun.config.projects);
         const testInfos = await this.loadTestInfos(tests);
         tests = this.sortTests(tests, testInfos, {
             historyWindow: options.historyWindow,
@@ -100,6 +101,28 @@ export abstract class BaseTestRunCreator implements TestRunCreator {
             value *= fails / historyWindow + 1;
         }
         return value;
+    }
+
+    private filterInfrastructureProjects(tests: TestItem[], projects: Project[]): TestItem[] {
+        const infraProjects = new Set<string>();
+        for (const project of projects) {
+            for (const dep of project.dependencies) {
+                infraProjects.add(dep);
+            }
+            if (project.teardown) {
+                infraProjects.add(project.teardown);
+            }
+        }
+        if (infraProjects.size === 0) return tests;
+
+        return tests
+            .map((test) => {
+                const filtered = test.projects.filter((p) => !infraProjects.has(p));
+                if (filtered.length === 0) return null;
+                if (filtered.length === test.projects.length) return test;
+                return { ...test, projects: filtered };
+            })
+            .filter((test): test is TestItem => test !== null);
     }
 
     private validateTests(tests: TestItem[]): void {

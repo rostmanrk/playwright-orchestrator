@@ -63,7 +63,14 @@ check('playwright/lib/plugins.webServer', () => {
     assert(typeof m.webServer === 'function', `webServer is ${typeof m.webServer} (expected function)`);
 });
 
-// ── Check 4: Suite._parallelMode ─────────────────────────────────────────────
+// ── Check 4: playwright/lib/runner/loadUtils.loadGlobalHook ──────────────────
+check('playwright/lib/runner/loadUtils.loadGlobalHook', () => {
+    const pwDir = path.dirname(req.resolve('playwright/package.json'));
+    const m = require(path.join(pwDir, 'lib/runner/loadUtils.js'));
+    assert(typeof m.loadGlobalHook === 'function', `loadGlobalHook is ${typeof m.loadGlobalHook} (expected function)`);
+});
+
+// ── Check 5: Suite._parallelMode ─────────────────────────────────────────────
 // _parallelMode is an instance property set in the Suite constructor.
 // We load the Suite class by its absolute path to bypass package exports restrictions,
 // then instantiate it and verify the property is present on the instance — exactly

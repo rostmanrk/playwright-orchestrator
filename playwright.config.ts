@@ -36,14 +36,28 @@ export default defineConfig({
     /* Configure projects for major browsers */
     projects: [
         {
+            name: 'setup',
+            testDir: './e2e/globalHooks',
+            testMatch: 'global.setup.spec.ts',
+        },
+        {
+            name: 'teardown',
+            testDir: './e2e/globalHooks',
+            testMatch: 'global.teardown.spec.ts',
+        },
+        {
             name: 'chromium',
             use: { ...devices['Desktop Chrome'] },
             outputDir: './test-results/chromium',
+            dependencies: ['setup'],
+            teardown: 'teardown',
         },
 
         {
             name: 'firefox',
             use: { ...devices['Desktop Firefox'] },
+            dependencies: ['setup'],
+            teardown: 'teardown',
         },
 
         // {
