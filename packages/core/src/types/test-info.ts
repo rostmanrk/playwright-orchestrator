@@ -6,6 +6,8 @@ export interface Project {
     name: string;
     use: UseOptions;
     repeatEach: number;
+    dependencies: string[];
+    teardown?: string;
 }
 
 export interface TestConfig {

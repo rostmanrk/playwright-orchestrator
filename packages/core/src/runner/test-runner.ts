@@ -9,12 +9,13 @@ import type { ShardHandler } from '../adapters/shard-handler.js';
 import type { BatchHandlerFactory } from '../commands/run.js';
 import { BrowserManager } from './browser-manager.js';
 import { WebServerManager } from './web-server-manager.js';
-import { spawn } from 'node:child_process';
-import { createInterface } from 'node:readline';
+import { GlobalSetupManager } from './global-setup-manager.js';
 import { SYMBOLS } from '../symbols.js';
+import { runPlaywright } from '../helpers/run-playwright.js';
 import type { TestEventHandlerFactory } from './test-event-handler.js';
 import { cliVersion } from '../commands/version.js';
 import { registerOnExit } from '../helpers/register-on-exit.js';
+import { PlaywrightConfigLoader } from '../helpers/playwright-config.js';
 
 @injectable()
 export class TestRunner {
@@ -25,9 +26,11 @@ export class TestRunner {
         @inject(SYMBOLS.ShardHandler) private readonly shardHandler: ShardHandler,
         @inject(SYMBOLS.BrowserManager) private readonly browserManager: BrowserManager,
         @inject(SYMBOLS.WebServerManager) private readonly webServerManager: WebServerManager,
+        @inject(SYMBOLS.GlobalSetupManager) private readonly globalSetupManager: GlobalSetupManager,
         @inject(SYMBOLS.BatchHandlerFactory) private readonly batchHandlerFactory: BatchHandlerFactory,
         @inject(SYMBOLS.TestExecutionReporter) private readonly reporter: TestExecutionReporter,
         @inject(SYMBOLS.TestEventHandlerFactory) private readonly testEventHandlerFactory: TestEventHandlerFactory,
+        @inject(SYMBOLS.PlaywrightConfigLoader) private readonly configLoader: PlaywrightConfigLoader,
     ) {
         registerOnExit(() => {
             this.cleanupTemp();
@@ -44,18 +47,21 @@ export class TestRunner {
             process.exitCode = 1;
             return false;
         }
+        await this.configLoader.loadPlaywrightConfig(config.configFile);
         const [browsers] = await Promise.all([
             this.browserManager.runBrowsers(config),
-            this.webServerManager.startServers(config),
+            this.webServerManager.startServers(),
         ]);
         config.configFile = await this.createTempConfig(config.configFile);
         if (config.configFile) {
             this.cleanupFs.add(config.configFile);
         }
+        await this.globalSetupManager.runSetup(config);
 
         try {
             await this.runTestsUntilAvailable(config, browsers);
         } finally {
+            await this.globalSetupManager.runTeardown(config);
             this.reporter.printSummary();
             await this.shardHandler.finishShard();
         }
@@ -106,20 +112,15 @@ export class TestRunner {
 
         const batchArtifact = path.relative(process.cwd(), `${this.runContext.outputFolder}/${batchId}.zip`);
         try {
-            await new Promise<void>((resolve, reject) => {
-                const playwright = spawn('npx', ['playwright', 'test', ...this.buildParams(tests, config)], {
-                    env: {
-                        ...process.env,
-                        PLAYWRIGHT_BLOB_OUTPUT_FILE: batchArtifact,
-                        ...(config.configFile && {
-                            PLAYWRIGHT_ORCHESTRATOR_BROWSERS: JSON.stringify(browsers),
-                        }),
-                        PLAYWRIGHT_ORCHESTRATOR_GROUPING: config.options.grouping,
-                    },
-                });
-                createInterface({ input: playwright.stdout, crlfDelay: Infinity }).on('line', onData);
-                playwright.on('exit', () => onExit().then(resolve, reject));
+            await runPlaywright(this.buildParams(tests, config), onData, {
+                ...process.env,
+                PLAYWRIGHT_BLOB_OUTPUT_FILE: batchArtifact,
+                ...(config.configFile && {
+                    PLAYWRIGHT_ORCHESTRATOR_BROWSERS: JSON.stringify(browsers),
+                }),
+                PLAYWRIGHT_ORCHESTRATOR_GROUPING: config.options.grouping,
             });
+            await onExit();
             batchResolver.success();
         } catch (err) {
             batchResolver.fail(err);
@@ -150,7 +151,6 @@ export class TestRunner {
 
     private async createTempConfig(file: string | undefined): Promise<string | undefined> {
         if (!file) return;
-        // Remove webServer from config (not supported in the orchestrator).
         // Browser endpoints are injected via PLAYWRIGHT_ORCHESTRATOR_BROWSERS env var.
         const content = `
 import config from '${path.resolve(file)}';
@@ -158,12 +158,16 @@ import config from '${path.resolve(file)}';
 const browsers: Record<string, string> = JSON.parse(process.env.PLAYWRIGHT_ORCHESTRATOR_BROWSERS ?? '{}');
 
 config.webServer = undefined;
+config.globalSetup = undefined;
+config.globalTeardown = undefined;
 for (const project of config?.projects ?? []) {
     if (!project.use) project.use = {};
     if (!project.use.connectOptions) project.use.connectOptions = {};
     if (!project.use.connectOptions.wsEndpoint) {
         project.use.connectOptions.wsEndpoint = browsers[project.name!];
     }
+    project.dependencies = [];
+    project.teardown = undefined;
 }
 
 export default config;`;

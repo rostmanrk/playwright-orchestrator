@@ -7,7 +7,11 @@ import type { Adapter } from '../adapters/adapter.js';
 import { SYMBOLS } from '../symbols.js';
 import { Project, TestStatus } from '../types/test-info.js';
 
-type HandlerResult = { onData: (data: any) => void; onExit: () => Promise<void>; batchResolver: Resolver };
+type HandlerResult = {
+    onData: (data: any, isError: boolean) => void;
+    onExit: () => Promise<void>;
+    batchResolver: Resolver;
+};
 type Resolver = { success: () => void; fail: (reason?: any) => void };
 
 export interface TestEventHandler {
@@ -39,8 +43,9 @@ export class PlaywrightTestEventHandler implements TestEventHandler {
         this.config = config;
         this.initTests(tests, config, batchName);
 
-        const onData = (data: any) => {
+        const onData = (data: any, isError: boolean) => {
             let event: TestReportEvent;
+            if (isError) return;
             try {
                 event = JSON.parse(data.toString()) as TestReportEvent;
             } catch (error) {

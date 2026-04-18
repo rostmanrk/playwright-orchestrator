@@ -10,8 +10,10 @@ import type { BatchHandler } from '../batch/batch-handler.js';
 import { SYMBOLS } from '../symbols.js';
 import { PlaywrightTestEventHandler, TestEventHandler, TestEventHandlerFactory } from '../runner/test-event-handler.js';
 import { WebServerManager } from '../runner/web-server-manager.js';
+import { GlobalSetupManager } from '../runner/global-setup-manager.js';
 import { BrowserManager } from '../runner/browser-manager.js';
 import { TestExecutionReporter } from '../runner/test-execution-reporter.js';
+import { PlaywrightConfigLoader } from '../helpers/playwright-config.js';
 import { Container } from 'inversify';
 import * as uuid from 'uuid';
 
@@ -75,6 +77,8 @@ function registerServices(container: Container) {
     container.bind(SYMBOLS.TestExecutionReporter).to(TestExecutionReporter).inSingletonScope();
     container.bind(SYMBOLS.BrowserManager).to(BrowserManager).inSingletonScope();
     container.bind(SYMBOLS.WebServerManager).to(WebServerManager).inSingletonScope();
+    container.bind(SYMBOLS.GlobalSetupManager).to(GlobalSetupManager).inSingletonScope();
+    container.bind(SYMBOLS.PlaywrightConfigLoader).to(PlaywrightConfigLoader).inSingletonScope();
 
     container.bind<TestRunner>(SYMBOLS.TestRunner).to(TestRunner);
 }

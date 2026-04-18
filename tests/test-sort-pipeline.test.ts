@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { BaseTestRunCreator } from '../packages/core/src/adapters/base-test-run-creator.js';
 import type { TestItem, TestSortItem, TestRun, BaseOptions } from '../packages/core/src/types/adapters.js';
 import { Grouping, BatchMode } from '../packages/core/src/types/adapters.js';
-import type { ReporterTestRunInfo } from '../packages/core/src/types/test-info.js';
+import type { Project, ReporterTestRunInfo } from '../packages/core/src/types/test-info.js';
 
 class TestableCreator extends BaseTestRunCreator {
     testInfoMap: Map<string, TestSortItem> = new Map();
@@ -19,8 +19,8 @@ class TestableCreator extends BaseTestRunCreator {
     }
 }
 
-function makeRunInfo(testRun: ReporterTestRunInfo['testRun']): ReporterTestRunInfo {
-    return { testRun, config: { workers: 1, projects: [] } };
+function makeRunInfo(testRun: ReporterTestRunInfo['testRun'], projects: Project[] = []): ReporterTestRunInfo {
+    return { testRun, config: { workers: 1, projects } };
 }
 
 function makeOptions(overrides: Partial<BaseOptions> = {}): BaseOptions {
@@ -153,6 +153,60 @@ describe('BaseTestRunCreator grouping modes', () => {
         expect(creator.savedTests).toHaveLength(2);
         const ids = creator.savedTests.map((t) => t.testId).sort();
         expect(ids).toEqual(['[chrome] a.spec.ts > test a', '[firefox] a.spec.ts > test a']);
+    });
+});
+
+describe('BaseTestRunCreator infrastructure project filtering', () => {
+    const projects: Project[] = [
+        { name: 'setup', use: {} as any, repeatEach: 1, dependencies: [], teardown: undefined },
+        { name: 'teardown', use: {} as any, repeatEach: 1, dependencies: [], teardown: undefined },
+        { name: 'chromium', use: {} as any, repeatEach: 1, dependencies: ['setup'], teardown: 'teardown' },
+    ];
+
+    it('filters out tests from dependency/teardown projects', async () => {
+        const runInfo = makeRunInfo(
+            {
+                'setup.spec.ts': { '1:1': { timeout: 5000, projects: ['setup'], title: 'setup', annotations: [], children: undefined } },
+                'teardown.spec.ts': { '1:1': { timeout: 5000, projects: ['teardown'], title: 'teardown', annotations: [], children: undefined } },
+                'a.spec.ts': { '1:1': { timeout: 5000, projects: ['chromium'], title: 'test a', annotations: [], children: undefined } },
+            },
+            projects,
+        );
+        const creator = makeCreator(runInfo);
+        await creator.create({ runId: 'r', args: [], options: makeOptions() });
+
+        expect(creator.savedTests).toHaveLength(1);
+        expect(creator.savedTests[0].testId).toBe('[chromium] a.spec.ts > test a');
+    });
+
+    it('strips infrastructure projects from mixed-project tests', async () => {
+        const runInfo = makeRunInfo(
+            {
+                'a.spec.ts': { '1:1': { timeout: 5000, projects: ['setup', 'chromium'], title: 'test a', annotations: [], children: undefined } },
+            },
+            projects,
+        );
+        const creator = makeCreator(runInfo);
+        await creator.create({ runId: 'r', args: [], options: makeOptions() });
+
+        expect(creator.savedTests).toHaveLength(1);
+        expect(creator.savedTests[0].projects).toEqual(['chromium']);
+    });
+
+    it('keeps all tests when no dependencies are configured', async () => {
+        const noDeps: Project[] = [
+            { name: 'chromium', use: {} as any, repeatEach: 1, dependencies: [], teardown: undefined },
+        ];
+        const runInfo = makeRunInfo(
+            {
+                'a.spec.ts': { '1:1': { timeout: 5000, projects: ['chromium'], title: 'test a', annotations: [], children: undefined } },
+            },
+            noDeps,
+        );
+        const creator = makeCreator(runInfo);
+        await creator.create({ runId: 'r', args: [], options: makeOptions() });
+
+        expect(creator.savedTests).toHaveLength(1);
     });
 });
 

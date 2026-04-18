@@ -15,6 +15,7 @@
         "sourceMap": true,
         "composite": true,
         "experimentalDecorators": true,
-        "emitDecoratorMetadata": true
+        "emitDecoratorMetadata": true,
+        "types": ["node"]
     }
 }
