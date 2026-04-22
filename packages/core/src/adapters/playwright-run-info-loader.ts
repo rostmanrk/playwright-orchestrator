@@ -1,23 +1,32 @@
 import { injectable } from 'inversify';
 import type { RunInfoLoader } from './run-info-loader.js';
 import type { ReporterTestRunInfo } from '../types/test-info.js';
-import { spawnAsync } from '../helpers/spawn.js';
-import { createRequire } from 'node:module';
-import { dirname, join } from 'node:path';
+import { runPlaywright } from '../helpers/run-playwright.js';
 
 @injectable()
 export class PlaywrightRunInfoLoader implements RunInfoLoader {
     async load(args: string[]): Promise<ReporterTestRunInfo> {
-        const req = createRequire(join(process.cwd(), 'package.json'));
-        const playwrightCli = join(dirname(req.resolve('@playwright/test/package.json')), 'cli.js');
-        const { stdout } = await spawnAsync(process.execPath, [
-            playwrightCli,
-            'test',
-            ...args,
-            '--list',
-            '--reporter',
-            '@playwright-orchestrator/core/run-info-reporter',
-        ]);
-        return JSON.parse(stdout) as ReporterTestRunInfo;
+        let parsedRunInfo: ReporterTestRunInfo | null = null;
+        let stdout = '';
+        await runPlaywright(
+            [...args, '--list', '--reporter', '@playwright-orchestrator/core/run-info-reporter'],
+            (line, isError) => {
+                if (isError) {
+                    console.error(line); // Log Playwright errors to the console
+                } else {
+                    stdout += `${line}\n`; // Accumulate stdout to parse the final run info
+                    try {
+                        const value = JSON.parse(line) as ReporterTestRunInfo;
+                        if (value.config && value.testRun) {
+                            parsedRunInfo = value;
+                        }
+                    } catch {}
+                }
+            },
+        );
+        if (!parsedRunInfo) {
+            throw new Error(`Failed to load run info. Output:\n${stdout}`);
+        }
+        return parsedRunInfo!;
     }
 }

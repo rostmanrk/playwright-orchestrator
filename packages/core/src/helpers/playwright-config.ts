@@ -10,6 +10,8 @@ export interface PlaywrightConfig {
     webServers: any[];
 }
 
+const req = createRequire(join(process.cwd(), 'package.json'));
+
 @injectable()
 export class PlaywrightConfigLoader {
     private cached: PlaywrightConfig | undefined;
@@ -25,7 +27,6 @@ export class PlaywrightConfigLoader {
         if (!configFile) {
             throw new Error('No config file provided');
         }
-        const req = createRequire(join(process.cwd(), 'package.json'));
         const { loadConfig, resolveConfigLocation } = req('playwright/lib/common/configLoader');
         const location = resolveConfigLocation(resolve(configFile));
         this.cached = await loadConfig(location, {});
@@ -33,7 +34,6 @@ export class PlaywrightConfigLoader {
 }
 
 export function loadPlaywrightModule(subpath: string): any {
-    const req = createRequire(join(process.cwd(), 'package.json'));
     try {
         return req(subpath);
     } catch {
