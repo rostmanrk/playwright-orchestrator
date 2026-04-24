@@ -9,19 +9,3 @@ services:
         environment:
             MYSQL_ROOT_PASSWORD: password
             MYSQL_DATABASE: test
-
-    test:
-        image: mysql
-        restart: always
-        ports:
-            - 3307:3306
-        environment:
-            MYSQL_ROOT_PASSWORD: password
-            MYSQL_DATABASE: test
-        profiles:
-            - test
-        healthcheck:
-            test: ['CMD', 'mysql', '-h', 'localhost', '-u', 'root', '-ppassword']
-            interval: 2s
-            retries: 10
-            timeout: 2s

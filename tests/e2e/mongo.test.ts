@@ -1,21 +1,30 @@
 import { it, afterAll, beforeAll, describe } from 'vitest';
 import { rm } from 'node:fs/promises';
 import { testStorage } from '../utils/test-storage.js';
-import { spawnAsync } from '../../packages/core/src/helpers/spawn.js';
 import { TEST_TIMEOUT } from '../utils/constants.js';
 import { Grouping } from '../../packages/core/src/types/adapters.js';
+import { GenericContainer, StartedTestContainer, Wait } from 'testcontainers';
 
 const reportsFolder = './test-reports-folder-mongo';
-const storageOptions = ['mongo', '--connection-string', 'mongodb://root:password@localhost:27018/', '--db', 'test'];
+let container: StartedTestContainer | undefined;
+let storageOptions: string[];
 
 beforeAll(async () => {
-    if (process.env.CI) return;
-    await spawnAsync('pnpm', ['mongo-local', 'up', 'test', '--wait']);
-});
+    const connectionString = process.env.MONGO_CONNECTION_STRING;
+    if (connectionString) {
+        storageOptions = ['mongo', '--connection-string', connectionString, '--db', process.env.MONGO_DB ?? 'test'];
+    } else {
+        container = await new GenericContainer('mongo:7')
+            .withExposedPorts(27017)
+            .withWaitStrategy(Wait.forLogMessage(/waiting for connections/i))
+            .start();
+        const port = container.getMappedPort(27017);
+        storageOptions = ['mongo', '--connection-string', `mongodb://${container.getHost()}:${port}/`, '--db', 'test'];
+    }
+}, 60000);
 
 afterAll(async () => {
-    if (process.env.CI) return;
-    await spawnAsync('pnpm', ['mongo-local', 'down', 'test']);
+    await container?.stop();
     await rm(reportsFolder, { recursive: true, force: true });
 });
 

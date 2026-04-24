@@ -1,25 +1,26 @@
 import { it, afterAll, beforeAll, describe } from 'vitest';
 import { rm } from 'node:fs/promises';
 import { testStorage } from '../utils/test-storage.js';
-import { spawnAsync } from '../../packages/core/src/helpers/spawn.js';
 import { TEST_TIMEOUT } from '../utils/constants.js';
 import { Grouping } from '../../packages/core/src/types/adapters.js';
+import { RedisContainer, StartedRedisContainer } from '@testcontainers/redis';
 
 const reportsFolder = './test-reports-folder-redis';
-const storageOptions = [
-    'redis',
-    '--connection-string',
-    process.env.CI ? 'redis://localhost:6379' : 'redis://localhost:6380',
-];
+let container: StartedRedisContainer | undefined;
+let storageOptions: string[];
 
 beforeAll(async () => {
-    if (process.env.CI) return;
-    await spawnAsync('pnpm', ['redis-local', 'up', 'test', '--wait']);
-});
+    const connectionString = process.env.REDIS_CONNECTION_STRING;
+    if (connectionString) {
+        storageOptions = ['redis', '--connection-string', connectionString];
+    } else {
+        container = await new RedisContainer().start();
+        storageOptions = ['redis', '--connection-string', container.getConnectionUrl()];
+    }
+}, 60000);
 
 afterAll(async () => {
-    if (process.env.CI) return;
-    await spawnAsync('pnpm', ['redis-local', 'down', 'test']);
+    await container?.stop();
     await rm(reportsFolder, { recursive: true, force: true });
 });
 

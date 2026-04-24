@@ -7,16 +7,3 @@ services:
         volumes:
             - ./db:/data
         command: redis-server --appendonly yes
-
-    test:
-        image: redis
-        restart: always
-        ports:
-            - 6380:6379
-        profiles:
-            - test
-        healthcheck:
-            test: ['CMD', 'redis-cli', 'ping']
-            interval: 0.1s
-            timeout: 0.3s
-            retries: 10

@@ -1,21 +1,26 @@
 import { it, afterAll, beforeAll, describe } from 'vitest';
 import { rm } from 'node:fs/promises';
 import { testStorage } from '../utils/test-storage.js';
-import { spawnAsync } from '../../packages/core/src/helpers/spawn.js';
 import { TEST_TIMEOUT } from '../utils/constants.js';
 import { Grouping } from '../../packages/core/src/types/adapters.js';
+import { MySqlContainer, StartedMySqlContainer } from '@testcontainers/mysql';
 
 const reportsFolder = './test-reports-folder-mysql';
-const storageOptions = ['mysql', '--connection-string', 'mysql://root:password@localhost:3307/test'];
+let container: StartedMySqlContainer | undefined;
+let storageOptions: string[];
 
 beforeAll(async () => {
-    if (process.env.CI) return;
-    await spawnAsync('pnpm', ['mysql-local', 'up', 'test', '--wait']);
-}, 20000);
+    const connectionString = process.env.MYSQL_CONNECTION_STRING;
+    if (connectionString) {
+        storageOptions = ['mysql', '--connection-string', connectionString];
+    } else {
+        container = await new MySqlContainer().start();
+        storageOptions = ['mysql', '--connection-string', container.getConnectionUri()];
+    }
+}, 60000);
 
 afterAll(async () => {
-    if (process.env.CI) return;
-    await spawnAsync('pnpm', ['mysql-local', 'down', 'test']);
+    await container?.stop();
     await rm(reportsFolder, { recursive: true, force: true });
 });
 

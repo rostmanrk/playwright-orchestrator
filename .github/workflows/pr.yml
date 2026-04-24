@@ -67,28 +67,8 @@ jobs:
     needs: check-changes
     if: contains(needs.check-changes.outputs.projects, 'core') || contains(needs.check-changes.outputs.projects, 'dynamo-db')
     runs-on: ubuntu-latest
-    env:
-      AWS_ACCESS_KEY_ID: "local"
-      AWS_SECRET_ACCESS_KEY: "local"
-      AWS_REGION: "local"
-
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with:
-          distribution: "adopt"
-          java-version: "21"
-
-      - name: Download DynamoDB Local
-        run: |
-          curl -o dynamodb_local_latest.tar.gz https://d1ni2b6xgvw0s0.cloudfront.net/v2.x/dynamodb_local_latest.tar.gz
-          tar -xvzf dynamodb_local_latest.tar.gz
-          rm dynamodb_local_latest.tar.gz
-      - name: Start DynamoDB Local
-        run: |
-          nohup java -Djava.library.path=./DynamoDBLocal_lib -jar DynamoDBLocal.jar -sharedDb &
-          sleep 2
-
       - uses: ./.github/actions/e2e-setup
       - name: Run tests
         run: pnpm test:ci dynamo-db.test.ts
@@ -109,6 +89,8 @@ jobs:
           --health-interval 2s
           --health-timeout 5s
           --health-retries 5
+    env:
+      PG_CONNECTION_STRING: postgres://postgres:password@localhost:5433/postgres
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/e2e-setup
@@ -132,6 +114,8 @@ jobs:
           --health-interval 2s
           --health-timeout 5s
           --health-retries 5
+    env:
+      MYSQL_CONNECTION_STRING: mysql://root:password@localhost:3307/test
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/e2e-setup
@@ -150,6 +134,8 @@ jobs:
         env:
           MONGO_INITDB_ROOT_USERNAME: root
           MONGO_INITDB_ROOT_PASSWORD: password
+    env:
+      MONGO_CONNECTION_STRING: mongodb://root:password@localhost:27018/
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/e2e-setup
@@ -170,6 +156,8 @@ jobs:
           --health-interval 2s
           --health-timeout 5s
           --health-retries 5
+    env:
+      REDIS_CONNECTION_STRING: redis://localhost:6379
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/e2e-setup
