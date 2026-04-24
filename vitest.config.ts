@@ -1,4 +1,5 @@
 import { defineConfig } from 'vitest/config';
+import { execSync } from 'node:child_process';
 
 // Vite does not understand the .cts extension (CommonJS TypeScript).
 // This plugin strips TypeScript syntax from .cts files so they can be
@@ -15,9 +16,27 @@ const ctsPlugin = {
     },
 };
 
+function getDockerHost(): string | undefined {
+    if (process.env.DOCKER_HOST) return process.env.DOCKER_HOST;
+    try {
+        const socket = execSync("podman machine inspect --format '{{.ConnectionInfo.PodmanSocket.Path}}'", {
+            timeout: 1000,
+            encoding: 'utf8',
+        }).trim();
+        if (socket) return `unix://${socket}`;
+    } catch {}
+    return undefined;
+}
+
+const dockerHost = getDockerHost();
+
 export default defineConfig({
     plugins: [ctsPlugin],
     test: {
         include: ['tests/**/*.test.ts'],
+        env: {
+            ...(dockerHost ? { DOCKER_HOST: dockerHost } : {}),
+            TESTCONTAINERS_RYUK_DISABLED: 'true',
+        },
     },
 });

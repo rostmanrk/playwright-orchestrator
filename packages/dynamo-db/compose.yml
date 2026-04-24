@@ -16,17 +16,3 @@ services:
         privileged: true
         ports:
             - 8001:80
-
-    test:
-        command: '-jar DynamoDBLocal.jar -sharedDb -dbPath ./data'
-        restart: always
-        image: 'amazon/dynamodb-local:latest'
-        container_name: dynamodb-local-test
-        ports:
-            - '8002:8000'
-        profiles:
-            - test
-        tmpfs:
-            - /home/dynamodblocal/data
-
-        working_dir: /home/dynamodblocal
