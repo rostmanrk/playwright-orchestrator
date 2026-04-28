@@ -318,6 +318,10 @@ Use MongoDB as storage.
 `webServer` is now fully supported.
 `repeatEach` is now properly handled: status is considered as `Passed` when any of the repeats is successful.
 
+### v1.4.1 Updates
+
+`globalSetup`, `globalTeardown`, and `dependencies` are now fully supported. Be aware that `globalSetup`/`globalTeardown` run once per shard - a dedicated setup/teardown step is preferred. Report any anomalies as an issue.
+
 ## Adding new adapter
 
 If you need specific adapters create an issue, I will implement once I have time. Or you are welcome to contribute.
