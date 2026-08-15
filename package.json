@@ -1,6 +1,6 @@
 {
     "name": "playwright-orchestrator",
-    "version": "1.5.1",
+    "version": "1.6.0",
     "engines": {
         "node": ">=22.0.0"
     },
