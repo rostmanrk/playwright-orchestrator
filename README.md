@@ -307,6 +307,10 @@ Use MongoDB as storage.
 
 ## 🔄 Migration Guide
 
+### Upgrading to v1.6
+
+**All SQL storage adapters (`pg`, `mysql`) require re-running `init` to apply schema updates** (add parametrize tests support, grep based filtering)
+
 ### Upgrading to v1.4
 
 **All SQL storage adapters (`pg`, `mysql`) require re-running `init` to apply schema updates** (adds the `shards` column to the test runs table).
