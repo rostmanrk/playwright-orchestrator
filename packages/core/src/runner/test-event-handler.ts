@@ -6,6 +6,7 @@ import { TestExecutionReporter } from './test-execution-reporter.js';
 import type { Adapter } from '../adapters/adapter.js';
 import { SYMBOLS } from '../symbols.js';
 import { Project, TestStatus } from '../types/test-info.js';
+import { getTestId } from '../helpers/get-test-id.js';
 
 type HandlerResult = {
     onData: (data: any, isError: boolean) => void;
@@ -90,7 +91,11 @@ export class PlaywrightTestEventHandler implements TestEventHandler {
         const {
             test: { testId: eventTestId },
         } = event;
-        const test = this.testMapping.get(eventTestId)!;
+        const test = this.testMapping.get(eventTestId);
+        if (!test) {
+            this.reporter.error(`Test with id ${eventTestId} not found.`);
+            return;
+        }
         const { childId, displayName } = this.extractChildData(event);
         if (!this.testResolvers.has(test.testId)) {
             this.reporter.addGroup(this.batchName, test, this.createTestPromise(test.testId));
@@ -108,7 +113,8 @@ export class PlaywrightTestEventHandler implements TestEventHandler {
             result: { duration, status, retry, error },
             project,
         } = event;
-        const test = this.testMapping.get(eventTestId)!;
+        const test = this.testMapping.get(eventTestId);
+        if (!test) return;
         const { childId } = this.extractChildData(event);
 
         if (ok || retries === retry) {
@@ -155,14 +161,31 @@ export class PlaywrightTestEventHandler implements TestEventHandler {
         }
         for (const test of tests) {
             this.testMapping.set(test.testId, test);
-            for (const childId of test.children ?? []) {
-                this.testMapping.set(childId, test);
+            for (const child of test.meta.children ?? []) {
+                const baseTestIdParams = {
+                    file: test.meta.file,
+                    title: child,
+                    annotations: test.meta.annotations,
+                };
+                if (config.options.grouping === Grouping.Test) {
+                    this.testMapping.set(getTestId(baseTestIdParams), test);
+                } else {
+                    for (const project of test.meta.projects) {
+                        this.testMapping.set(
+                            getTestId({
+                                ...baseTestIdParams,
+                                project,
+                            }),
+                            test,
+                        );
+                    }
+                }
             }
-            for (const project of test.projects) {
+            for (const project of test.meta.projects) {
                 const value = this.testCounts.get(test.testId) ?? 0;
                 this.testCounts.set(
                     test.testId,
-                    value + (test.children?.length ?? 1) * this.projects.get(project)!.repeatEach,
+                    value + (test.meta.children?.length ?? 1) * this.projects.get(project)!.repeatEach,
                 );
             }
             this.reporter.addGroup(batchName, test, this.createTestPromise(test.testId));

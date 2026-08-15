@@ -24,11 +24,12 @@ export interface ReporterTestRunInfo {
 export interface ReporterTestRun {
     [file: string]: {
         [position: string]: {
-            timeout: number;
-            projects: string[];
-            title: string;
-            annotations: TestDetailsAnnotation[];
-            children?: string[];
+            [title: string]: {
+                timeout: number;
+                projects: string[];
+                annotations: TestDetailsAnnotation[];
+                children?: string[];
+            };
         };
     };
 }

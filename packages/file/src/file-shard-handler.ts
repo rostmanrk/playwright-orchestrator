@@ -38,15 +38,12 @@ export class FileShardHandler implements ShardHandler {
                     ) as ResultTestItem[];
                     const failed: TestItem[] = results
                         .filter((r) => r.status === TestStatus.Failed)
-                        .map(({ file, testId, order, position, projects, timeout, children, ema }) => ({
-                            file,
+                        .map(({ testId, order, timeout, ema, meta }) => ({
                             testId,
                             order,
-                            position,
-                            projects,
                             timeout,
-                            children,
                             ema,
+                            meta,
                         }));
 
                     const rest = results.filter((r) => r.status !== TestStatus.Failed);
@@ -95,7 +92,7 @@ export class FileShardHandler implements ShardHandler {
         const release = await lock(file, { retries: 100 });
         try {
             const tests = JSON.parse(await readFile(file, 'utf-8')) as TestItem[];
-            const index = project ? tests.findLastIndex((t) => t.projects.includes(project)) : tests.length - 1;
+            const index = project ? tests.findLastIndex((t) => t.meta.projects.includes(project)) : tests.length - 1;
             if (index === -1) return undefined;
             const [test] = tests.splice(index, 1);
             await writeFile(file, JSON.stringify(tests, null, 2));

@@ -202,6 +202,48 @@
       "averageDuration": 0,
       "duration": 0,
       "fails": 0,
+      "file": "parametrized-case.spec.ts",
+      "lastSuccessfulRunTimestamp": 0,
+      "position": "11:9",
+      "projects": [
+        "chromium",
+        "firefox"
+      ],
+      "status": 30,
+      "title": "parametrized-case.spec.ts > runs first case"
+    },
+    {
+      "averageDuration": 0,
+      "duration": 0,
+      "fails": 0,
+      "file": "parametrized-case.spec.ts",
+      "lastSuccessfulRunTimestamp": 0,
+      "position": "11:9",
+      "projects": [
+        "chromium",
+        "firefox"
+      ],
+      "status": 20,
+      "title": "parametrized-case.spec.ts > runs second case"
+    },
+    {
+      "averageDuration": 0,
+      "duration": 0,
+      "fails": 0,
+      "file": "parametrized-case.spec.ts",
+      "lastSuccessfulRunTimestamp": 0,
+      "position": "11:9",
+      "projects": [
+        "chromium",
+        "firefox"
+      ],
+      "status": 30,
+      "title": "parametrized-case.spec.ts > runs third case"
+    },
+    {
+      "averageDuration": 0,
+      "duration": 0,
+      "fails": 0,
       "file": "serial-top-level.spec.ts",
       "lastSuccessfulRunTimestamp": 0,
       "position": "0:0",

@@ -22,13 +22,17 @@ function makeConfig(repeatEach = 1): TestRunConfig {
 function makeTestItem(id: string): TestItem {
     return {
         testId: id,
-        file: 'tests/foo.spec.ts',
-        position: '5:1',
-        projects: ['chrome'],
         order: 0,
         timeout: 5000,
         ema: 0,
-    } as unknown as TestItem;
+        meta: {
+            title: id,
+            file: 'tests/foo.spec.ts',
+            position: '5:1',
+            projects: ['chrome'],
+            annotations: [],
+        },
+    };
 }
 
 function makeEvent(

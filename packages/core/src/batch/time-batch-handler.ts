@@ -14,7 +14,7 @@ export class TimeBatchHandler extends BaseBatchHandler implements BatchHandler {
         const threshold = budget * THRESHOLD;
         let test: TestItem | undefined;
         while (budget + threshold > (test?.ema ?? 0)) {
-            test = await this.getNextTest(config, test?.projects[0]);
+            test = await this.getNextTest(config, test?.meta.projects[0]);
             if (!test) break;
             batch.push(test);
             budget -= test.ema;

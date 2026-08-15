@@ -39,25 +39,27 @@ describe('serial detection integration', () => {
     }, 30_000);
 
     it('groups nested serial suite into a single test item with children', () => {
-        const serialItem = queue.find((t) => t.file === 'serial.spec.ts' && t.children !== undefined);
+        const serialItem = queue.find((t) => t.meta.file === 'serial.spec.ts' && t.meta.children !== undefined);
         expect(serialItem).toBeDefined();
-        expect(serialItem!.children!.length).toBe(2);
+        expect(serialItem!.meta.children!.length).toBe(2);
     });
 
     it('groups file-level serial suite into a single test item with children', () => {
-        const topLevelItem = queue.find((t) => t.file === 'serial-top-level.spec.ts' && t.children !== undefined);
+        const topLevelItem = queue.find(
+            (t) => t.meta.file === 'serial-top-level.spec.ts' && t.meta.children !== undefined,
+        );
         expect(topLevelItem).toBeDefined();
-        expect(topLevelItem!.children!.length).toBe(2);
+        expect(topLevelItem!.meta.children!.length).toBe(2);
     });
 
     it('does not add children to non-serial tests', () => {
-        const basicTests = queue.filter((t) => t.file === 'basic-case.spec.ts');
+        const basicTests = queue.filter((t) => t.meta.file === 'basic-case.spec.ts');
         expect(basicTests.length).toBeGreaterThan(0);
-        expect(basicTests.every((t) => t.children === undefined)).toBe(true);
+        expect(basicTests.every((t) => t.meta.children === undefined)).toBe(true);
     });
 
     it('sums child timeouts for serial suite items', () => {
-        const serialItem = queue.find((t) => t.file === 'serial.spec.ts' && t.children !== undefined);
+        const serialItem = queue.find((t) => t.meta.file === 'serial.spec.ts' && t.meta.children !== undefined);
         expect(serialItem).toBeDefined();
         // two children × 30s default timeout (test.setTimeout is runtime-only, not visible at --list time)
         expect(serialItem!.timeout).toBe(60_000);

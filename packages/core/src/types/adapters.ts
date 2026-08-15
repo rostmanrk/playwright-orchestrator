@@ -46,13 +46,17 @@ export interface BaseOptions {
 
 export interface TestItem {
     testId: string;
-    file: string;
-    position: string;
-    projects: string[];
     order: number;
     timeout: number;
-    children?: string[];
     ema: number;
+    meta: {
+        title: string;
+        children?: string[];
+        projects: string[];
+        file: string;
+        position: string;
+        annotations: TestDetailsAnnotation[];
+    };
 }
 
 export interface ResultTestParams {

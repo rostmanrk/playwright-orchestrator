@@ -67,11 +67,30 @@ export class MySQLInitializer implements Initializer {
         await this.addColumnIfMissing(testsTable, 'test_id', 'TEXT', false, "''");
         await this.addColumnIfMissing(configTable, 'shards', 'JSON', false, "'{}'");
         await this.migrateProjectsToJson(testsTable);
+        await this.migrateTestItemsToMeta(testsTable);
+    }
+
+    private async migrateTestItemsToMeta(tableName: string): Promise<void> {
+        if (await this.columnExists(tableName, 'meta')) {
+            return;
+        }
+        await this.addColumnIfMissing(tableName, 'meta', 'JSON', false, "'{}'");
+        await this.mysqlPool.pool.query({
+            sql: `UPDATE ?? SET meta = JSON_OBJECT('file', file, 'projects', projects, 'position', CONCAT(line, ':', pos), 'children', IFNULL(children, JSON_ARRAY()), 'annotations', JSON_ARRAY(), 'title', test_id)`,
+            values: [tableName],
+        });
+        await this.mysqlPool.pool.query({
+            sql: `ALTER TABLE ?? DROP COLUMN file, DROP COLUMN projects, DROP COLUMN line, DROP COLUMN pos, DROP COLUMN children`,
+            values: [tableName],
+        });
     }
 
     private async migrateProjectsToJson(tableName: string): Promise<void> {
-        const hasProjectsColumn = await this.columnExists(tableName, 'projects');
-        if (hasProjectsColumn) return;
+        const [hasProjectsColumn, hasMetaColumn] = await Promise.all([
+            this.columnExists(tableName, 'projects'),
+            this.columnExists(tableName, 'meta'),
+        ]);
+        if (hasProjectsColumn || hasMetaColumn) return;
 
         await this.mysqlPool.pool.query({
             sql: `ALTER TABLE ?? ADD COLUMN projects JSON NULL;`,

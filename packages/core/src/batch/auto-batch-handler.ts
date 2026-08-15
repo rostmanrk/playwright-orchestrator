@@ -19,7 +19,7 @@ export class AutoBatchHandler extends BaseBatchHandler implements BatchHandler {
                 if (accumulated >= budget || batch.length >= cap) break;
             }
 
-            const test = await this.getNextTest(config, batch[0]?.projects[0]);
+            const test = await this.getNextTest(config, batch[0]?.meta.projects[0]);
             if (!test) break;
 
             batch.push(test);

@@ -36,7 +36,7 @@ export class MongoShardHandler implements ShardHandler {
 
     private async claimNextTest(runId: string, project?: string): Promise<TestItem | undefined> {
         const query = project
-            ? { ...this.generateTestIdQuery(runId, TestStatus.Ready), projects: project }
+            ? { ...this.generateTestIdQuery(runId, TestStatus.Ready), 'meta.projects': project }
             : this.generateTestIdQuery(runId, TestStatus.Ready);
         const result = await this.tests.findOneAndUpdate(query, {
             $set: { updated: new Date(), status: TestStatus.Ongoing },
@@ -47,9 +47,9 @@ export class MongoShardHandler implements ShardHandler {
             { _id: generateRunId(runId) },
             { $inc: { 'config.remainingCount': -1, 'config.remainingTime': -effectiveEma } },
         );
-        const { file, line, column, projects, timeout, ema, children, testId } = result;
+        const { timeout, ema, testId, meta } = result;
         const { order } = parseTestId(result._id);
-        return { file, position: `${line}:${column}`, projects, timeout, ema, order, children, testId };
+        return { timeout, ema, order, testId, meta };
     }
 
     async startShard(): Promise<TestRunConfig> {
@@ -81,7 +81,10 @@ export class MongoShardHandler implements ShardHandler {
             });
             if (statusBefore === RunStatus.Finished) {
                 const [agg] = await this.tests
-                    .aggregate<{ count: number; totalEma: number }>([
+                    .aggregate<{
+                        count: number;
+                        totalEma: number;
+                    }>([
                         { $match: this.generateTestIdQuery(runId, TestStatus.Ready) },
                         { $group: { _id: null, count: { $sum: 1 }, totalEma: { $sum: '$ema' } } },
                     ])

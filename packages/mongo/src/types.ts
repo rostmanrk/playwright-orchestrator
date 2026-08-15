@@ -9,12 +9,10 @@ export interface TestRunDocument extends Document {
     updated: Date;
 }
 
-export interface TestDocument extends Document, Omit<TestItem, 'order' | 'position'> {
+export interface TestDocument extends Document, Omit<TestItem, 'order'> {
     _id: Binary;
     runId?: string;
     order?: number;
-    line: number;
-    column: number;
     status: TestStatus;
     updated: Date;
     report?: TestItemReport;

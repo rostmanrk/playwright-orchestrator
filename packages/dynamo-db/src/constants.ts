@@ -34,4 +34,5 @@ export enum Fields {
     Created = 'cr',
     Children = 'chl',
     Shards = 'sh',
+    Meta = 'm',
 }

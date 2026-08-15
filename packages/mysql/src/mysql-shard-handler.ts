@@ -9,14 +9,10 @@ import { MYSQL_CONFIG, MYSQL_POOL } from './symbols.js';
 
 interface Test extends RowDataPacket {
     order_num: number;
-    file: string;
-    line: number;
-    pos: number;
-    project: string;
     timeout: number;
     ema: number;
-    children?: string[];
     test_id: string;
+    meta: TestItem['meta'];
 }
 
 interface Run extends RowDataPacket {
@@ -54,7 +50,7 @@ export class MySQLShardHandler implements ShardHandler {
     }
 
     private async claimNextTest(runId: string, project?: string): Promise<TestItem | undefined> {
-        const projectFilter = project ? `AND JSON_CONTAINS(projects, JSON_QUOTE(?))` : '';
+        const projectFilter = project ? `AND JSON_CONTAINS(JSON_EXTRACT(meta, '$.projects'), JSON_QUOTE(?))` : '';
         const filterParams = project ? [project] : [];
         const client = await this.pool.getConnection();
         try {
@@ -97,16 +93,13 @@ export class MySQLShardHandler implements ShardHandler {
             );
             await client.commit();
             if (result[3].length === 0) return undefined;
-            const { file, line, pos, projects, timeout, ema, order_num, children, test_id } = result[3][0];
+            const { timeout, ema, order_num, test_id, meta } = result[3][0];
             return {
-                file,
-                position: `${line}:${pos}`,
-                projects,
                 timeout,
                 ema,
                 order: order_num,
-                children,
                 testId: test_id,
+                meta,
             };
         } catch (e) {
             await client.rollback();
@@ -147,8 +140,12 @@ export class MySQLShardHandler implements ShardHandler {
                         ) WHERE id = UUID_TO_BIN(?)`,
                         values: [
                             this.configTable,
-                            this.testsTable, runId, TestStatus.Ready,
-                            this.testsTable, runId, TestStatus.Ready,
+                            this.testsTable,
+                            runId,
+                            TestStatus.Ready,
+                            this.testsTable,
+                            runId,
+                            TestStatus.Ready,
                             runId,
                         ],
                     });

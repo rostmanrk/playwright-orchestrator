@@ -76,17 +76,7 @@ export class PgTestRunCreator extends BaseTestRunCreator {
                 values: [runId, RunStatus.Created, JSON.stringify(run.config)],
             });
             if (tests.length > 0) {
-                const fields = [
-                    'order_num',
-                    'file',
-                    'line',
-                    'character',
-                    'projects',
-                    'timeout',
-                    'ema',
-                    'children',
-                    'test_id',
-                ];
+                const fields = ['order_num', 'timeout', 'ema', 'test_id', 'meta'];
                 await client.query({
                     text: `INSERT INTO ${this.testsTable} (run_id, ${fields.join(', ')}) VALUES ${tests
                         .map((_, i) => {
@@ -97,19 +87,8 @@ export class PgTestRunCreator extends BaseTestRunCreator {
                         .join(', ')}`,
                     values: [
                         runId,
-                        ...tests.flatMap(({ position, order, file, projects, timeout, ema, children, testId }) => {
-                            const [line, character] = position.split(':');
-                            return [
-                                order,
-                                file,
-                                line,
-                                character,
-                                JSON.stringify(projects),
-                                timeout,
-                                ema,
-                                children != null ? JSON.stringify(children) : null,
-                                testId,
-                            ];
+                        ...tests.flatMap(({ order, timeout, ema, testId, meta }) => {
+                            return [order, timeout, ema, testId, JSON.stringify(meta)];
                         }),
                     ],
                 });

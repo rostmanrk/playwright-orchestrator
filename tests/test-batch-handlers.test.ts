@@ -25,12 +25,16 @@ function makeConfig(options: Partial<TestRunConfig['options']> = {}): TestRunCon
 function makeTest(id: string, project = 'chrome', ema = 0): TestItem {
     return {
         testId: id,
-        file: `${id}.spec.ts`,
-        position: '1:1',
-        projects: [project],
         order: 1,
         timeout: 5000,
         ema,
+        meta: {
+            title: id,
+            projects: [project],
+            file: `${id}.spec.ts`,
+            position: '1:1',
+            annotations: [],
+        },
     };
 }
 

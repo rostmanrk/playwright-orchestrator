@@ -1,4 +1,6 @@
-1  x  [chromium]  failed.spec.ts:4:5  should failing
-2  x  [firefox]   failed.spec.ts:4:5  should failing
-3  o  [chromium]  failed.spec.ts:9:5  should failing for firefox
-4  x  [firefox]   failed.spec.ts:9:5  should failing for firefox
+1  x  [chromium]  failed.spec.ts:4:5              should failing
+2  x  [firefox]   failed.spec.ts:4:5              should failing
+3  o  [chromium]  failed.spec.ts:9:5              should failing for firefox
+4  x  [firefox]   failed.spec.ts:9:5              should failing for firefox
+5  x  [chromium]  parametrized-case.spec.ts:11:9  runs second case
+6  x  [firefox]   parametrized-case.spec.ts:11:9  runs second case

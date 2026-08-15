@@ -52,35 +52,52 @@ export class RunBuilder {
     private tryParseEntry(entry: TestCase | Suite) {
         const [_, project, file] = entry.titlePath();
         if (!file) return false;
-        const fileTests = this.getFileTests(file);
         const position = entry.location ? `${entry.location.line}:${entry.location.column}` : '0:0';
-        if (fileTests[position]) {
-            if (!fileTests[position].projects.includes(project)) {
-                fileTests[position].projects.push(project);
+
+        if (entry.type === 'test') {
+            const positionMap = this.getPositionMap(file, position);
+            if (positionMap[entry.title]) {
+                if (!positionMap[entry.title].projects.includes(project)) {
+                    positionMap[entry.title].projects.push(project);
+                }
+            } else {
+                positionMap[entry.title] = {
+                    timeout: getEntryTimeout(entry),
+                    projects: [project],
+                    annotations: this.getAnnotations(entry),
+                };
             }
             return true;
         }
-        if (entry.type === 'test' || isSuiteSerial(entry as Suite)) {
-            const children = entry.type === 'test' ? undefined : entry.allTests().map((test) => test.title);
-            fileTests[position] = {
-                timeout: getEntryTimeout(entry),
-                projects: [project],
-                annotations: this.getAnnotations(entry),
-                title: entry.title,
-                children: children,
-            };
+
+        if (isSuiteSerial(entry as Suite)) {
+            const positionMap = this.getPositionMap(file, position);
+            if (positionMap[entry.title]) {
+                if (!positionMap[entry.title].projects.includes(project)) {
+                    positionMap[entry.title].projects.push(project);
+                }
+            } else {
+                positionMap[entry.title] = {
+                    timeout: getEntryTimeout(entry),
+                    projects: [project],
+                    annotations: this.getAnnotations(entry),
+                    children: (entry as Suite).allTests().map((test) => test.title),
+                };
+            }
             return true;
         }
+
         return false;
     }
 
     private getAnnotations(entry: TestCase | Suite) {
-        const annotations = entry.type === 'test' ? entry.annotations : entry.allTests()[0]?.annotations;
+        const annotations = entry.type === 'test' ? entry.annotations : (entry as Suite).allTests()[0]?.annotations;
         return annotations?.map(({ type, description }) => ({ type, description }));
     }
 
-    private getFileTests(file: string) {
+    private getPositionMap(file: string, position: string) {
         if (!this.testRun[file]) this.testRun[file] = {};
-        return this.testRun[file];
+        if (!this.testRun[file][position]) this.testRun[file][position] = {};
+        return this.testRun[file][position];
     }
 }

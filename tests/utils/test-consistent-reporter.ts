@@ -41,7 +41,9 @@ export default class ConsistentTestReporter implements Reporter {
         const tests = Object.values(this.tests).sort((a, b) => {
             const cmp = a.location.localeCompare(b.location);
             if (cmp !== 0) return cmp;
-            return a.project.localeCompare(b.project);
+            const cmpProject = a.project.localeCompare(b.project);
+            if (cmpProject !== 0) return cmpProject;
+            return a.title.localeCompare(b.title);
         });
         const padStartLen = tests.length.toString().length;
         for (let i = 0; i < tests.length; i++) {

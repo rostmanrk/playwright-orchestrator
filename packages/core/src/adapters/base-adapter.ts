@@ -35,9 +35,9 @@ export abstract class BaseAdapter implements Adapter {
 
     protected buildReport(test: TestItem, item: HistoryItem, newEma: number, history: HistoryItem[]): TestReport {
         return {
-            file: test.file,
-            position: test.position,
-            projects: test.projects,
+            file: test.meta.file,
+            position: test.meta.position,
+            projects: test.meta.projects,
             status: item.status,
             duration: item.duration,
             averageDuration: newEma,

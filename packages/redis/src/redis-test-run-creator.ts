@@ -71,7 +71,7 @@ export class RedisTestRunCreator extends BaseTestRunCreator {
             .set(`${baseTestRunKey}:remainingTime`, remainingTime, setOptions);
         const groupByProject = testRun.config.options.grouping === Grouping.Project;
         for (const test of tests) {
-            const key = `${this._namePrefix}:${TESTS}:${runId}:queue${groupByProject && test.projects.length === 1 ? `:${test.projects[0]}` : ''}`;
+            const key = `${this._namePrefix}:${TESTS}:${runId}:queue${groupByProject && test.meta.projects.length === 1 ? `:${test.meta.projects[0]}` : ''}`;
             pipeline.rPush(key, JSON.stringify(test));
         }
         await pipeline.exec();
