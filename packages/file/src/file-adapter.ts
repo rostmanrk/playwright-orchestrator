@@ -24,7 +24,7 @@ export class FileAdapter extends BaseAdapter {
             runId,
             config,
             shards,
-            tests: tests.map(({ file, status, projects, position, report }) => ({
+            tests: tests.map(({ status, report, meta: { file, position, projects } }) => ({
                 averageDuration: report.ema,
                 duration: report.duration,
                 fails: report.fails,

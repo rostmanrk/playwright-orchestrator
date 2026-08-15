@@ -45,13 +45,13 @@ export class PostgreSQLAdapter extends BaseAdapter {
             runId,
             config,
             shards,
-            tests: rows.map(({ file, projects, line, character, report }) => ({
+            tests: rows.map(({ report, meta: { file, projects, position } }) => ({
                 averageDuration: report?.ema ?? 0,
                 duration: report?.duration ?? 0,
                 status: report?.status ?? TestStatus.Ready,
                 fails: report?.fails ?? 0,
                 file,
-                position: `${line}:${character}`,
+                position,
                 projects,
                 title: report?.title,
                 lastSuccessfulRunTimestamp: report?.lastSuccessfulRun,

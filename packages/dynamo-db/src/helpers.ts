@@ -5,46 +5,33 @@ import { TestInfoItem, TestItemDb, TestRunDb } from './types.js';
 export function mapTestItemToDb(
     runId: string,
     ttl: number,
-    { position, order, file, projects, timeout, ema, children, testId }: TestItem,
+    { order, timeout, ema, testId, meta }: TestItem,
     status: StatusOffset = StatusOffset.Pending,
 ): TestItemDb {
-    const [line, character] = position.split(':');
     return {
         [Fields.Id]: runId,
         [Fields.Order]: (order % OFFSET_STEP) + status,
         [Fields.TestId]: testId,
-        [Fields.Line]: line,
-        [Fields.Character]: character,
-        [Fields.File]: file,
-        [Fields.Projects]: projects,
         [Fields.Timeout]: timeout,
         [Fields.EMA]: ema,
         [Fields.Ttl]: ttl,
-        [Fields.Children]: children,
+        [Fields.Meta]: meta,
     };
 }
 
 export function mapDbToTestItem({
     [Fields.TestId]: testId,
     [Fields.Order]: order,
-    [Fields.Line]: line,
-    [Fields.Character]: character,
-    [Fields.File]: file,
-    [Fields.Project]: project,
-    [Fields.Projects]: projects,
     [Fields.Timeout]: timeout,
     [Fields.EMA]: ema,
-    [Fields.Children]: children,
+    [Fields.Meta]: meta,
 }: TestItemDb): TestItem {
     return {
         testId,
-        position: `${line}:${character}`,
-        file,
-        projects: projects ?? [project!],
         order,
         timeout,
         ema,
-        children,
+        meta,
     };
 }
 

@@ -54,6 +54,10 @@ export class PgInitializer implements Initializer {
                 SELECT 1
                 FROM information_schema.columns
                 WHERE table_name = ${pg.escapeLiteral(`${tableNamePrefix}_tests`)} AND column_name = 'projects'
+            ) AND NOT EXISTS (
+                SELECT 1
+                FROM information_schema.columns
+                WHERE table_name = ${pg.escapeLiteral(`${tableNamePrefix}_tests`)} AND column_name = 'meta'
             ) THEN
                 ALTER TABLE ${testsTable} ADD COLUMN projects JSONB NOT NULL DEFAULT '[]';
                 UPDATE ${testsTable} SET projects = jsonb_build_array(project) WHERE project IS NOT NULL;
@@ -61,7 +65,16 @@ export class PgInitializer implements Initializer {
                 ALTER TABLE ${testsTable} ALTER COLUMN projects DROP DEFAULT;
             END IF;
             END $$;
-            UPDATE ${testsTable} SET projects = '[]' WHERE projects IS NULL;
+            DO $$
+            BEGIN
+            IF EXISTS (
+                SELECT 1
+                FROM information_schema.columns
+                WHERE table_name = ${pg.escapeLiteral(`${tableNamePrefix}_tests`)} AND column_name = 'projects'
+            ) THEN
+                UPDATE ${testsTable} SET projects = '[]' WHERE projects IS NULL;
+            END IF;
+            END $$;
             CREATE INDEX IF NOT EXISTS status_idx ON ${testsTable}(status);
             CREATE TABLE IF NOT EXISTS ${testInfoTable} (
                 id SERIAL PRIMARY KEY,
@@ -78,7 +91,32 @@ export class PgInitializer implements Initializer {
                 test_info_id INT NOT NULL,
                 FOREIGN KEY (test_info_id) REFERENCES ${testInfoTable}(id)
             );
-            CREATE INDEX IF NOT EXISTS test_info_id_idx ON ${testInfoHistoryTable}(test_info_id);`,
+            CREATE INDEX IF NOT EXISTS test_info_id_idx ON ${testInfoHistoryTable}(test_info_id);
+            
+            DO $$
+            BEGIN
+            IF NOT EXISTS (
+                SELECT 1
+                FROM information_schema.columns
+                WHERE table_name = ${pg.escapeLiteral(`${tableNamePrefix}_tests`)} AND column_name = 'meta'
+            ) THEN
+                ALTER TABLE ${testsTable} ADD COLUMN meta JSONB NOT NULL DEFAULT '{}'::jsonb;
+                UPDATE ${testsTable} SET meta = jsonb_build_object(
+                    'file', file,
+                    'projects', projects,
+                    'position', CONCAT(line, ':', character),
+                    'children', children,
+                    'annotations', '[]'::jsonb,
+                    'title', test_id
+                );
+                ALTER TABLE ${testsTable} DROP COLUMN IF EXISTS file;
+                ALTER TABLE ${testsTable} DROP COLUMN IF EXISTS line;
+                ALTER TABLE ${testsTable} DROP COLUMN IF EXISTS character;
+                ALTER TABLE ${testsTable} DROP COLUMN IF EXISTS children;
+                ALTER TABLE ${testsTable} DROP COLUMN IF EXISTS projects;
+            END IF;
+            END $$;
+            `,
         );
     }
 }

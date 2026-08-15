@@ -1,4 +1,11 @@
-import { BaseAdapter, TestStatus, TestRunReport, SaveTestResultParams, TestShard } from '@playwright-orchestrator/core';
+import {
+    BaseAdapter,
+    TestStatus,
+    TestRunReport,
+    SaveTestResultParams,
+    TestShard,
+    TestItem,
+} from '@playwright-orchestrator/core';
 import { injectable, inject } from 'inversify';
 import type { CreateArgs } from './create-args.js';
 import { MySQLPool } from './mysql-pool.js';
@@ -7,11 +14,8 @@ import { MYSQL_CONFIG, MYSQL_POOL } from './symbols.js';
 
 interface Test extends RowDataPacket {
     order_num: number;
-    file: string;
-    line: number;
-    pos: number;
-    project: string;
     timeout: number;
+    meta: TestItem['meta'];
     report?: {
         title: string;
         status: TestStatus;
@@ -79,13 +83,13 @@ export class MySQLAdapter extends BaseAdapter {
             runId,
             config,
             shards,
-            tests: tests.map(({ file, projects, report, line, pos }) => {
+            tests: tests.map(({ report, meta: { file, position, projects } }) => {
                 return {
                     averageDuration: report?.ema ?? 0,
                     file,
                     duration: report?.duration ?? 0,
                     fails: report?.fails ?? 0,
-                    position: `${line}:${pos}`,
+                    position,
                     projects,
                     status: report?.status ?? TestStatus.Ready,
                     title: report?.title ?? '',

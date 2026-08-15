@@ -44,8 +44,7 @@ export class MongoDbAdapter extends BaseAdapter {
             runId,
             config,
             shards,
-            tests: tests.map(({ file, line, column, status, report, projects }) => {
-                const position = `${line}:${column}`;
+            tests: tests.map(({ status, report, meta: { file, position, projects } }) => {
                 const { duration, fails, title, lastSuccessfulRun, ema } = report!;
                 return {
                     file,

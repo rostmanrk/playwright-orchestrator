@@ -46,9 +46,9 @@ export class DynamoDbAdapter extends BaseAdapter {
             tests: tests.map((test) => {
                 const report = test[Fields.Report];
                 return {
-                    file: test[Fields.File],
-                    projects: test[Fields.Projects] ?? [test[Fields.Project]!],
-                    position: `${test[Fields.Line]}:${test[Fields.Character]}`,
+                    file: test[Fields.Meta].file,
+                    projects: test[Fields.Meta].projects,
+                    position: test[Fields.Meta].position,
                     status: idToStatus(test[Fields.Order]),
                     title: test[Fields.TestId],
                     fails: report?.[Fields.Fails] ?? 0,

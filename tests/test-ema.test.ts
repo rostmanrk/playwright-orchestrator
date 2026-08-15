@@ -20,12 +20,16 @@ class TestableAdapter extends BaseAdapter {
 function makeTestItem(overrides: Partial<TestItem> = {}): TestItem {
     return {
         testId: 'foo.spec.ts > my test',
-        file: 'foo.spec.ts',
-        position: '5:3',
-        projects: ['chrome'],
         order: 1,
         timeout: 5000,
         ema: 0,
+        meta: {
+            title: 'my test',
+            file: 'foo.spec.ts',
+            position: '5:3',
+            projects: ['chrome'],
+            annotations: [],
+        },
         ...overrides,
     };
 }

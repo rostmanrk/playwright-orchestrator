@@ -85,20 +85,8 @@ export class MySQLTestRunCreator extends BaseTestRunCreator {
     async saveRunData(runId: string, testRun: TestRun, tests: TestItem[]): Promise<void> {
         testRun.config.remainingCount = tests.length;
         testRun.config.remainingTime = tests.reduce((sum, t) => sum + t.ema, 0);
-        const testValues = tests.map(({ position, order, file, projects, timeout, ema, children, testId }) => {
-            const [line, character] = position.split(':');
-            return [
-                runId,
-                order,
-                file,
-                +line,
-                +character,
-                JSON.stringify(projects),
-                timeout,
-                ema,
-                children != null ? JSON.stringify(children) : null,
-                testId,
-            ];
+        const testValues = tests.map(({ order, timeout, ema, testId, meta }) => {
+            return [runId, order, timeout, ema, testId, JSON.stringify(meta)];
         });
 
         const statements: string[] = [
@@ -112,8 +100,8 @@ export class MySQLTestRunCreator extends BaseTestRunCreator {
         ];
         if (testValues.length) {
             statements.push(
-                `INSERT INTO ?? (run_id, order_num, file, line, pos, projects, timeout, ema, children, test_id) VALUES ${testValues
-                    .map(() => '(UUID_TO_BIN(?), ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+                `INSERT INTO ?? (run_id, order_num, timeout, ema, test_id, meta) VALUES ${testValues
+                    .map(() => '(UUID_TO_BIN(?), ?, ?, ?, ?, ?)')
                     .join(', ')}`,
             );
             values.push(this.testsTable, ...testValues.flatMap((v) => v));

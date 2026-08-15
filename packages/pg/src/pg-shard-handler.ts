@@ -33,7 +33,7 @@ export class PgShardHandler implements ShardHandler {
     }
 
     private async claimNextTest(runId: string, project?: string): Promise<TestItem | undefined> {
-        const projectFilter = project ? `AND projects @> to_jsonb(ARRAY[$4]::text[])` : '';
+        const projectFilter = project ? `AND meta->'projects' @> to_jsonb(ARRAY[$4]::text[])` : '';
         const values = project
             ? [runId, TestStatus.Ready, TestStatus.Ongoing, project]
             : [runId, TestStatus.Ready, TestStatus.Ongoing];
@@ -59,7 +59,7 @@ export class PgShardHandler implements ShardHandler {
                 await client.query('COMMIT');
                 return undefined;
             }
-            const { file, line, character, projects, timeout, ema, order_num, children, test_id } = result.rows[0];
+            const { timeout, ema, order_num, test_id, meta } = result.rows[0];
             await client.query({
                 text: `UPDATE ${this.configTable}
                 SET config = jsonb_set(jsonb_set(config,
@@ -70,14 +70,11 @@ export class PgShardHandler implements ShardHandler {
             });
             await client.query('COMMIT');
             return {
-                file,
-                position: `${line}:${character}`,
-                projects,
                 timeout,
                 ema,
                 order: order_num,
-                children,
                 testId: test_id,
+                meta,
             };
         } catch (e) {
             await client.query('ROLLBACK');

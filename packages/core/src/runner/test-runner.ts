@@ -16,6 +16,7 @@ import type { TestEventHandlerFactory } from './test-event-handler.js';
 import { cliVersion } from '../commands/version.js';
 import { registerOnExit } from '../helpers/register-on-exit.js';
 import { PlaywrightConfigLoader } from '../helpers/playwright-config.js';
+import { makeGrepPattern } from '../helpers/regex.js';
 
 @injectable()
 export class TestRunner {
@@ -132,10 +133,16 @@ export class TestRunner {
         const args = [];
         const projects = new Set<string>();
         for (const test of tests) {
-            args.push(`${test.file.replace(/\\/g, '/')}:${test.position}`);
-            for (const project of test.projects) {
+            for (const project of test.meta.projects) {
                 projects.add(project);
             }
+        }
+        const greps = tests.flatMap(({ meta: { file, title, children } }) => [
+            makeGrepPattern(file, title),
+            ...(children?.map((child) => makeGrepPattern(file, child)) ?? []),
+        ]);
+        if (greps.length > 0) {
+            args.push('--grep', greps.join('|'));
         }
         args.push(...config.args);
         args.push('--workers', '1');

@@ -1,20 +1,15 @@
-import { ResultTestParams, TestRunConfig, TestShard } from '@playwright-orchestrator/core';
+import { ResultTestParams, TestRunConfig, TestShard, TestItem } from '@playwright-orchestrator/core';
 import { Fields } from './constants.js';
 
 export interface TestItemDb {
     [Fields.Id]: string;
     [Fields.Order]: number;
     [Fields.TestId]: string;
-    [Fields.Line]: string;
-    [Fields.Character]: string;
-    [Fields.File]: string;
-    [Fields.Project]?: string;
-    [Fields.Projects]: string[];
     [Fields.Timeout]: number;
     [Fields.EMA]: number;
     [Fields.Ttl]: number;
     [Fields.Report]?: TestReport;
-    [Fields.Children]?: string[];
+    [Fields.Meta]: TestItem['meta'];
 }
 
 export interface TestReport {

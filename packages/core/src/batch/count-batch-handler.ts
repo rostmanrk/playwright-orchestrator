@@ -10,7 +10,7 @@ export class CountBatchHandler extends BaseBatchHandler implements BatchHandler 
         const batch: TestItem[] = [];
         let test: TestItem | undefined;
         for (let i = 0; i < config.options.batchTarget!; i++) {
-            test = await this.getNextTest(config, test?.projects[0]);
+            test = await this.getNextTest(config, test?.meta.projects[0]);
             if (!test) break;
             batch.push(test);
         }
