@@ -104,6 +104,22 @@ export async function testStorage(storageOptions: string[], reportsFolder: strin
     await expect(mergeStdOut2, `Merge reports command failed. Error: ${mergeStderr2}`).toMatchFileSnapshot(
         `../__snapshots__/test-run-repeat-${grouping}.output.snap`,
     );
+
+    // a repeat run must replace the earlier results of re-run tests, not add to them
+    const { stdout: repeatReportStdout, stderr: repeatReportStderr } = await spawnAsync(process.execPath, [
+        orchestratorCli,
+        'create-report',
+        ...storageOptions,
+        '--reporter',
+        'json',
+        '--run-id',
+        runId,
+    ]);
+    const repeatReport: TestRunReport = JSON.parse(repeatReportStdout);
+    expect(
+        repeatReport.tests.map((test) => test.title).sort(),
+        `Create report command failed. Error: ${repeatReportStderr}`,
+    ).toEqual(report.tests.map((test) => test.title).sort());
 }
 
 function clearReportForSnapshot(report: TestRunReport) {
