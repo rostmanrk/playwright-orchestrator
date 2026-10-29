@@ -1,8 +1,8 @@
 import { BaseAdapter, TestRunReport, HistoryItem, SaveTestResultParams, TestRun } from '@playwright-orchestrator/core';
 import { injectable, inject } from 'inversify';
 import type { CreateArgs } from './create-args.js';
-import { lock } from 'proper-lockfile';
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
+import { withLock, writeFileAtomic } from './file-utils.js';
 import { existsSync } from 'node:fs';
 import { FILE_CONFIG } from './symbols.js';
 import { getRunConfigPath, getHistoryRunPath, getResultsRunPath } from './file-paths.js';
@@ -18,8 +18,16 @@ export class FileAdapter extends BaseAdapter {
     }
 
     async getReportData(runId: string): Promise<TestRunReport> {
-        const { config, shards } = JSON.parse(await readFile(getRunConfigPath(this.dir, runId), 'utf-8')) as TestRun;
-        const tests = JSON.parse(await readFile(getResultsRunPath(this.dir, runId), 'utf-8')) as ResultTestItem[];
+        const configFile = getRunConfigPath(this.dir, runId);
+        const resultsFile = getResultsRunPath(this.dir, runId);
+        const { config, shards } = await withLock(
+            configFile,
+            async () => JSON.parse(await readFile(configFile, 'utf-8')) as TestRun,
+        );
+        const tests = await withLock(
+            resultsFile,
+            async () => JSON.parse(await readFile(resultsFile, 'utf-8')) as ResultTestItem[],
+        );
         return {
             runId,
             config,
@@ -41,26 +49,25 @@ export class FileAdapter extends BaseAdapter {
     async getTestEma(testId: string): Promise<number> {
         const historyFile = getHistoryRunPath(this.dir);
         if (!existsSync(historyFile)) return 0;
-        const history = JSON.parse(await readFile(historyFile, 'utf-8')) as Record<string, TestHistoryItem>;
-        return history[testId]?.ema ?? 0;
+        return withLock(historyFile, async () => {
+            const history = JSON.parse(await readFile(historyFile, 'utf-8')) as Record<string, TestHistoryItem>;
+            return history[testId]?.ema ?? 0;
+        });
     }
 
     async saveTestResult({ runId, test, item, historyWindow, newEma }: SaveTestResultParams): Promise<void> {
         const historyFile = getHistoryRunPath(this.dir);
-        let testItem: TestHistoryItem;
-        const releaseHistory = await lock(historyFile, { retries: 100 });
-        try {
+        const testItem = await withLock(historyFile, async () => {
             const history = JSON.parse(await readFile(historyFile, 'utf-8')) as Record<string, TestHistoryItem>;
-            testItem = history[test.testId];
+            const testItem = history[test.testId];
             testItem.history.push({ duration: item.duration, status: item.status, updated: item.updated });
             if (testItem.history.length > historyWindow) {
                 testItem.history.splice(0, testItem.history.length - historyWindow);
             }
             testItem.ema = newEma;
-            await writeFile(historyFile, JSON.stringify(history, null, 2));
-        } finally {
-            await releaseHistory();
-        }
+            await writeFileAtomic(historyFile, JSON.stringify(history, null, 2));
+            return testItem;
+        });
         const historyItems: HistoryItem[] = testItem.history.map((h) => ({
             status: h.status,
             duration: h.duration,
@@ -68,8 +75,7 @@ export class FileAdapter extends BaseAdapter {
         }));
         const report = this.buildReport(test, item, newEma, historyItems);
         const resultsFile = getResultsRunPath(this.dir, runId);
-        const releaseResults = await lock(resultsFile, { retries: 100 });
-        try {
+        await withLock(resultsFile, async () => {
             const results = JSON.parse(await readFile(resultsFile, 'utf-8')) as ResultTestItem[];
             results.push({
                 ...test,
@@ -82,9 +88,7 @@ export class FileAdapter extends BaseAdapter {
                     lastSuccessfulRunTimestamp: report.lastSuccessfulRunTimestamp,
                 },
             });
-            await writeFile(resultsFile, JSON.stringify(results, null, 2));
-        } finally {
-            await releaseResults();
-        }
+            await writeFileAtomic(resultsFile, JSON.stringify(results, null, 2));
+        });
     }
 }

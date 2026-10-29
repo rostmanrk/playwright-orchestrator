@@ -3,8 +3,8 @@ import type { ShardHandler, TestRun, TestRunContext, TestShard } from '@playwrig
 import { RunStatus, SYMBOLS, TestStatus } from '@playwright-orchestrator/core';
 import type { TestItem, TestRunConfig } from '@playwright-orchestrator/core';
 import type { CreateArgs } from './create-args.js';
-import { lock } from 'proper-lockfile';
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
+import { withLock, writeFileAtomic } from './file-utils.js';
 import { FILE_CONFIG } from './symbols.js';
 import { getRunIdFilePath, getRunConfigPath, getResultsRunPath } from './file-paths.js';
 import { ResultTestItem } from './types.js';
@@ -23,8 +23,7 @@ export class FileShardHandler implements ShardHandler {
     async startShard(): Promise<TestRunConfig> {
         const { runId, shardId } = this.runContext;
         const file = getRunConfigPath(this.dir, runId);
-        const release = await lock(file, { retries: 100 });
-        try {
+        return withLock(file, async () => {
             const testRun = JSON.parse(await readFile(file, 'utf-8')) as TestRun;
             if (!testRun.shards[shardId]) {
                 testRun.shards[shardId] = { shardId, started: Date.now() };
@@ -47,34 +46,29 @@ export class FileShardHandler implements ShardHandler {
                         }));
 
                     const rest = results.filter((r) => r.status !== TestStatus.Failed);
-                    await writeFile(getRunIdFilePath(this.dir, runId), JSON.stringify(failed, null, 2), 'utf-8');
-                    await writeFile(getResultsRunPath(this.dir, runId), JSON.stringify(rest, null, 2), 'utf-8');
+                    await writeFileAtomic(getRunIdFilePath(this.dir, runId), JSON.stringify(failed, null, 2));
+                    await writeFileAtomic(getResultsRunPath(this.dir, runId), JSON.stringify(rest, null, 2));
                     testRun.config.remainingCount = failed.length;
                     testRun.config.remainingTime = failed.reduce((sum, t) => sum + t.ema, 0);
                 }
             }
-            await writeFile(file, JSON.stringify(testRun));
+            await writeFileAtomic(file, JSON.stringify(testRun));
             return testRun.config;
-        } finally {
-            await release();
-        }
+        });
     }
 
     async finishShard(): Promise<void> {
         const { runId, shardId } = this.runContext;
         const file = getRunConfigPath(this.dir, runId);
-        const release = await lock(file, { retries: 100 });
-        try {
+        await withLock(file, async () => {
             const testRun = JSON.parse(await readFile(file, 'utf-8')) as TestRun;
             testRun.status = RunStatus.Finished;
             testRun.updated = Date.now();
             if (testRun.shards[shardId]) {
                 testRun.shards[shardId].finished ??= Date.now();
             }
-            await writeFile(file, JSON.stringify(testRun, null, 2));
-        } finally {
-            await release();
-        }
+            await writeFileAtomic(file, JSON.stringify(testRun, null, 2));
+        });
     }
 
     async getNextTest(_config: TestRunConfig): Promise<TestItem | undefined> {
@@ -89,44 +83,35 @@ export class FileShardHandler implements ShardHandler {
 
     private async popNextTest(runId: string, project?: string): Promise<TestItem | undefined> {
         const file = getRunIdFilePath(this.dir, runId);
-        const release = await lock(file, { retries: 100 });
-        try {
+        return withLock(file, async () => {
             const tests = JSON.parse(await readFile(file, 'utf-8')) as TestItem[];
             const index = project ? tests.findLastIndex((t) => t.meta.projects.includes(project)) : tests.length - 1;
             if (index === -1) return undefined;
             const [test] = tests.splice(index, 1);
-            await writeFile(file, JSON.stringify(tests, null, 2));
+            await writeFileAtomic(file, JSON.stringify(tests, null, 2));
             await this.decrementCounters(runId, test.ema);
             return test;
-        } finally {
-            await release();
-        }
+        });
     }
 
     private async decrementCounters(runId: string, ema: number): Promise<void> {
         const configFile = getRunConfigPath(this.dir, runId);
-        const release = await lock(configFile, { retries: 100 });
-        try {
+        await withLock(configFile, async () => {
             const testRun = JSON.parse(await readFile(configFile, 'utf-8')) as TestRun;
             testRun.config.remainingCount = (testRun.config.remainingCount ?? 1) - 1;
             testRun.config.remainingTime = (testRun.config.remainingTime ?? 0) - ema;
-            await writeFile(configFile, JSON.stringify(testRun, null, 2));
-        } finally {
-            await release();
-        }
+            await writeFileAtomic(configFile, JSON.stringify(testRun, null, 2));
+        });
     }
 
     async getRemainingCounters(_config: TestRunConfig): Promise<{ remainingCount: number; remainingTime: number }> {
         const configFile = getRunConfigPath(this.dir, this.runContext.runId);
-        const release = await lock(configFile, { retries: 100 });
-        try {
+        return withLock(configFile, async () => {
             const testRun = JSON.parse(await readFile(configFile, 'utf-8')) as TestRun;
             return {
                 remainingCount: Math.max(0, testRun.config.remainingCount ?? 0),
                 remainingTime: Math.max(0, testRun.config.remainingTime ?? 0),
             };
-        } finally {
-            await release();
-        }
+        });
     }
 }
