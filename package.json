@@ -47,7 +47,8 @@
             "@playwright-orchestrator/pg": "workspace:*",
             "@playwright-orchestrator/redis": "workspace:*",
             "@playwright/test": "^1.64.1",
-            "playwright": "^1.64.1"
+            "playwright": "^1.64.1",
+            "@actions/http-client>undici": "^6.29.1"
         }
     },
     "devDependencies": {
@@ -64,12 +65,13 @@
         "@testcontainers/redis": "^12.0.0",
         "@types/proper-lockfile": "^4.1.4",
         "@types/node": "^22.10.2",
-        "esbuild": "^0.27.4",
+        "esbuild": "^0.28.1",
         "playwright": "^1.64.1",
         "prettier": "3.4.2",
         "proper-lockfile": "^4.1.2",
         "testcontainers": "^12.0.0",
         "typescript": "^5.7.3",
+        "vite": "^7.3.7",
         "vitest": "^4.1.10"
     }
 }
