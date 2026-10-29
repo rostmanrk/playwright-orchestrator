@@ -4,6 +4,7 @@ import type { TestItem, TestRunConfig } from '../packages/core/src/types/adapter
 import { Grouping, BatchMode } from '../packages/core/src/types/adapters.js';
 import type { Adapter } from '../packages/core/src/adapters/adapter.js';
 import { TestExecutionReporter } from '../packages/core/src/runner/test-execution-reporter.js';
+import { TestStatus } from '../packages/core/src/types/test-info.js';
 
 function makeConfig(repeatEach = 1): TestRunConfig {
     return {
@@ -71,8 +72,11 @@ function makeHandler() {
     const adapter = { updateTestWithResults: vi.fn().mockResolvedValue(undefined) } as unknown as Adapter;
     const reporter = new TestExecutionReporter();
     vi.spyOn(reporter, 'addBatch').mockImplementation(() => {});
-    vi.spyOn(reporter, 'addGroup').mockImplementation(() => {});
-    const addTestSpy = vi.spyOn(reporter, 'addTest').mockImplementation(() => {});
+    // Like the real reporter, observe the promises so failed tests don't surface as unhandled rejections
+    vi.spyOn(reporter, 'addGroup').mockImplementation((_batchName, _test, run) => void run.catch(() => {}));
+    const addTestSpy = vi
+        .spyOn(reporter, 'addTest')
+        .mockImplementation((_test, _subId, _displayName, run) => void run.catch(() => {}));
     const handler = new PlaywrightTestEventHandler('run-id', adapter, reporter);
     return { handler, adapter, reporter, addTestSpy };
 }
@@ -115,7 +119,67 @@ describe('PlaywrightTestEventHandler — repeatEach', () => {
         onData(JSON.stringify(makeEvent('bar', 'bar', 1, 0, 0, true, 'begin')));
         onData(JSON.stringify(makeEvent('bar', 'bar', 1, 0, 0, true)));
 
-        await onExit();
+        await onExit(0);
         expect(adapter.updateTestWithResults).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe('PlaywrightTestEventHandler — unreported tests', () => {
+    afterEach(() => {
+        vi.restoreAllMocks();
+    });
+
+    it('saves a test that never reported as failed, using its scheduled ema as duration', async () => {
+        const { handler, adapter, reporter } = makeHandler();
+        vi.spyOn(reporter, 'error').mockImplementation(() => {});
+        const test = { ...makeTestItem('crashed'), ema: 1234 };
+        const { onExit } = handler.init([test], makeConfig(), 'Batch 1');
+
+        const allReported = await onExit(1);
+
+        expect(allReported).toBe(false);
+        expect(adapter.updateTestWithResults).toHaveBeenCalledTimes(1);
+        expect(adapter.updateTestWithResults).toHaveBeenCalledWith(
+            TestStatus.Failed,
+            expect.objectContaining({ test, testResult: { duration: 1234, tests: [] } }),
+        );
+        expect(reporter.error).toHaveBeenCalledWith(expect.stringContaining('crashed'));
+    });
+
+    it('saves a partially reported test as failed even if its reported runs passed', async () => {
+        const { handler, adapter, reporter } = makeHandler();
+        vi.spyOn(reporter, 'error').mockImplementation(() => {});
+        const test = makeTestItem('partial');
+        const { onData, onExit } = handler.init([test], makeConfig(2), 'Batch 1');
+
+        // Only repeat 0 of 2 reports before Playwright exits
+        onData(JSON.stringify(makeEvent('partial', 'partial', 0, 0, 0, true, 'begin')));
+        onData(JSON.stringify(makeEvent('partial', 'partial', 0, 0, 0, true)));
+
+        const allReported = await onExit(1);
+
+        expect(allReported).toBe(false);
+        expect(adapter.updateTestWithResults).toHaveBeenCalledTimes(1);
+        expect(adapter.updateTestWithResults).toHaveBeenCalledWith(
+            TestStatus.Failed,
+            expect.objectContaining({ testResult: expect.objectContaining({ duration: 100 }) }),
+        );
+    });
+
+    it('does not save fully reported tests twice', async () => {
+        const { handler, adapter, reporter } = makeHandler();
+        const errorSpy = vi.spyOn(reporter, 'error').mockImplementation(() => {});
+        const test = makeTestItem('done');
+        const { onData, onExit } = handler.init([test], makeConfig(), 'Batch 1');
+
+        onData(JSON.stringify(makeEvent('done', 'done', 0, 0, 0, true, 'begin')));
+        onData(JSON.stringify(makeEvent('done', 'done', 0, 0, 0, true)));
+
+        const allReported = await onExit(0);
+
+        expect(allReported).toBe(true);
+        expect(adapter.updateTestWithResults).toHaveBeenCalledTimes(1);
+        expect(adapter.updateTestWithResults).toHaveBeenCalledWith(TestStatus.Passed, expect.anything());
+        expect(errorSpy).not.toHaveBeenCalled();
     });
 });

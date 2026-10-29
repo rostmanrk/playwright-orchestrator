@@ -113,16 +113,24 @@ export class TestRunner {
 
         const batchArtifact = path.relative(process.cwd(), `${this.runContext.outputFolder}/${batchId}.zip`);
         try {
-            await runPlaywright(this.buildParams(tests, config), onData, {
+            const exitCode = await runPlaywright(this.buildParams(tests, config), onData, {
                 ...process.env,
                 PLAYWRIGHT_BLOB_OUTPUT_FILE: batchArtifact,
                 ...(config.configFile && {
                     PLAYWRIGHT_ORCHESTRATOR_BROWSERS: JSON.stringify(browsers),
                 }),
                 PLAYWRIGHT_ORCHESTRATOR_GROUPING: config.options.grouping,
+            }).catch(async (err) => {
+                // Playwright failed to start, so none of the batch's tests reported. Save them as failed first.
+                await onExit(null);
+                throw err;
             });
-            await onExit();
-            batchResolver.success();
+            const allReported = await onExit(exitCode);
+            if (allReported) {
+                batchResolver.success();
+            } else {
+                batchResolver.fail();
+            }
         } catch (err) {
             batchResolver.fail(err);
             throw err;
