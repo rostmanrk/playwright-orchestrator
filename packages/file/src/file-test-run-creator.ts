@@ -2,7 +2,8 @@ import { injectable, inject, injectFromBase } from 'inversify';
 import { BaseTestRunCreator, TestStatus } from '@playwright-orchestrator/core';
 import type { TestItem, TestSortItem, TestRun } from '@playwright-orchestrator/core';
 import type { CreateArgs } from './create-args.js';
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { readFile, mkdir } from 'node:fs/promises';
+import { writeFileAtomic } from './file-utils.js';
 import { existsSync } from 'node:fs';
 import { FILE_CONFIG } from './symbols.js';
 import { getRunIdFilePath, getRunConfigPath, getHistoryRunPath, getResultsRunPath } from './file-paths.js';
@@ -36,7 +37,7 @@ export class FileTestRunCreator extends BaseTestRunCreator {
                 };
             }
         }
-        await writeFile(getHistoryRunPath(this.dir), JSON.stringify(history, null, 2));
+        await writeFileAtomic(getHistoryRunPath(this.dir), JSON.stringify(history, null, 2));
         return new Map(
             Object.entries(history).map(([testId, { ema, history }]) => [
                 testId,
@@ -48,8 +49,8 @@ export class FileTestRunCreator extends BaseTestRunCreator {
     async saveRunData(runId: string, testRun: TestRun, tests: TestItem[]): Promise<void> {
         testRun.config.remainingCount = tests.length;
         testRun.config.remainingTime = tests.reduce((sum, t) => sum + t.ema, 0);
-        await writeFile(getRunConfigPath(this.dir, runId), JSON.stringify(testRun, null, 2));
-        await writeFile(getRunIdFilePath(this.dir, runId), JSON.stringify(tests, null, 2));
-        await writeFile(getResultsRunPath(this.dir, runId), '[]');
+        await writeFileAtomic(getRunConfigPath(this.dir, runId), JSON.stringify(testRun, null, 2));
+        await writeFileAtomic(getRunIdFilePath(this.dir, runId), JSON.stringify(tests, null, 2));
+        await writeFileAtomic(getResultsRunPath(this.dir, runId), '[]');
     }
 }
