@@ -108,7 +108,9 @@ export function loadPlaywrightModule(subpath: string): any {
     return result;
 }
 
-export function loadGlobalHookFn(): (config: PlaywrightConfig, file: string) => Promise<(...args: any[]) => any> {
+type GlobalHook = (...args: any[]) => any;
+
+export function loadGlobalHookFn(): (config: PlaywrightConfig, file: string) => Promise<GlobalHook> {
     // Old Playwright: loadGlobalHook exported from loadUtils
     try {
         const m = loadPlaywrightModule('playwright/lib/runner/loadUtils');
@@ -127,6 +129,6 @@ export function loadGlobalHookFn(): (config: PlaywrightConfig, file: string) => 
         let fn = await requireOrImport(resolvedPath);
         if (fn && typeof fn === 'object' && 'default' in fn) fn = (fn as any).default;
         if (typeof fn !== 'function') throw new Error(`${file} must export a single function`);
-        return fn;
+        return fn as GlobalHook;
     };
 }
