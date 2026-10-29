@@ -117,10 +117,7 @@ check('global hook loading mechanism (loadGlobalHook or transform.requireOrImpor
     }
     // New 1.60+ path: use transform.requireOrImport from lib/common/index.js
     const commonPath = path.join(pwDir, 'lib/common/index.js');
-    assert(
-        fs.existsSync(commonPath),
-        `No loadGlobalHook found and lib/common/index.js missing in playwright package`,
-    );
+    assert(fs.existsSync(commonPath), `No loadGlobalHook found and lib/common/index.js missing in playwright package`);
     const m = require(commonPath);
     assert(
         typeof m.transform?.requireOrImport === 'function',

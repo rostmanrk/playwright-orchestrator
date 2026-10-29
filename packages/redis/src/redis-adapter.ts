@@ -37,7 +37,7 @@ export class RedisAdapter extends BaseAdapter {
         const client = await this.connection.getClient();
         const { config, shards } = await this.loadTestRunConfig(runId);
         if (!config) throw new Error(`Run ${runId} not found`);
-        let reports = (await client.lRange(`${this._namePrefix}:${TEST_RUN}:${runId}:report`, 0, -1)).map((el) =>
+        const reports = (await client.lRange(`${this._namePrefix}:${TEST_RUN}:${runId}:report`, 0, -1)).map((el) =>
             JSON.parse(el),
         );
 
@@ -106,12 +106,7 @@ export class RedisAdapter extends BaseAdapter {
         }
         return {
             config: JSON.parse(config),
-            shards: Object.fromEntries(
-                Object.entries((shards as Record<string, string> | null) ?? {}).map(([id, data]) => [
-                    id,
-                    JSON.parse(data),
-                ]),
-            ) as Record<string, TestShard>,
+            shards: Object.fromEntries(Object.entries(shards ?? {}).map(([id, data]) => [id, JSON.parse(data)])),
         };
     }
 }

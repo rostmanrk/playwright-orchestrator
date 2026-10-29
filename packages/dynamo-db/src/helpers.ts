@@ -61,12 +61,15 @@ export function mapDbToTestRun({
     };
 }
 
+// Status offsets are numeric ranges, so comparing a raw id against them is intended
+/* eslint-disable @typescript-eslint/no-unsafe-enum-comparison */
 export function idToStatus(id: number): TestStatus {
     if (id < StatusOffset.Running) return TestStatus.Ready;
     if (id < StatusOffset.Succeed) return TestStatus.Ongoing;
     if (id < StatusOffset.Failed) return TestStatus.Passed;
     return TestStatus.Failed;
 }
+/* eslint-enable @typescript-eslint/no-unsafe-enum-comparison */
 
 export function mapDbTestInfoToSortItem(item: TestInfoItem): TestSortItem {
     return {

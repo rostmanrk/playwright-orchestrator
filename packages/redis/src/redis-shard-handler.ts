@@ -108,7 +108,14 @@ redis.call('SET', KEYS[1], ARGV[2], 'EX', ttl)
 redis.call('SET', KEYS[6], ARGV[3], 'EX', ttl)
 return 1`;
             await client.eval(script, {
-                keys: [statusKey, `${queueKey}:failed`, `${queueKey}:queue`, `${key}:remainingCount`, `${key}:remainingTime`, updatedKey],
+                keys: [
+                    statusKey,
+                    `${queueKey}:failed`,
+                    `${queueKey}:queue`,
+                    `${key}:remainingCount`,
+                    `${key}:remainingTime`,
+                    updatedKey,
+                ],
                 arguments: [
                     String(RunStatus.Finished),
                     String(RunStatus.RepeatRun),
@@ -177,10 +184,6 @@ return 1`;
         const { runId } = this.runContext;
         const client = await this.connection.getClient();
         const key = `${this._namePrefix}:${TEST_RUN}:${runId}`;
-        await client
-            .multi()
-            .incrBy(`${key}:remainingCount`, -1)
-            .incrByFloat(`${key}:remainingTime`, -ema)
-            .exec();
+        await client.multi().incrBy(`${key}:remainingCount`, -1).incrByFloat(`${key}:remainingTime`, -ema).exec();
     }
 }

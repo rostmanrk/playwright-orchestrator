@@ -9,7 +9,6 @@ const ctsPlugin = {
     async transform(code: string, id: string) {
         if (!id.endsWith('.cts')) return;
         // esbuild is a transitive dep of vite — always available at runtime.
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { transform } = (await import('esbuild')) as any;
         const result = await transform(code, { loader: 'ts', format: 'cjs' });
         return { code: result.code, map: result.map };

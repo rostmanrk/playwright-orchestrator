@@ -15,12 +15,12 @@ export async function spawnAsync(command: string, args: string[] = [], options?:
             stderr += data.toString();
         });
 
-        child.on('close', (code) => {
+        child.on('close', () => {
             resolve({ stdout, stderr });
         });
 
         child.on('error', (err) => {
-            reject({ stdout, stderr, error: err });
+            reject(Object.assign(err, { stdout, stderr }));
         });
     });
 }

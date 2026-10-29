@@ -47,9 +47,15 @@ const SINGLE_TEST_RUN: ReporterTestRunInfo['testRun'] = {
 describe('BaseTestRunCreator sort order', () => {
     it('sorts tests by EMA descending (highest ema = order 1)', async () => {
         const runInfo = makeRunInfo({
-            'a.spec.ts': { '1:1': { 'test a': { timeout: 5000, projects: ['chrome'], annotations: [], children: undefined } } },
-            'b.spec.ts': { '1:1': { 'test b': { timeout: 5000, projects: ['chrome'], annotations: [], children: undefined } } },
-            'c.spec.ts': { '1:1': { 'test c': { timeout: 5000, projects: ['chrome'], annotations: [], children: undefined } } },
+            'a.spec.ts': {
+                '1:1': { 'test a': { timeout: 5000, projects: ['chrome'], annotations: [], children: undefined } },
+            },
+            'b.spec.ts': {
+                '1:1': { 'test b': { timeout: 5000, projects: ['chrome'], annotations: [], children: undefined } },
+            },
+            'c.spec.ts': {
+                '1:1': { 'test c': { timeout: 5000, projects: ['chrome'], annotations: [], children: undefined } },
+            },
         });
         const creator = makeCreator(runInfo);
         creator.testInfoMap.set('[chrome] a.spec.ts > test a', { ema: 100, fails: 0 });
@@ -65,8 +71,12 @@ describe('BaseTestRunCreator sort order', () => {
 
     it('failure adjustment boosts sort value: ema=100, fails=5, window=10 → adjusted=150 > ema=130', async () => {
         const runInfo = makeRunInfo({
-            'a.spec.ts': { '1:1': { 'test a': { timeout: 5000, projects: ['chrome'], annotations: [], children: undefined } } },
-            'b.spec.ts': { '1:1': { 'test b': { timeout: 5000, projects: ['chrome'], annotations: [], children: undefined } } },
+            'a.spec.ts': {
+                '1:1': { 'test a': { timeout: 5000, projects: ['chrome'], annotations: [], children: undefined } },
+            },
+            'b.spec.ts': {
+                '1:1': { 'test b': { timeout: 5000, projects: ['chrome'], annotations: [], children: undefined } },
+            },
         });
         const creator = makeCreator(runInfo);
         // A: ema=100, fails=5, window=10 → adjusted = 100 * (5/10 + 1) = 150
@@ -81,8 +91,12 @@ describe('BaseTestRunCreator sort order', () => {
 
     it('new test (no history) uses timeout as sort value', async () => {
         const runInfo = makeRunInfo({
-            'a.spec.ts': { '1:1': { 'new': { timeout: 5000, projects: ['chrome'], annotations: [], children: undefined } } },
-            'b.spec.ts': { '1:1': { 'known': { timeout: 3000, projects: ['chrome'], annotations: [], children: undefined } } },
+            'a.spec.ts': {
+                '1:1': { new: { timeout: 5000, projects: ['chrome'], annotations: [], children: undefined } },
+            },
+            'b.spec.ts': {
+                '1:1': { known: { timeout: 3000, projects: ['chrome'], annotations: [], children: undefined } },
+            },
         });
         const creator = makeCreator(runInfo);
         // a has no history — uses timeout=5000
@@ -95,8 +109,12 @@ describe('BaseTestRunCreator sort order', () => {
 
     it('order field is 1-indexed and ascending in result array', async () => {
         const runInfo = makeRunInfo({
-            'a.spec.ts': { '1:1': { 'test': { timeout: 5000, projects: ['chrome'], annotations: [], children: undefined } } },
-            'b.spec.ts': { '1:1': { 'test': { timeout: 5000, projects: ['chrome'], annotations: [], children: undefined } } },
+            'a.spec.ts': {
+                '1:1': { test: { timeout: 5000, projects: ['chrome'], annotations: [], children: undefined } },
+            },
+            'b.spec.ts': {
+                '1:1': { test: { timeout: 5000, projects: ['chrome'], annotations: [], children: undefined } },
+            },
         });
         const creator = makeCreator(runInfo);
         creator.testInfoMap.set('[chrome] a.spec.ts > test', { ema: 200, fails: 0 });
@@ -113,14 +131,30 @@ describe('BaseTestRunCreator duplicate ID validation', () => {
     it('throws when two tests produce the same testId', async () => {
         const ID_TYPE = '@playwright-orchestrator/id';
         const runInfo = makeRunInfo({
-            'a.spec.ts': { '1:1': { 'test': { timeout: 5000, projects: ['chrome'], annotations: [{ type: ID_TYPE, description: 'dup' }], children: undefined } } },
-            'b.spec.ts': { '2:1': { 'test': { timeout: 5000, projects: ['chrome'], annotations: [{ type: ID_TYPE, description: 'dup' }], children: undefined } } },
+            'a.spec.ts': {
+                '1:1': {
+                    test: {
+                        timeout: 5000,
+                        projects: ['chrome'],
+                        annotations: [{ type: ID_TYPE, description: 'dup' }],
+                        children: undefined,
+                    },
+                },
+            },
+            'b.spec.ts': {
+                '2:1': {
+                    test: {
+                        timeout: 5000,
+                        projects: ['chrome'],
+                        annotations: [{ type: ID_TYPE, description: 'dup' }],
+                        children: undefined,
+                    },
+                },
+            },
         });
         const creator = makeCreator(runInfo);
 
-        await expect(creator.create({ runId: 'r', args: [], options: makeOptions() })).rejects.toThrow(
-            'a.spec.ts:1:1',
-        );
+        await expect(creator.create({ runId: 'r', args: [], options: makeOptions() })).rejects.toThrow('a.spec.ts:1:1');
     });
 });
 
@@ -167,9 +201,19 @@ describe('BaseTestRunCreator infrastructure project filtering', () => {
     it('filters out tests from dependency/teardown projects', async () => {
         const runInfo = makeRunInfo(
             {
-                'setup.spec.ts': { '1:1': { 'setup': { timeout: 5000, projects: ['setup'], annotations: [], children: undefined } } },
-                'teardown.spec.ts': { '1:1': { 'teardown': { timeout: 5000, projects: ['teardown'], annotations: [], children: undefined } } },
-                'a.spec.ts': { '1:1': { 'test a': { timeout: 5000, projects: ['chromium'], annotations: [], children: undefined } } },
+                'setup.spec.ts': {
+                    '1:1': { setup: { timeout: 5000, projects: ['setup'], annotations: [], children: undefined } },
+                },
+                'teardown.spec.ts': {
+                    '1:1': {
+                        teardown: { timeout: 5000, projects: ['teardown'], annotations: [], children: undefined },
+                    },
+                },
+                'a.spec.ts': {
+                    '1:1': {
+                        'test a': { timeout: 5000, projects: ['chromium'], annotations: [], children: undefined },
+                    },
+                },
             },
             projects,
         );
@@ -183,7 +227,16 @@ describe('BaseTestRunCreator infrastructure project filtering', () => {
     it('strips infrastructure projects from mixed-project tests', async () => {
         const runInfo = makeRunInfo(
             {
-                'a.spec.ts': { '1:1': { 'test a': { timeout: 5000, projects: ['setup', 'chromium'], annotations: [], children: undefined } } },
+                'a.spec.ts': {
+                    '1:1': {
+                        'test a': {
+                            timeout: 5000,
+                            projects: ['setup', 'chromium'],
+                            annotations: [],
+                            children: undefined,
+                        },
+                    },
+                },
             },
             projects,
         );
@@ -200,7 +253,11 @@ describe('BaseTestRunCreator infrastructure project filtering', () => {
         ];
         const runInfo = makeRunInfo(
             {
-                'a.spec.ts': { '1:1': { 'test a': { timeout: 5000, projects: ['chromium'], annotations: [], children: undefined } } },
+                'a.spec.ts': {
+                    '1:1': {
+                        'test a': { timeout: 5000, projects: ['chromium'], annotations: [], children: undefined },
+                    },
+                },
             },
             noDeps,
         );

@@ -275,7 +275,7 @@ export class DynamoDbShardHandler implements ShardHandler {
                 }),
             );
             return true;
-        } catch (error) {
+        } catch {
             return false;
         }
     }

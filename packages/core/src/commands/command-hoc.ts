@@ -23,7 +23,7 @@ export function handle<TArgs extends any[], TResult>(
             try {
                 await writeFile(logFile, JSON.stringify(errorDetails, null, 2));
                 program.error(`Error occurred. Log file: ${logFile}\nError: ${errorDetails.message}`);
-            } catch (writeError) {
+            } catch {
                 program.error(`Failed to write error log. Original error: ${errorDetails.message}`);
             }
             return undefined;

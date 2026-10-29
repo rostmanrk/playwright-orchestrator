@@ -40,7 +40,7 @@ export class DynamoDbInitializer implements Initializer {
             if ((e as { name?: string }).name === 'ResourceInUseException') return false;
             throw e;
         }
-        let created = false;
+        let created: boolean;
         do {
             await new Promise((resolve) => setTimeout(resolve, 1500));
             const res = await this.connection.client.send(new DescribeTableCommand({ TableName: tableName }));

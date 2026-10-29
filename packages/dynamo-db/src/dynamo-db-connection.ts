@@ -17,7 +17,7 @@ export class DynamoDbConnection {
     }
 
     @preDestroy()
-    async dispose(): Promise<void> {
+    dispose(): void {
         this.client.destroy();
     }
 }

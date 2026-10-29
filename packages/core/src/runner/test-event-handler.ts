@@ -49,7 +49,7 @@ export class PlaywrightTestEventHandler implements TestEventHandler {
             if (isError) return;
             try {
                 event = JSON.parse(data.toString()) as TestReportEvent;
-            } catch (error) {
+            } catch {
                 this.reporter.error(`Failed to parse test report event`);
                 return;
             }

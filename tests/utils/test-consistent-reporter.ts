@@ -23,7 +23,7 @@ export default class ConsistentTestReporter implements Reporter {
     onBegin(config: FullConfig, suite: Suite) {
         for (const test of suite.allTests()) {
             this.tests[test.id] = {
-                project: `[${test.parent.project()?.name!}]`,
+                project: `[${test.parent.project()?.name}]`,
                 location: this.getTestPosition(test),
                 status: '?',
                 title: test.title,
@@ -37,7 +37,7 @@ export default class ConsistentTestReporter implements Reporter {
         this.tests[test.id].status = STATUS_MAP[result.status];
     }
 
-    onEnd(result: FullResult) {
+    onEnd(_result: FullResult) {
         const tests = Object.values(this.tests).sort((a, b) => {
             const cmp = a.location.localeCompare(b.location);
             if (cmp !== 0) return cmp;

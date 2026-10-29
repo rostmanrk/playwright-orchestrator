@@ -1,5 +1,5 @@
 import { injectable, inject } from 'inversify';
-import type { ShardHandler, TestRun, TestRunContext, TestShard } from '@playwright-orchestrator/core';
+import type { ShardHandler, TestRun, TestRunContext } from '@playwright-orchestrator/core';
 import { RunStatus, SYMBOLS, TestStatus } from '@playwright-orchestrator/core';
 import type { TestItem, TestRunConfig } from '@playwright-orchestrator/core';
 import type { CreateArgs } from './create-args.js';

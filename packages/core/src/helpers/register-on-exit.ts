@@ -7,7 +7,7 @@ function signalHandler(isError = true) {
         for (const callback of callbacks) {
             try {
                 callback();
-            } catch (err) {
+            } catch {
                 // Ignore errors during exit handling.
             }
         }

@@ -18,16 +18,16 @@ export class GlobalSetupManager {
 
     async runSetup(config: TestRunConfig, browsers: Record<string, string>): Promise<void> {
         this.loadGlobalHook = loadGlobalHookFn();
-        await this.runGlobalSetup(config);
+        await this.runGlobalSetup();
         await this.runSetupProjects(config, browsers);
     }
 
     async runTeardown(config: TestRunConfig, browsers: Record<string, string>): Promise<void> {
         await this.runTeardownProjects(config, browsers);
-        await this.runGlobalTeardown(config);
+        await this.runGlobalTeardown();
     }
 
-    private async runGlobalSetup(config: TestRunConfig): Promise<void> {
+    private async runGlobalSetup(): Promise<void> {
         const playwrightConfig = this.configLoader.getConfig();
         if (!playwrightConfig?.globalSetups?.length) return;
 
@@ -157,7 +157,7 @@ export class GlobalSetupManager {
         return result;
     }
 
-    private async runGlobalTeardown(config: TestRunConfig): Promise<void> {
+    private async runGlobalTeardown(): Promise<void> {
         const playwrightConfig = this.configLoader.getConfig();
         if (!playwrightConfig?.globalTeardowns?.length && !this.globalSetupTeardowns.length) return;
         const promise = this.executeTeardowns(playwrightConfig);

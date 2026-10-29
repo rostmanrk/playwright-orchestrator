@@ -1,5 +1,4 @@
 import { inject, injectable, preDestroy } from 'inversify';
-import type { TestRunConfig } from '../types/adapters.js';
 import { SYMBOLS } from '../symbols.js';
 import { TestExecutionReporter } from './test-execution-reporter.js';
 import { loadPlaywrightModule, PlaywrightConfigLoader } from '../helpers/playwright-config.js';

@@ -20,9 +20,10 @@ export class MongoInitializer implements Initializer {
         const collections = await database.collections();
         const set = new Set(collections.map((c) => c.collectionName));
         await Promise.all([
-            !set.has(runsCollection)      ? database.createCollection(runsCollection) : Promise.resolve(),
-            !set.has(testsCollection)     ? database.createCollection(testsCollection)
-                                                .then(c => c.createIndex({ status: 1 })) : Promise.resolve(),
+            !set.has(runsCollection) ? database.createCollection(runsCollection) : Promise.resolve(),
+            !set.has(testsCollection)
+                ? database.createCollection(testsCollection).then((c) => c.createIndex({ status: 1 }))
+                : Promise.resolve(),
             !set.has(testsInfoCollection) ? database.createCollection(testsInfoCollection) : Promise.resolve(),
         ]);
     }

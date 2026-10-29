@@ -13,7 +13,11 @@ export interface PlaywrightConfig {
 const req = createRequire(join(process.cwd(), 'package.json'));
 
 function isModuleResolutionError(e: any): boolean {
-    return e.code === 'MODULE_NOT_FOUND' || e.code === 'ERR_PACKAGE_PATH_NOT_EXPORTED' || e.code === 'ERR_UNSUPPORTED_DIR_IMPORT';
+    return (
+        e.code === 'MODULE_NOT_FOUND' ||
+        e.code === 'ERR_PACKAGE_PATH_NOT_EXPORTED' ||
+        e.code === 'ERR_UNSUPPORTED_DIR_IMPORT'
+    );
 }
 
 function loadPwAbsolute(relPath: string): any {
@@ -41,7 +45,10 @@ export class PlaywrightConfigLoader {
     }
 }
 
-function loadConfigFunctions(): { loadConfig: Function; resolveConfigLocation: Function } {
+function loadConfigFunctions(): {
+    loadConfig: (...args: any[]) => any;
+    resolveConfigLocation: (...args: any[]) => any;
+} {
     // Old Playwright: direct subpath require (pre-1.50)
     try {
         const m = req('playwright/lib/common/configLoader');
@@ -60,7 +67,9 @@ function loadConfigFunctions(): { loadConfig: Function; resolveConfigLocation: F
     const m = loadPwAbsolute('lib/common/index.js');
     const loader = m.configLoader;
     if (!loader || typeof loader.loadConfig !== 'function') {
-        throw new Error('Cannot find loadConfig in Playwright internals (checked configLoader.js and index.js#configLoader)');
+        throw new Error(
+            'Cannot find loadConfig in Playwright internals (checked configLoader.js and index.js#configLoader)',
+        );
     }
     return loader;
 }
@@ -92,11 +101,14 @@ export function loadPlaywrightModule(subpath: string): any {
     if (!mapping) throw new Error(`Cannot load Playwright module: ${subpath}`);
     const m = loadPwAbsolute(mapping.file);
     const result = mapping.namespace ? m[mapping.namespace] : m;
-    if (result == null) throw new Error(`Cannot load Playwright module: ${subpath} (namespace '${mapping.namespace}' not found in ${mapping.file})`);
+    if (result == null)
+        throw new Error(
+            `Cannot load Playwright module: ${subpath} (namespace '${mapping.namespace}' not found in ${mapping.file})`,
+        );
     return result;
 }
 
-export function loadGlobalHookFn(): (config: PlaywrightConfig, file: string) => Promise<Function> {
+export function loadGlobalHookFn(): (config: PlaywrightConfig, file: string) => Promise<(...args: any[]) => any> {
     // Old Playwright: loadGlobalHook exported from loadUtils
     try {
         const m = loadPlaywrightModule('playwright/lib/runner/loadUtils');

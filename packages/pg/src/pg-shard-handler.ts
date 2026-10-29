@@ -1,5 +1,5 @@
 import { injectable, inject } from 'inversify';
-import type { ShardHandler, TestRunContext, TestShard } from '@playwright-orchestrator/core';
+import type { ShardHandler, TestRunContext } from '@playwright-orchestrator/core';
 import { RunStatus, SYMBOLS, TestStatus } from '@playwright-orchestrator/core';
 import type { TestItem, TestRunConfig } from '@playwright-orchestrator/core';
 import type { CreateArgs } from './create-args.js';
@@ -89,7 +89,7 @@ export class PgShardHandler implements ShardHandler {
         const client = await this.pool.connect();
         try {
             await client.query('BEGIN');
-            let result = await client.query({
+            const result = await client.query({
                 text: `SELECT * FROM ${this.configTable} WHERE id = $1 FOR UPDATE`,
                 values: [runId],
             });

@@ -1,6 +1,5 @@
 import {
     BaseAdapter,
-    TestRunConfig,
     TestStatus,
     TestRunReport,
     HistoryItem,

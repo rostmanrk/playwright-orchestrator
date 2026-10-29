@@ -71,7 +71,7 @@ export class MongoDbAdapter extends BaseAdapter {
             { _id: test.testId },
             {
                 $set: { ema: newEma },
-                // @ts-ignore
+                // @ts-expect-error MongoDB typings reject $push with $each/$slice on this document type
                 $push: {
                     history: {
                         $each: [{ duration: item.duration, status: item.status, updated: new Date(item.updated) }],

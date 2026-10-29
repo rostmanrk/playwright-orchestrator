@@ -12,13 +12,13 @@ import { PG_CONFIG, PG_POOL } from './symbols.js';
 
 export async function register(container: Container, options: CreateArgs): Promise<void> {
     if (options.sslCa) {
-        options.sslCa = await readFile(options.sslCa as string);
+        options.sslCa = await readFile(options.sslCa);
     }
     if (options.sslCert) {
-        options.sslCert = await readFile(options.sslCert as string);
+        options.sslCert = await readFile(options.sslCert);
     }
     if (options.sslKey) {
-        options.sslKey = await readFile(options.sslKey as string);
+        options.sslKey = await readFile(options.sslKey);
     }
     container.bind(PG_CONFIG).toConstantValue(options);
     container.bind(PG_POOL).to(PgPool).inSingletonScope();
