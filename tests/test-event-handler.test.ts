@@ -6,14 +6,14 @@ import type { Adapter } from '../packages/core/src/adapters/adapter.js';
 import { TestExecutionReporter } from '../packages/core/src/runner/test-execution-reporter.js';
 import { TestStatus } from '../packages/core/src/types/test-info.js';
 
-function makeConfig(repeatEach = 1): TestRunConfig {
+function makeConfig(repeatEach = 1, projects = ['chrome'], grouping = Grouping.Project): TestRunConfig {
     return {
         workers: 1,
-        projects: [{ name: 'chrome', use: {}, repeatEach }],
+        projects: projects.map((name) => ({ name, use: {}, repeatEach })),
         args: [],
         options: {
             batchMode: BatchMode.Off,
-            grouping: Grouping.Project,
+            grouping,
             historyWindow: 10,
             batchTarget: 3,
         },
@@ -44,10 +44,12 @@ function makeEvent(
     retries: number,
     ok: boolean,
     type: 'begin' | 'end' = 'end',
+    project = 'chrome',
+    status: string = ok ? 'passed' : 'failed',
 ) {
     return {
         type,
-        project: 'chrome',
+        project,
         test: {
             testId,
             title,
@@ -61,7 +63,7 @@ function makeEvent(
         },
         result: {
             duration: 100,
-            status: ok ? 'passed' : 'failed',
+            status,
             retry,
             error: undefined,
         },
@@ -79,6 +81,22 @@ function makeHandler() {
         .mockImplementation((_test, _subId, _displayName, run) => void run.catch(() => {}));
     const handler = new PlaywrightTestEventHandler('run-id', adapter, reporter);
     return { handler, adapter, reporter, addTestSpy };
+}
+
+/** The promise the reporter uses to show the group as passed or failed in the shard summary. */
+function groupOutcome(reporter: TestExecutionReporter, testId: string): Promise<unknown> {
+    const call = vi.mocked(reporter.addGroup).mock.calls.find(([, test]) => test.testId === testId);
+    return call![2];
+}
+
+/** Sends a begin + end pair for one Playwright test result. */
+function report(onData: (data: any, isError: boolean) => void, ...args: Parameters<typeof makeEvent>) {
+    const [testId, title, repeatEachIndex, retry, retries, ok, , project, status] = args;
+    onData(JSON.stringify(makeEvent(testId, title, repeatEachIndex, retry, retries, ok, 'begin', project)), false);
+    onData(
+        JSON.stringify(makeEvent(testId, title, repeatEachIndex, retry, retries, ok, 'end', project, status)),
+        false,
+    );
 }
 
 describe('PlaywrightTestEventHandler — repeatEach', () => {
@@ -181,5 +199,79 @@ describe('PlaywrightTestEventHandler — unreported tests', () => {
         expect(adapter.updateTestWithResults).toHaveBeenCalledTimes(1);
         expect(adapter.updateTestWithResults).toHaveBeenCalledWith(TestStatus.Passed, expect.anything());
         expect(errorSpy).not.toHaveBeenCalled();
+    });
+});
+
+describe('PlaywrightTestEventHandler — status', () => {
+    afterEach(() => {
+        vi.restoreAllMocks();
+    });
+
+    function makeSerialGroup(): TestItem {
+        return { ...makeTestItem('#serial'), meta: { ...makeTestItem('#serial').meta, children: ['first', 'second'] } };
+    }
+    const firstId = '[chrome] tests/foo.spec.ts > first';
+    const secondId = '[chrome] tests/foo.spec.ts > second';
+
+    it('fails a test that failed in one project even if another project reported last and passed', async () => {
+        const { handler, adapter, reporter } = makeHandler();
+        const test = {
+            ...makeTestItem('multi'),
+            meta: { ...makeTestItem('multi').meta, projects: ['chrome', 'firefox'] },
+        };
+        const { onData, onExit } = handler.init([test], makeConfig(1, ['chrome', 'firefox'], Grouping.Test), 'Batch 1');
+
+        report(onData, 'multi', 'multi', 0, 0, 0, false, 'end', 'firefox');
+        report(onData, 'multi', 'multi', 0, 0, 0, true, 'end', 'chrome');
+        await onExit(1);
+
+        expect(adapter.updateTestWithResults).toHaveBeenCalledWith(TestStatus.Failed, expect.anything());
+        await expect(groupOutcome(reporter, 'multi')).rejects.toBeUndefined();
+    });
+
+    it('fails a serial group whose remaining tests were skipped after a failure', async () => {
+        const { handler, adapter, reporter } = makeHandler();
+        const test = makeSerialGroup();
+        const { onData, onExit } = handler.init([test], makeConfig(), 'Batch 1');
+
+        // Playwright reports the tests skipped after a serial failure with ok() === true
+        report(onData, firstId, 'first', 0, 0, 0, false);
+        report(onData, secondId, 'second', 0, 0, 0, true, 'end', 'chrome', 'skipped');
+        await onExit(1);
+
+        expect(adapter.updateTestWithResults).toHaveBeenCalledWith(TestStatus.Failed, expect.anything());
+        await expect(groupOutcome(reporter, '#serial')).rejects.toBeUndefined();
+    });
+
+    it('passes a serial group whose retry passed, waiting for the retry before saving', async () => {
+        const { handler, adapter, reporter } = makeHandler();
+        const test = makeSerialGroup();
+        const { onData, onExit } = handler.init([test], makeConfig(), 'Batch 1');
+
+        report(onData, firstId, 'first', 0, 0, 1, false);
+        report(onData, secondId, 'second', 0, 0, 1, true, 'end', 'chrome', 'skipped');
+        expect(adapter.updateTestWithResults).not.toHaveBeenCalled();
+        report(onData, firstId, 'first', 0, 1, 1, true);
+        report(onData, secondId, 'second', 0, 1, 1, true);
+        await onExit(0);
+
+        expect(adapter.updateTestWithResults).toHaveBeenCalledTimes(1);
+        expect(adapter.updateTestWithResults).toHaveBeenCalledWith(
+            TestStatus.Passed,
+            expect.objectContaining({ testResult: expect.objectContaining({ duration: 400 }) }),
+        );
+        await expect(groupOutcome(reporter, '#serial')).resolves.toBeUndefined();
+    });
+
+    it('passes a test when at least one repeat passed', async () => {
+        const { handler, adapter } = makeHandler();
+        const test = makeTestItem('flaky');
+        const { onData, onExit } = handler.init([test], makeConfig(2), 'Batch 1');
+
+        report(onData, 'flaky', 'flaky', 0, 0, 0, false);
+        report(onData, 'flaky', 'flaky', 1, 0, 0, true);
+        await onExit(0);
+
+        expect(adapter.updateTestWithResults).toHaveBeenCalledWith(TestStatus.Passed, expect.anything());
     });
 });

@@ -36,6 +36,8 @@ export interface TestInfoResult extends BaseTestResult {
     repeatEachIndex: number;
     status: TestResult['status'];
     project: string;
+    /** Identifies the run of a single Playwright test within a group: child title, project and repeat. */
+    childId: string;
 }
 
 export type TestReportResultMap = Record<string, { case: TestCase; result: TestResult }[]>;

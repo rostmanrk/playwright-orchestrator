@@ -28,12 +28,10 @@ export class PlaywrightTestEventHandler implements TestEventHandler {
     private readonly childResolvers: Map<string, Resolver> = new Map();
     private readonly batchResolver: Resolver = { success: () => {}, fail: () => {} };
     private readonly testResults: Map<string, TestInfoResult[]> = new Map();
-    private readonly pending: Promise<void>[] = [];
-    private readonly savedTests = new Set<string>();
     private readonly childIdsByTest = new Map<string, Set<string>>();
     private tests: TestItem[] = [];
     private testMapping: Map<string, TestItem> = new Map();
-    private testCounts: Map<string, number> = new Map();
+    private expectedRunCounts: Map<string, number> = new Map();
     private projects: Map<string, Project> = new Map();
     private config!: TestRunConfig;
     private batchName!: string;
@@ -65,13 +63,32 @@ export class PlaywrightTestEventHandler implements TestEventHandler {
             }
         };
 
+        // Results are only final once Playwright exits: a serial group reports its skipped tests as ok
+        // and can still be retried, so status is decided and saved here rather than per event.
         const onExit = async (exitCode: number | null) => {
-            const unreportedTests = this.tests.filter((test) => !this.savedTests.has(test.testId));
-            for (const test of unreportedTests) {
-                this.failUnreportedTest(test, exitCode);
-            }
-            await Promise.all(this.pending);
-            return unreportedTests.length === 0;
+            let allReported = true;
+            await Promise.all(
+                this.tests.map(async (test) => {
+                    const results = this.testResults.get(test.testId) ?? [];
+                    const reportedRuns = new Set(results.map((result) => result.childId)).size;
+                    let status: TestStatus;
+                    if (reportedRuns < this.expectedRunCounts.get(test.testId)!) {
+                        allReported = false;
+                        this.failUnreportedTest(test, exitCode);
+                        status = TestStatus.Failed;
+                    } else {
+                        status = this.computeStatus(results);
+                    }
+                    await this.saveTestResult(test, results, status);
+                    const { success, fail } = this.testResolvers.get(test.testId)!;
+                    if (status === TestStatus.Passed) {
+                        success();
+                    } else {
+                        fail();
+                    }
+                }),
+            );
+            return allReported;
         };
 
         return { onData, onExit, batchResolver: this.batchResolver };
@@ -131,43 +148,47 @@ export class PlaywrightTestEventHandler implements TestEventHandler {
         const { childId } = this.extractChildData(event);
 
         if (ok || retries === retry) {
-            this.testCounts.set(test.testId, this.testCounts.get(test.testId)! - 1);
             const childResolver = this.childResolvers.get(childId);
             if (childResolver) {
                 ok ? childResolver.success() : childResolver.fail();
             }
         }
         if (!this.testResults.has(test.testId)) this.testResults.set(test.testId, []);
-        this.testResults.get(test.testId)!.push({ duration, status, retry, error, ok, repeatEachIndex, project });
-        if ((this.testCounts.get(test.testId) ?? 0) === 0) {
-            const { success, fail } = this.testResolvers.get(test.testId)!;
-            this.savedTests.add(test.testId);
-            this.pending.push(
-                this.saveTestResult(test, this.testResults, this.config).then(() => {
-                    ok ? success() : fail();
-                }),
-            );
-        }
+        this.testResults
+            .get(test.testId)!
+            .push({ duration, status, retry, error, ok, repeatEachIndex, project, childId });
     }
 
     /**
      * Playwright exited before reporting every result for the test (crash, killed worker, config error).
-     * Saving it as failed keeps it visible in reports and lets a repeat run pick it up again.
+     * Failing it keeps it visible in reports and lets a repeat run pick it up again.
      */
     private failUnreportedTest(test: TestItem, exitCode: number | null) {
-        this.savedTests.add(test.testId);
         this.reporter.error(
             `Test ${test.testId} did not report a result before Playwright exited with code ${exitCode}. Marking it as failed.`,
         );
         for (const childId of this.childIdsByTest.get(test.testId) ?? []) {
             this.childResolvers.get(childId)?.fail();
         }
-        const { fail } = this.testResolvers.get(test.testId)!;
-        this.pending.push(
-            this.saveTestResult(test, this.testResults, this.config, TestStatus.Failed).then(() => {
-                fail();
-            }),
+    }
+
+    /**
+     * A test passes when, in every project, at least one repeat passed, and a repeat passes when the last
+     * result of each of its child tests is ok. Looking at every child matters for serial groups: after a
+     * failure Playwright reports the remaining children as skipped with ok() === true.
+     */
+    private computeStatus(results: TestInfoResult[]): TestStatus {
+        const lastByRun = new Map<string, Map<number, Map<string, TestInfoResult>>>();
+        for (const result of results) {
+            if (!lastByRun.has(result.project)) lastByRun.set(result.project, new Map());
+            const byRepeat = lastByRun.get(result.project)!;
+            if (!byRepeat.has(result.repeatEachIndex)) byRepeat.set(result.repeatEachIndex, new Map());
+            byRepeat.get(result.repeatEachIndex)!.set(result.childId, result);
+        }
+        const passed = [...lastByRun.values()].every((byRepeat) =>
+            [...byRepeat.values()].some((lastByChild) => [...lastByChild.values()].every((result) => result.ok)),
         );
+        return passed ? TestStatus.Passed : TestStatus.Failed;
     }
 
     private createBatchResolver() {
@@ -217,8 +238,8 @@ export class PlaywrightTestEventHandler implements TestEventHandler {
                 }
             }
             for (const project of test.meta.projects) {
-                const value = this.testCounts.get(test.testId) ?? 0;
-                this.testCounts.set(
+                const value = this.expectedRunCounts.get(test.testId) ?? 0;
+                this.expectedRunCounts.set(
                     test.testId,
                     value + (test.meta.children?.length ?? 1) * this.projects.get(project)!.repeatEach,
                 );
@@ -227,39 +248,17 @@ export class PlaywrightTestEventHandler implements TestEventHandler {
         }
     }
 
-    private async saveTestResult(
-        test: TestItem,
-        testResults: Map<string, TestInfoResult[]>,
-        config: TestRunConfig,
-        forcedStatus?: TestStatus,
-    ) {
-        const tests = testResults.get(test.testId) ?? [];
-        const grouped = tests.reduce((acc, r) => {
-            if (!acc.has(r.project)) acc.set(r.project, new Map<number, TestInfoResult[]>());
-            const byRepeat = acc.get(r.project)!;
-            if (!byRepeat.has(r.repeatEachIndex)) byRepeat.set(r.repeatEachIndex, []);
-            byRepeat.get(r.repeatEachIndex)!.push(r);
-            return acc;
-        }, new Map<string, Map<number, TestInfoResult[]>>());
-        // Test is considered passed if test in every project passed.
-        const status =
-            forcedStatus ??
-            ([...grouped.values()].every((byRepeat) =>
-                // A test is considered passed if at least one of the repeat runs for any project passed.
-                [...byRepeat.values()].some((group) => group.at(-1)?.ok),
-            )
-                ? TestStatus.Passed
-                : TestStatus.Failed);
+    private async saveTestResult(test: TestItem, results: TestInfoResult[], status: TestStatus) {
         await this.adapter.updateTestWithResults(status, {
             runId: this.runContext.runId,
             test,
             testResult: {
                 // Summing durations of all retries and tests for the test to get total duration.
                 // A test with no reported results falls back to its scheduled estimate so EMA isn't dragged to 0.
-                duration: tests.length > 0 ? tests.reduce((acc, r) => acc + r.duration, 0) : test.ema,
-                tests,
+                duration: results.length > 0 ? results.reduce((acc, r) => acc + r.duration, 0) : test.ema,
+                tests: results,
             },
-            config,
+            config: this.config,
         });
     }
 }
