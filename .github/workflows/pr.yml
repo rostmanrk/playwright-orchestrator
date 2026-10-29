@@ -25,7 +25,7 @@ jobs:
       - name: Get changed files
         id: files
         if: github.event_name == 'pull_request'
-        uses: tj-actions/changed-files@v45
+        uses: tj-actions/changed-files@9426d40962ed5378910ee2e21d5f8c6fcbf2dd96 # v47.0.6
         with:
           files_ignore: |
             **/*.md
@@ -35,14 +35,17 @@ jobs:
 
       - name: Check paths
         id: check-files
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          CHANGED_FILES: ${{ steps.files.outputs.all_changed_files }}
         run: |
           # Scheduled and manual runs test everything: every job runs when core is listed
-          if [[ "${{ github.event_name }}" != "pull_request" ]]; then
+          if [[ "$EVENT_NAME" != "pull_request" ]]; then
             echo "projects=core" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           projects=""
-          for file in ${{ steps.files.outputs.all_changed_files }}; do
+          for file in $CHANGED_FILES; do
             if [[ $file == "packages/"* ]]; then
               project=$(echo $file | cut -d'/' -f2)
               projects="$projects $project"
