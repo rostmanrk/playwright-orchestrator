@@ -4,6 +4,15 @@ import prettier from 'eslint-config-prettier';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
+// Values from untyped Playwright internals are `any` by design
+const allowAny = {
+    '@typescript-eslint/no-unsafe-assignment': 'off',
+    '@typescript-eslint/no-unsafe-member-access': 'off',
+    '@typescript-eslint/no-unsafe-return': 'off',
+    '@typescript-eslint/no-unsafe-call': 'off',
+    '@typescript-eslint/no-unsafe-argument': 'off',
+};
+
 export default defineConfig(
     {
         ignores: [
@@ -33,13 +42,22 @@ export default defineConfig(
                 tsconfigRootDir: import.meta.dirname,
             },
         },
+        rules: allowAny,
+    },
+    {
+        // Type-aware rules for tests and root configs, which no package tsconfig covers
+        files: ['tests/**/*.ts', 'e2e/**/*.{ts,mts}', '*.ts'],
+        extends: [tseslint.configs.recommendedTypeChecked],
+        languageOptions: {
+            parserOptions: {
+                project: './tsconfig.eslint.json',
+                tsconfigRootDir: import.meta.dirname,
+            },
+        },
         rules: {
-            // Values from untyped Playwright internals are `any` by design
-            '@typescript-eslint/no-unsafe-assignment': 'off',
-            '@typescript-eslint/no-unsafe-member-access': 'off',
-            '@typescript-eslint/no-unsafe-return': 'off',
-            '@typescript-eslint/no-unsafe-call': 'off',
-            '@typescript-eslint/no-unsafe-argument': 'off',
+            ...allowAny,
+            // Flags `expect(mock.method)`, the standard way to assert on mocks
+            '@typescript-eslint/unbound-method': 'off',
         },
     },
     {

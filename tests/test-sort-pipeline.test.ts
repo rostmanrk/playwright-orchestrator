@@ -9,13 +9,14 @@ class TestableCreator extends BaseTestRunCreator {
     savedTests: TestItem[] = [];
     savedRun?: TestRun;
 
-    async loadTestInfos(_tests: TestItem[]): Promise<Map<string, TestSortItem>> {
-        return this.testInfoMap;
+    loadTestInfos(_tests: TestItem[]): Promise<Map<string, TestSortItem>> {
+        return Promise.resolve(this.testInfoMap);
     }
 
-    async saveRunData(_runId: string, run: TestRun, tests: TestItem[]): Promise<void> {
+    saveRunData(_runId: string, run: TestRun, tests: TestItem[]): Promise<void> {
         this.savedTests = tests;
         this.savedRun = run;
+        return Promise.resolve();
     }
 }
 
@@ -193,9 +194,9 @@ describe('BaseTestRunCreator grouping modes', () => {
 
 describe('BaseTestRunCreator infrastructure project filtering', () => {
     const projects: Project[] = [
-        { name: 'setup', use: {} as any, repeatEach: 1, dependencies: [], teardown: undefined },
-        { name: 'teardown', use: {} as any, repeatEach: 1, dependencies: [], teardown: undefined },
-        { name: 'chromium', use: {} as any, repeatEach: 1, dependencies: ['setup'], teardown: 'teardown' },
+        { name: 'setup', use: {}, repeatEach: 1, dependencies: [], teardown: undefined },
+        { name: 'teardown', use: {}, repeatEach: 1, dependencies: [], teardown: undefined },
+        { name: 'chromium', use: {}, repeatEach: 1, dependencies: ['setup'], teardown: 'teardown' },
     ];
 
     it('filters out tests from dependency/teardown projects', async () => {
@@ -248,9 +249,7 @@ describe('BaseTestRunCreator infrastructure project filtering', () => {
     });
 
     it('keeps all tests when no dependencies are configured', async () => {
-        const noDeps: Project[] = [
-            { name: 'chromium', use: {} as any, repeatEach: 1, dependencies: [], teardown: undefined },
-        ];
+        const noDeps: Project[] = [{ name: 'chromium', use: {}, repeatEach: 1, dependencies: [], teardown: undefined }];
         const runInfo = makeRunInfo(
             {
                 'a.spec.ts': {
