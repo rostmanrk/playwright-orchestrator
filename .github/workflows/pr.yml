@@ -60,7 +60,7 @@ jobs:
     needs: check-changes
     if: contains(needs.check-changes.outputs.projects, 'core')
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/test-setup
       - name: Run tests
         run: pnpm test --exclude "**/e2e/**"
@@ -74,7 +74,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     needs: check-changes
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/e2e-setup
       - name: Start web server
         shell: bash
@@ -87,7 +87,7 @@ jobs:
     if: contains(needs.check-changes.outputs.projects, 'core') || contains(needs.check-changes.outputs.projects, 'dynamo-db')
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/e2e-setup
       - name: Run tests
         run: pnpm test:ci dynamo-db.test.ts
@@ -111,7 +111,7 @@ jobs:
     env:
       PG_CONNECTION_STRING: postgres://postgres:password@localhost:5433/postgres
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/e2e-setup
       - name: Run tests
         run: pnpm test:ci pg.test.ts
@@ -136,7 +136,7 @@ jobs:
     env:
       MYSQL_CONNECTION_STRING: mysql://root:password@localhost:3307/test
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/e2e-setup
       - name: Run tests
         run: pnpm test:ci mysql.test.ts
@@ -156,7 +156,7 @@ jobs:
     env:
       MONGO_CONNECTION_STRING: mongodb://root:password@localhost:27018/
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/e2e-setup
       - name: Run tests
         run: pnpm test:ci mongo.test.ts
@@ -178,7 +178,7 @@ jobs:
     env:
       REDIS_CONNECTION_STRING: redis://localhost:6379
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/e2e-setup
       - name: Run tests
         run: pnpm test:ci redis.test.ts

@@ -18,7 +18,7 @@ jobs:
             run-id: ${{ steps.create-run.outputs.run-id }}
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
 
             - uses: ./.github/actions/e2e-setup
 
@@ -36,7 +36,7 @@ jobs:
             matrix:
                 shard: [1, 2, 3]
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
             - uses: ./.github/actions/e2e-setup
 
             - name: Run tests
@@ -46,7 +46,7 @@ jobs:
                   npx playwright-orchestrator run mongo --run-id ${{ needs.create.outputs.run-id }}
 
             - name: Upload test results
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: blob-results-${{ matrix.shard }}
                   path: ./blob-reports
@@ -55,12 +55,12 @@ jobs:
         needs: [run, create]
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
             - uses: ./.github/actions/e2e-setup
               with:
                   install-browser: 'false'
 
-            - uses: actions/download-artifact@v4
+            - uses: actions/download-artifact@v8
               with:
                   pattern: blob-results-*
                   path: blob-reports
