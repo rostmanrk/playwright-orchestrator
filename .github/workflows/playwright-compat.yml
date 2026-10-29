@@ -88,3 +88,11 @@ jobs:
           gh issue create \
             --title "⚠️ Playwright v${{ steps.pw-version.outputs.version }} internals breaking change detected" \
             --body-file /tmp/issue-body.md
+
+  workflow-keepalive:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - uses: liskin/gh-workflow-keepalive@v1
