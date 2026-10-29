@@ -8,6 +8,9 @@ on:
   pull_request:
     branches: [main]
     types: [opened, synchronize, reopened]
+  schedule:
+    - cron: "0 12 * * 1"
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -21,6 +24,7 @@ jobs:
     steps:
       - name: Get changed files
         id: files
+        if: github.event_name == 'pull_request'
         uses: tj-actions/changed-files@v45
         with:
           files_ignore: |
@@ -32,6 +36,11 @@ jobs:
       - name: Check paths
         id: check-files
         run: |
+          # Scheduled and manual runs test everything: every job runs when core is listed
+          if [[ "${{ github.event_name }}" != "pull_request" ]]; then
+            echo "projects=core" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           projects=""
           for file in ${{ steps.files.outputs.all_changed_files }}; do
             if [[ $file == "packages/"* ]]; then
@@ -188,3 +197,11 @@ jobs:
           if [[ ${{ contains(needs.*.result, 'failure') }} == true ]] || [[ ${{ contains(needs.*.result, 'cancelled') }} == true ]]; then
             exit 1
           fi
+
+  workflow-keepalive:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - uses: liskin/gh-workflow-keepalive@v1
