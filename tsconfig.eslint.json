@@ -4,7 +4,10 @@
         "noEmit": true,
         "composite": false,
         "declaration": false,
-        "allowImportingTsExtensions": true
+        "allowImportingTsExtensions": true,
+        // Tests are bundled by vitest rather than run as Node ESM
+        "module": "ESNext",
+        "moduleResolution": "Bundler"
     },
     "include": ["tests/**/*", "e2e/**/*", "*.ts"]
 }
