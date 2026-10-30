@@ -12,7 +12,7 @@ import { BrowserManager } from './browser-manager.js';
 import { WebServerManager } from './web-server-manager.js';
 import { GlobalSetupManager } from './global-setup-manager.js';
 import { SYMBOLS } from '../symbols.js';
-import { runPlaywright, supportsTestList } from '../helpers/run-playwright.js';
+import { playwrightVersion, runPlaywright, supportsTestList } from '../helpers/run-playwright.js';
 import type { TestEventHandlerFactory } from './test-event-handler.js';
 import { cliVersion } from '../commands/version.js';
 import { registerOnExit } from '../helpers/register-on-exit.js';
@@ -50,6 +50,12 @@ export class TestRunner {
             );
             process.exitCode = 1;
             return false;
+        }
+        if (!this.useTestList) {
+            this.reporter.warn(
+                `Playwright ${playwrightVersion} is deprecated. Support for Playwright older than 1.56 will be removed in a future release. ` +
+                    'Until then tests are selected with --grep, which is less exact than --test-list. Please upgrade Playwright.',
+            );
         }
         await this.configLoader.loadPlaywrightConfig(config.configFile);
         const [browsers] = await Promise.all([

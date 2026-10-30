@@ -188,6 +188,11 @@ export class TestExecutionReporter {
         this.persistLine(`${chalk.blue('info:')} ${message}`);
     }
 
+    warn(message: string) {
+        const log = IS_TTY ? this.persistLine.bind(this) : console.warn;
+        log(`${chalk.yellow('warning:')} ${message}`);
+    }
+
     error(message: string) {
         const log = IS_TTY ? this.persistLine.bind(this) : console.error;
         log(`${chalk.red('error:')} ${message}`);
