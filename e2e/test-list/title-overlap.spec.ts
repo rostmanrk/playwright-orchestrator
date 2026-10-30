@@ -18,3 +18,5 @@ test.describe('checkout', () => {
 });
 
 test('title with > in it', async () => {});
+
+test('title with › in it', async () => {});

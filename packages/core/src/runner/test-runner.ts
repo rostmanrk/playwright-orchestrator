@@ -17,7 +17,7 @@ import type { TestEventHandlerFactory } from './test-event-handler.js';
 import { cliVersion } from '../commands/version.js';
 import { registerOnExit, registerOnInterrupt } from '../helpers/register-on-exit.js';
 import { PlaywrightConfigLoader } from '../helpers/playwright-config.js';
-import { buildTestList } from '../helpers/test-list.js';
+import { buildTestList, canSelectWithTestList } from '../helpers/test-list.js';
 import { makeGrepPatterns } from '../helpers/regex.js';
 
 @injectable()
@@ -180,7 +180,7 @@ export class TestRunner {
 
     /** Arguments that make Playwright run exactly the batch's tests */
     private async selectTests(tests: TestItem[], testListFile: string): Promise<string[]> {
-        if (!this.useTestList) {
+        if (!this.useTestList || !canSelectWithTestList(tests)) {
             return ['--grep', tests.flatMap(({ meta }) => makeGrepPatterns(meta)).join('|')];
         }
         await writeFile(testListFile, buildTestList(tests));

@@ -1,6 +1,6 @@
 import { describe, it, expect, afterAll, beforeAll } from 'vitest';
 import { spawnAsync } from '../packages/core/src/helpers/spawn.js';
-import { buildTestList } from '../packages/core/src/helpers/test-list.js';
+import { buildTestList, canSelectWithTestList } from '../packages/core/src/helpers/test-list.js';
 import { makeGrepPatterns } from '../packages/core/src/helpers/regex.js';
 import { createRequire } from 'node:module';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
@@ -105,6 +105,18 @@ describe.each(['test-list', 'grep'] as const)('%s selection', (selector) => {
             '[chromium] › csv export',
             '[chromium] › super admin can login',
             '[firefox] › reports › export',
+        ]);
+    });
+});
+
+describe('titles containing "›"', () => {
+    it('can not be written as a test list, so the batch falls back to --grep', async () => {
+        const batch = [findTest('title with › in it'), findTest('admin can login')];
+        expect(canSelectWithTestList(batch)).toBe(false);
+        expect(canSelectWithTestList([findTest('admin can login')])).toBe(true);
+        expect(await listSelected('grep', batch)).toEqual([
+            '[chromium] › admin can login',
+            '[chromium] › title with › in it',
         ]);
     });
 });
