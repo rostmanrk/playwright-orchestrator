@@ -1,5 +1,5 @@
 import { injectable, inject } from 'inversify';
-import type { ShardHandler, TestRun, TestRunContext, TestShard } from '@playwright-orchestrator/core';
+import type { ShardHandler, TestRun, TestRunContext } from '@playwright-orchestrator/core';
 import { RunStatus, SYMBOLS, TestStatus } from '@playwright-orchestrator/core';
 import type { TestItem, TestRunConfig } from '@playwright-orchestrator/core';
 import type { CreateArgs } from './create-args.js';
@@ -46,10 +46,15 @@ export class FileShardHandler implements ShardHandler {
                         }));
 
                     const rest = results.filter((r) => r.status !== TestStatus.Failed);
-                    await writeFileAtomic(getRunIdFilePath(this.dir, runId), JSON.stringify(failed, null, 2));
+                    const queueFile = getRunIdFilePath(this.dir, runId);
+                    // Keep tests the previous run never claimed, e.g. after it was interrupted
+                    const unclaimed = JSON.parse(await readFile(queueFile, 'utf-8')) as TestItem[];
+                    // Tests are popped from the end, so keep the queue sorted by descending order
+                    const queue = [...unclaimed, ...failed].sort((a, b) => b.order - a.order);
+                    await writeFileAtomic(queueFile, JSON.stringify(queue, null, 2));
                     await writeFileAtomic(getResultsRunPath(this.dir, runId), JSON.stringify(rest, null, 2));
-                    testRun.config.remainingCount = failed.length;
-                    testRun.config.remainingTime = failed.reduce((sum, t) => sum + t.ema, 0);
+                    testRun.config.remainingCount = queue.length;
+                    testRun.config.remainingTime = queue.reduce((sum, t) => sum + t.ema, 0);
                 }
             }
             await writeFileAtomic(file, JSON.stringify(testRun));

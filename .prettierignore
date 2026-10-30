@@ -1,0 +1,8 @@
+**/dist/
+**/node_modules/
+pnpm-lock.yaml
+tests/__snapshots__/
+test-results/
+playwright-report/
+blob-reports/
+test-runs/

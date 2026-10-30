@@ -23,7 +23,8 @@ export default class TestResultReporter implements Reporter {
             test: {
                 ...pick(test, ...TestCaseKeys),
                 location: pick(test.location, ...TestLocationKeys),
-                ok: test.ok(),
+                // ok() ignores interrupted results, so a test stopped by a signal would count as passed
+                ok: result.status !== 'interrupted' && test.ok(),
                 testId: getTestId({
                     project: this.grouping === Grouping.Project ? project : undefined,
                     file,

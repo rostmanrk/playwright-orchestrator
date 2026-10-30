@@ -37,9 +37,13 @@ export class RedisAdapter extends BaseAdapter {
         const client = await this.connection.getClient();
         const { config, shards } = await this.loadTestRunConfig(runId);
         if (!config) throw new Error(`Run ${runId} not found`);
-        let reports = (await client.lRange(`${this._namePrefix}:${TEST_RUN}:${runId}:report`, 0, -1)).map((el) =>
-            JSON.parse(el),
-        );
+        const baseKey = `${this._namePrefix}:${TEST_RUN}:${runId}`;
+        let entries = await client.hVals(`${baseKey}:reports`);
+        if (entries.length === 0) {
+            // Runs saved by older versions kept every result in a list
+            entries = await client.lRange(`${baseKey}:report`, 0, -1);
+        }
+        const reports = entries.map((el) => JSON.parse(el));
 
         return {
             runId,
@@ -79,11 +83,12 @@ export class RedisAdapter extends BaseAdapter {
             JSON.parse(el),
         );
         const report = this.buildReport(test, item, newEma, history);
-        const reportKey = `${this._namePrefix}:${TEST_RUN}:${runId}:report`;
+        // Keyed by test so a repeat run replaces the earlier result instead of adding another one
+        const reportKey = `${this._namePrefix}:${TEST_RUN}:${runId}:reports`;
         const pipeline = client
             .multi()
             .set(`${baseTestInfoKey}:fails`, report.fails, updateOptions)
-            .lPush(reportKey, JSON.stringify({ ...report, testId: test.testId }))
+            .hSet(reportKey, test.testId, JSON.stringify({ ...report, testId: test.testId }))
             .expire(reportKey, this.ttl);
         if (item.status === TestStatus.Failed) {
             pipeline.rPush(`${this._namePrefix}:${TESTS}:${runId}:failed`, JSON.stringify(test));
@@ -106,12 +111,7 @@ export class RedisAdapter extends BaseAdapter {
         }
         return {
             config: JSON.parse(config),
-            shards: Object.fromEntries(
-                Object.entries((shards as Record<string, string> | null) ?? {}).map(([id, data]) => [
-                    id,
-                    JSON.parse(data),
-                ]),
-            ) as Record<string, TestShard>,
+            shards: Object.fromEntries(Object.entries(shards ?? {}).map(([id, data]) => [id, JSON.parse(data)])),
         };
     }
 }

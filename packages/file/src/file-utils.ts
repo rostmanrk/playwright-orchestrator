@@ -4,11 +4,18 @@ import { dirname } from 'node:path';
 import { lock } from 'proper-lockfile';
 
 /**
+ * Locks are held for a few milliseconds, so retry every 50-100ms. The default backoff starts at 1s and doubles,
+ * which made shards wait seconds for each other. Retries span at least 20s, longer than the 10s after which
+ * a lock left by a crashed process counts as stale.
+ */
+const LOCK_RETRIES = { retries: 200, minTimeout: 50, maxTimeout: 100, randomize: true };
+
+/**
  * Runs the action while holding a cross-process lock on the file.
  * The file must exist, since the lock path is resolved through realpath.
  */
 export async function withLock<T>(file: string, action: () => Promise<T>): Promise<T> {
-    const release = await lock(file, { retries: 100 });
+    const release = await lock(file, { retries: LOCK_RETRIES });
     try {
         return await action();
     } finally {

@@ -3,6 +3,7 @@ import { rm, writeFile } from 'node:fs/promises';
 import { rmSync } from 'node:fs';
 import { TestExecutionReporter } from './test-execution-reporter.js';
 import path from 'node:path';
+import { tmpdir } from 'node:os';
 import * as uuid from 'uuid';
 import { injectable, inject } from 'inversify';
 import type { ShardHandler } from '../adapters/shard-handler.js';
@@ -11,16 +12,19 @@ import { BrowserManager } from './browser-manager.js';
 import { WebServerManager } from './web-server-manager.js';
 import { GlobalSetupManager } from './global-setup-manager.js';
 import { SYMBOLS } from '../symbols.js';
-import { runPlaywright } from '../helpers/run-playwright.js';
+import { playwrightVersion, runPlaywright, supportsTestList } from '../helpers/run-playwright.js';
 import type { TestEventHandlerFactory } from './test-event-handler.js';
 import { cliVersion } from '../commands/version.js';
-import { registerOnExit } from '../helpers/register-on-exit.js';
+import { registerOnExit, registerOnInterrupt } from '../helpers/register-on-exit.js';
 import { PlaywrightConfigLoader } from '../helpers/playwright-config.js';
-import { makeGrepPattern } from '../helpers/regex.js';
+import { buildTestList, canSelectWithTestList } from '../helpers/test-list.js';
+import { makeGrepPatterns } from '../helpers/regex.js';
 
 @injectable()
 export class TestRunner {
     private cleanupFs = new Set<string>();
+    private readonly useTestList = supportsTestList();
+    private readonly interruption = new AbortController();
 
     constructor(
         @inject(SYMBOLS.RunContext) private readonly runContext: TestRunContext,
@@ -48,6 +52,23 @@ export class TestRunner {
             process.exitCode = 1;
             return false;
         }
+        if (!this.useTestList) {
+            this.reporter.warn(
+                `Playwright ${playwrightVersion} is deprecated. Support for Playwright older than 1.56 will be removed in a future release. ` +
+                    'Until then tests are selected with --grep, which is less exact than --test-list. Please upgrade Playwright.',
+            );
+        }
+        // The shard is started, so finish it even when setup or teardown fails
+        try {
+            await this.setupAndRunTests(config);
+        } finally {
+            this.reporter.printSummary();
+            await this.shardHandler.finishShard();
+        }
+        return !this.reporter.hasFailed();
+    }
+
+    private async setupAndRunTests(config: TestRunConfig) {
         await this.configLoader.loadPlaywrightConfig(config.configFile);
         const [browsers] = await Promise.all([
             this.browserManager.runBrowsers(config),
@@ -57,16 +78,13 @@ export class TestRunner {
         if (config.configFile) {
             this.cleanupFs.add(config.configFile);
         }
-        await this.globalSetupManager.runSetup(config, browsers);
-
+        // Teardown also runs when setup fails part way, to undo what it did
         try {
+            await this.globalSetupManager.runSetup(config, browsers);
             await this.runTestsUntilAvailable(config, browsers);
         } finally {
             await this.globalSetupManager.runTeardown(config, browsers);
-            this.reporter.printSummary();
-            await this.shardHandler.finishShard();
         }
-        return !this.reporter.hasFailed();
     }
 
     private cleanupTemp() {
@@ -81,6 +99,18 @@ export class TestRunner {
     }
 
     private async runTestsUntilAvailable(config: TestRunConfig, browsers: Record<string, string>) {
+        const removeInterruptHandler = registerOnInterrupt((signal) => {
+            this.reporter.warn(`Received ${signal}, stopping running tests. Send it again to exit immediately.`);
+            this.interruption.abort();
+        });
+        try {
+            await this.runBatches(config, browsers);
+        } finally {
+            removeInterruptHandler();
+        }
+    }
+
+    private async runBatches(config: TestRunConfig, browsers: Record<string, string>) {
         const batchHandler = this.batchHandlerFactory(config.options.batchMode);
         const runningBatches = new Set<Promise<void>>();
         let batchNumber = 0;
@@ -92,7 +122,7 @@ export class TestRunner {
                     runningBatches.delete(batchPromise);
                 });
                 runningBatches.add(batchPromise);
-                nextBatch = await batchHandler.getNextBatch(config);
+                nextBatch = this.interruption.signal.aborted ? undefined : await batchHandler.getNextBatch(config);
             } else {
                 await Promise.race(runningBatches);
             }
@@ -112,24 +142,52 @@ export class TestRunner {
         const batchId = uuid.v7();
 
         const batchArtifact = path.relative(process.cwd(), `${this.runContext.outputFolder}/${batchId}.zip`);
+        const testListFile = path.join(tmpdir(), `playwright-orchestrator-${batchId}.test-list.txt`);
+        this.cleanupFs.add(testListFile);
         try {
-            await runPlaywright(this.buildParams(tests, config), onData, {
-                ...process.env,
-                PLAYWRIGHT_BLOB_OUTPUT_FILE: batchArtifact,
-                ...(config.configFile && {
-                    PLAYWRIGHT_ORCHESTRATOR_BROWSERS: JSON.stringify(browsers),
-                }),
-                PLAYWRIGHT_ORCHESTRATOR_GROUPING: config.options.grouping,
+            const selection = await this.selectTests(tests, testListFile);
+            const exitCode = await runPlaywright(
+                this.buildParams(tests, config, selection),
+                onData,
+                {
+                    ...process.env,
+                    PLAYWRIGHT_BLOB_OUTPUT_FILE: batchArtifact,
+                    ...(config.configFile && {
+                        PLAYWRIGHT_ORCHESTRATOR_BROWSERS: JSON.stringify(browsers),
+                    }),
+                    PLAYWRIGHT_ORCHESTRATOR_GROUPING: config.options.grouping,
+                },
+                this.interruption.signal,
+            ).catch(async (err) => {
+                // Playwright failed to start, so none of the batch's tests reported. Save them as failed first.
+                await onExit(null);
+                throw err;
             });
-            await onExit();
-            batchResolver.success();
+            const allReported = await onExit(exitCode);
+            if (allReported) {
+                batchResolver.success();
+            } else {
+                batchResolver.fail();
+            }
         } catch (err) {
             batchResolver.fail(err);
             throw err;
+        } finally {
+            await rm(testListFile, { force: true });
+            this.cleanupFs.delete(testListFile);
         }
     }
 
-    private buildParams(tests: TestItem[], config: TestRunConfig): string[] {
+    /** Arguments that make Playwright run exactly the batch's tests */
+    private async selectTests(tests: TestItem[], testListFile: string): Promise<string[]> {
+        if (!this.useTestList || !canSelectWithTestList(tests)) {
+            return ['--grep', tests.flatMap(({ meta }) => makeGrepPatterns(meta)).join('|')];
+        }
+        await writeFile(testListFile, buildTestList(tests));
+        return ['--test-list', testListFile];
+    }
+
+    private buildParams(tests: TestItem[], config: TestRunConfig, selection: string[]): string[] {
         const args = [];
         const projects = new Set<string>();
         for (const test of tests) {
@@ -137,13 +195,7 @@ export class TestRunner {
                 projects.add(project);
             }
         }
-        const greps = tests.flatMap(({ meta: { file, title, children } }) => [
-            makeGrepPattern(file, title),
-            ...(children?.map((child) => makeGrepPattern(file, child)) ?? []),
-        ]);
-        if (greps.length > 0) {
-            args.push('--grep', greps.join('|'));
-        }
+        args.push(...selection);
         args.push(...config.args);
         args.push('--workers', '1');
         args.push('--reporter', 'blob,@playwright-orchestrator/core/test-result-reporter');

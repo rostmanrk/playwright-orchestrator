@@ -29,6 +29,8 @@ export interface ReporterTestRun {
                 projects: string[];
                 annotations: TestDetailsAnnotation[];
                 children?: string[];
+                /** Describe titles followed by the test title; for a serial group, the path to the group (empty when the whole file is serial) */
+                titlePath: string[];
             };
         };
     };

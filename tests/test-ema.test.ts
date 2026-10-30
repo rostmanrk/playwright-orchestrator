@@ -24,11 +24,11 @@ function makeTestItem(overrides: Partial<TestItem> = {}): TestItem {
         timeout: 5000,
         ema: 0,
         meta: {
-            title: 'my test',
             file: 'foo.spec.ts',
             position: '5:3',
             projects: ['chrome'],
             annotations: [],
+            titlePath: ['my test'],
         },
         ...overrides,
     };

@@ -57,10 +57,10 @@ export abstract class BaseTestRunCreator implements TestRunCreator {
             .flatMap(([file, positions]) =>
                 Object.entries(positions).flatMap(([position, titles]) => {
                     const titleEntries = Object.entries(titles);
-                    return titleEntries.flatMap(([title, { timeout, projects, annotations, children }]) => {
+                    return titleEntries.flatMap(([title, { timeout, projects, annotations, children, titlePath }]) => {
                         const baseItem = {
                             timeout,
-                            meta: { title, children, file, position, annotations },
+                            meta: { children, file, position, annotations, titlePath },
                         };
                         if (options.grouping === 'test') {
                             return {
@@ -89,7 +89,7 @@ export abstract class BaseTestRunCreator implements TestRunCreator {
     ): TestItem[] {
         const extractValue = this.extractCompareValue.bind(this, testInfoMap, historyWindow);
         return tests
-            .map((test) => ({ ...test, ema: extractValue(test) }) as TestItem)
+            .map((test) => ({ ...test, ema: extractValue(test) }))
             .sort((a, b) => (b.ema - a.ema) * (reverse ? -1 : 1))
             .map((test, i) => ({ ...test, order: reverse ? tests.length - i : i + 1 }));
     }

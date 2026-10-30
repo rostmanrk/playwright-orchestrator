@@ -1,6 +1,5 @@
 import {
     BaseAdapter,
-    TestRunConfig,
     TestStatus,
     TestRunReport,
     HistoryItem,
@@ -31,11 +30,12 @@ export class PostgreSQLAdapter extends BaseAdapter {
 
     async getReportData(runId: string): Promise<TestRunReport> {
         const {
-            rows: [{ config, shards }],
+            rows: [row],
         } = await this.pool.query({
             text: `SELECT config, shards FROM ${this.configTable} WHERE id = $1`,
             values: [runId],
         });
+        const { config, shards } = row ?? {};
         if (!config) throw new Error(`Run ${runId} not found`);
         const { rows } = await this.pool.query({
             text: `SELECT * FROM ${this.testsTable} WHERE run_id = $1`,

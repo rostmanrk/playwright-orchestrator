@@ -49,18 +49,16 @@ export async function testStorage(storageOptions: string[], reportsFolder: strin
             }),
         ),
     );
-    if (shardResults.some(({ stderr }) => stderr.toLocaleLowerCase().includes('error'))) {
-        assert.fail(`Run command failed. Errors: ${shardResults.map(({ stderr }) => stderr).join('\n')}`);
+    // A shard failed if it exited non-zero or logged an orchestrator error, e.g. a test that never reported
+    const failedShards = shardResults.filter(({ code, stderr }) => code !== 0 || /^error:/m.test(stderr));
+    if (failedShards.length > 0) {
+        assert.fail(`Run command failed. Errors: ${failedShards.map(({ stderr }) => stderr).join('\n')}`);
     }
     const setupMarker = readFileSync(join(globalMarkerFolder, globalSetupMarkerFile), 'utf-8');
     const teardownMarker = readFileSync(join(globalMarkerFolder, globalTeardownMarkerFile), 'utf-8');
     // global setup and teardown + deps should be executed once per shard, so the marker files should contain the number of shards * 2
     expect(setupMarker).toBe((shardIds.length * 2).toString());
     expect(teardownMarker).toBe((shardIds.length * 2).toString());
-    expect(
-        shardResults.every(({ stderr }) => !stderr.toLocaleLowerCase().includes('error')),
-        `Run command failed. Errors: ${shardResults.map(({ stderr }) => stderr).join('\n')}`,
-    ).toBeTruthy();
     const afterRun = Date.now();
     const reporterArgs = [
         playwrightCli,
@@ -104,6 +102,22 @@ export async function testStorage(storageOptions: string[], reportsFolder: strin
     await expect(mergeStdOut2, `Merge reports command failed. Error: ${mergeStderr2}`).toMatchFileSnapshot(
         `../__snapshots__/test-run-repeat-${grouping}.output.snap`,
     );
+
+    // a repeat run must replace the earlier results of re-run tests, not add to them
+    const { stdout: repeatReportStdout, stderr: repeatReportStderr } = await spawnAsync(process.execPath, [
+        orchestratorCli,
+        'create-report',
+        ...storageOptions,
+        '--reporter',
+        'json',
+        '--run-id',
+        runId,
+    ]);
+    const repeatReport: TestRunReport = JSON.parse(repeatReportStdout);
+    expect(
+        repeatReport.tests.map((test) => test.title).sort(),
+        `Create report command failed. Error: ${repeatReportStderr}`,
+    ).toEqual(report.tests.map((test) => test.title).sort());
 }
 
 function clearReportForSnapshot(report: TestRunReport) {

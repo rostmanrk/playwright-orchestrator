@@ -50,12 +50,13 @@ export interface TestItem {
     timeout: number;
     ema: number;
     meta: {
-        title: string;
         children?: string[];
         projects: string[];
         file: string;
         position: string;
         annotations: TestDetailsAnnotation[];
+        /** Describe titles followed by the test title; for a serial group, the path to the group (empty when the whole file is serial) */
+        titlePath: string[];
     };
 }
 

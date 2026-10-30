@@ -27,6 +27,6 @@ export class PlaywrightRunInfoLoader implements RunInfoLoader {
         if (!parsedRunInfo) {
             throw new Error(`Failed to load run info. Output:\n${stdout}`);
         }
-        return parsedRunInfo!;
+        return parsedRunInfo;
     }
 }

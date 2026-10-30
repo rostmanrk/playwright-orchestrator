@@ -12,7 +12,7 @@ function isSuiteSerial(suite: Suite): boolean {
 
 function getEntryTimeout(entry: TestCase | Suite): number {
     if (entry.type === 'test') return entry.timeout;
-    return (entry as Suite).allTests().reduce((sum, test) => sum + test.timeout, 0);
+    return entry.allTests().reduce((sum, test) => sum + test.timeout, 0);
 }
 
 export class RunBuilder {
@@ -65,12 +65,13 @@ export class RunBuilder {
                     timeout: getEntryTimeout(entry),
                     projects: [project],
                     annotations: this.getAnnotations(entry),
+                    titlePath: this.getTitlePath(entry),
                 };
             }
             return true;
         }
 
-        if (isSuiteSerial(entry as Suite)) {
+        if (isSuiteSerial(entry)) {
             const positionMap = this.getPositionMap(file, position);
             if (positionMap[entry.title]) {
                 if (!positionMap[entry.title].projects.includes(project)) {
@@ -81,7 +82,8 @@ export class RunBuilder {
                     timeout: getEntryTimeout(entry),
                     projects: [project],
                     annotations: this.getAnnotations(entry),
-                    children: (entry as Suite).allTests().map((test) => test.title),
+                    children: entry.allTests().map((test) => test.title),
+                    titlePath: this.getTitlePath(entry),
                 };
             }
             return true;
@@ -90,8 +92,13 @@ export class RunBuilder {
         return false;
     }
 
+    private getTitlePath(entry: TestCase | Suite) {
+        // Drop the root, project and file segments
+        return entry.titlePath().slice(3);
+    }
+
     private getAnnotations(entry: TestCase | Suite) {
-        const annotations = entry.type === 'test' ? entry.annotations : (entry as Suite).allTests()[0]?.annotations;
+        const annotations = entry.type === 'test' ? entry.annotations : entry.allTests()[0]?.annotations;
         return annotations?.map(({ type, description }) => ({ type, description }));
     }
 

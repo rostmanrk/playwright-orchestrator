@@ -1,5 +1,6 @@
 import { tmpdir } from 'os';
 import { writeFile } from 'node:fs/promises';
+import { inspect } from 'node:util';
 import * as uuid from 'uuid';
 import { program } from './program.js';
 import { Container } from 'inversify';
@@ -17,13 +18,15 @@ export function handle<TArgs extends any[], TResult>(
                 message: error instanceof Error ? error.message : 'Unknown error',
                 stack: error instanceof Error ? error.stack : undefined,
                 timestamp: new Date().toISOString(),
-                details: error,
+                // JSON.stringify drops an Error's own fields and throws on circular references
+                details: inspect(error, { depth: 5 }),
             };
 
             try {
-                await writeFile(logFile, JSON.stringify(errorDetails, null, 2));
+                // Error details can include query values or hosts, so keep the log private to the user
+                await writeFile(logFile, JSON.stringify(errorDetails, null, 2), { mode: 0o600 });
                 program.error(`Error occurred. Log file: ${logFile}\nError: ${errorDetails.message}`);
-            } catch (writeError) {
+            } catch {
                 program.error(`Failed to write error log. Original error: ${errorDetails.message}`);
             }
             return undefined;

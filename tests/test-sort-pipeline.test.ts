@@ -9,13 +9,14 @@ class TestableCreator extends BaseTestRunCreator {
     savedTests: TestItem[] = [];
     savedRun?: TestRun;
 
-    async loadTestInfos(_tests: TestItem[]): Promise<Map<string, TestSortItem>> {
-        return this.testInfoMap;
+    loadTestInfos(_tests: TestItem[]): Promise<Map<string, TestSortItem>> {
+        return Promise.resolve(this.testInfoMap);
     }
 
-    async saveRunData(_runId: string, run: TestRun, tests: TestItem[]): Promise<void> {
+    saveRunData(_runId: string, run: TestRun, tests: TestItem[]): Promise<void> {
         this.savedTests = tests;
         this.savedRun = run;
+        return Promise.resolve();
     }
 }
 
@@ -38,18 +39,61 @@ function makeCreator(runInfo: ReporterTestRunInfo): TestableCreator {
     return creator;
 }
 
+// Selector contents don't matter for sorting
+const TITLE_PATH = ['test a'];
+
 // Helper: single-test run with project grouping.
 // Resulting testId: '[chrome] a.spec.ts > test a'
 const SINGLE_TEST_RUN: ReporterTestRunInfo['testRun'] = {
-    'a.spec.ts': { '1:1': { 'test a': { timeout: 5000, projects: ['chrome'], annotations: [], children: undefined } } },
+    'a.spec.ts': {
+        '1:1': {
+            'test a': {
+                timeout: 5000,
+                projects: ['chrome'],
+                annotations: [],
+                children: undefined,
+                titlePath: TITLE_PATH,
+            },
+        },
+    },
 };
 
 describe('BaseTestRunCreator sort order', () => {
     it('sorts tests by EMA descending (highest ema = order 1)', async () => {
         const runInfo = makeRunInfo({
-            'a.spec.ts': { '1:1': { 'test a': { timeout: 5000, projects: ['chrome'], annotations: [], children: undefined } } },
-            'b.spec.ts': { '1:1': { 'test b': { timeout: 5000, projects: ['chrome'], annotations: [], children: undefined } } },
-            'c.spec.ts': { '1:1': { 'test c': { timeout: 5000, projects: ['chrome'], annotations: [], children: undefined } } },
+            'a.spec.ts': {
+                '1:1': {
+                    'test a': {
+                        timeout: 5000,
+                        projects: ['chrome'],
+                        annotations: [],
+                        children: undefined,
+                        titlePath: TITLE_PATH,
+                    },
+                },
+            },
+            'b.spec.ts': {
+                '1:1': {
+                    'test b': {
+                        timeout: 5000,
+                        projects: ['chrome'],
+                        annotations: [],
+                        children: undefined,
+                        titlePath: TITLE_PATH,
+                    },
+                },
+            },
+            'c.spec.ts': {
+                '1:1': {
+                    'test c': {
+                        timeout: 5000,
+                        projects: ['chrome'],
+                        annotations: [],
+                        children: undefined,
+                        titlePath: TITLE_PATH,
+                    },
+                },
+            },
         });
         const creator = makeCreator(runInfo);
         creator.testInfoMap.set('[chrome] a.spec.ts > test a', { ema: 100, fails: 0 });
@@ -65,8 +109,28 @@ describe('BaseTestRunCreator sort order', () => {
 
     it('failure adjustment boosts sort value: ema=100, fails=5, window=10 → adjusted=150 > ema=130', async () => {
         const runInfo = makeRunInfo({
-            'a.spec.ts': { '1:1': { 'test a': { timeout: 5000, projects: ['chrome'], annotations: [], children: undefined } } },
-            'b.spec.ts': { '1:1': { 'test b': { timeout: 5000, projects: ['chrome'], annotations: [], children: undefined } } },
+            'a.spec.ts': {
+                '1:1': {
+                    'test a': {
+                        timeout: 5000,
+                        projects: ['chrome'],
+                        annotations: [],
+                        children: undefined,
+                        titlePath: TITLE_PATH,
+                    },
+                },
+            },
+            'b.spec.ts': {
+                '1:1': {
+                    'test b': {
+                        timeout: 5000,
+                        projects: ['chrome'],
+                        annotations: [],
+                        children: undefined,
+                        titlePath: TITLE_PATH,
+                    },
+                },
+            },
         });
         const creator = makeCreator(runInfo);
         // A: ema=100, fails=5, window=10 → adjusted = 100 * (5/10 + 1) = 150
@@ -81,8 +145,28 @@ describe('BaseTestRunCreator sort order', () => {
 
     it('new test (no history) uses timeout as sort value', async () => {
         const runInfo = makeRunInfo({
-            'a.spec.ts': { '1:1': { 'new': { timeout: 5000, projects: ['chrome'], annotations: [], children: undefined } } },
-            'b.spec.ts': { '1:1': { 'known': { timeout: 3000, projects: ['chrome'], annotations: [], children: undefined } } },
+            'a.spec.ts': {
+                '1:1': {
+                    new: {
+                        timeout: 5000,
+                        projects: ['chrome'],
+                        annotations: [],
+                        children: undefined,
+                        titlePath: TITLE_PATH,
+                    },
+                },
+            },
+            'b.spec.ts': {
+                '1:1': {
+                    known: {
+                        timeout: 3000,
+                        projects: ['chrome'],
+                        annotations: [],
+                        children: undefined,
+                        titlePath: TITLE_PATH,
+                    },
+                },
+            },
         });
         const creator = makeCreator(runInfo);
         // a has no history — uses timeout=5000
@@ -95,8 +179,28 @@ describe('BaseTestRunCreator sort order', () => {
 
     it('order field is 1-indexed and ascending in result array', async () => {
         const runInfo = makeRunInfo({
-            'a.spec.ts': { '1:1': { 'test': { timeout: 5000, projects: ['chrome'], annotations: [], children: undefined } } },
-            'b.spec.ts': { '1:1': { 'test': { timeout: 5000, projects: ['chrome'], annotations: [], children: undefined } } },
+            'a.spec.ts': {
+                '1:1': {
+                    test: {
+                        timeout: 5000,
+                        projects: ['chrome'],
+                        annotations: [],
+                        children: undefined,
+                        titlePath: TITLE_PATH,
+                    },
+                },
+            },
+            'b.spec.ts': {
+                '1:1': {
+                    test: {
+                        timeout: 5000,
+                        projects: ['chrome'],
+                        annotations: [],
+                        children: undefined,
+                        titlePath: TITLE_PATH,
+                    },
+                },
+            },
         });
         const creator = makeCreator(runInfo);
         creator.testInfoMap.set('[chrome] a.spec.ts > test', { ema: 200, fails: 0 });
@@ -113,14 +217,32 @@ describe('BaseTestRunCreator duplicate ID validation', () => {
     it('throws when two tests produce the same testId', async () => {
         const ID_TYPE = '@playwright-orchestrator/id';
         const runInfo = makeRunInfo({
-            'a.spec.ts': { '1:1': { 'test': { timeout: 5000, projects: ['chrome'], annotations: [{ type: ID_TYPE, description: 'dup' }], children: undefined } } },
-            'b.spec.ts': { '2:1': { 'test': { timeout: 5000, projects: ['chrome'], annotations: [{ type: ID_TYPE, description: 'dup' }], children: undefined } } },
+            'a.spec.ts': {
+                '1:1': {
+                    test: {
+                        timeout: 5000,
+                        projects: ['chrome'],
+                        annotations: [{ type: ID_TYPE, description: 'dup' }],
+                        children: undefined,
+                        titlePath: TITLE_PATH,
+                    },
+                },
+            },
+            'b.spec.ts': {
+                '2:1': {
+                    test: {
+                        timeout: 5000,
+                        projects: ['chrome'],
+                        annotations: [{ type: ID_TYPE, description: 'dup' }],
+                        children: undefined,
+                        titlePath: TITLE_PATH,
+                    },
+                },
+            },
         });
         const creator = makeCreator(runInfo);
 
-        await expect(creator.create({ runId: 'r', args: [], options: makeOptions() })).rejects.toThrow(
-            'a.spec.ts:1:1',
-        );
+        await expect(creator.create({ runId: 'r', args: [], options: makeOptions() })).rejects.toThrow('a.spec.ts:1:1');
     });
 });
 
@@ -133,6 +255,7 @@ describe('BaseTestRunCreator grouping modes', () => {
                     projects: ['chrome', 'firefox'],
                     annotations: [],
                     children: undefined,
+                    titlePath: TITLE_PATH,
                 },
             },
         },
@@ -159,17 +282,47 @@ describe('BaseTestRunCreator grouping modes', () => {
 
 describe('BaseTestRunCreator infrastructure project filtering', () => {
     const projects: Project[] = [
-        { name: 'setup', use: {} as any, repeatEach: 1, dependencies: [], teardown: undefined },
-        { name: 'teardown', use: {} as any, repeatEach: 1, dependencies: [], teardown: undefined },
-        { name: 'chromium', use: {} as any, repeatEach: 1, dependencies: ['setup'], teardown: 'teardown' },
+        { name: 'setup', use: {}, repeatEach: 1, dependencies: [], teardown: undefined },
+        { name: 'teardown', use: {}, repeatEach: 1, dependencies: [], teardown: undefined },
+        { name: 'chromium', use: {}, repeatEach: 1, dependencies: ['setup'], teardown: 'teardown' },
     ];
 
     it('filters out tests from dependency/teardown projects', async () => {
         const runInfo = makeRunInfo(
             {
-                'setup.spec.ts': { '1:1': { 'setup': { timeout: 5000, projects: ['setup'], annotations: [], children: undefined } } },
-                'teardown.spec.ts': { '1:1': { 'teardown': { timeout: 5000, projects: ['teardown'], annotations: [], children: undefined } } },
-                'a.spec.ts': { '1:1': { 'test a': { timeout: 5000, projects: ['chromium'], annotations: [], children: undefined } } },
+                'setup.spec.ts': {
+                    '1:1': {
+                        setup: {
+                            timeout: 5000,
+                            projects: ['setup'],
+                            annotations: [],
+                            children: undefined,
+                            titlePath: TITLE_PATH,
+                        },
+                    },
+                },
+                'teardown.spec.ts': {
+                    '1:1': {
+                        teardown: {
+                            timeout: 5000,
+                            projects: ['teardown'],
+                            annotations: [],
+                            children: undefined,
+                            titlePath: TITLE_PATH,
+                        },
+                    },
+                },
+                'a.spec.ts': {
+                    '1:1': {
+                        'test a': {
+                            timeout: 5000,
+                            projects: ['chromium'],
+                            annotations: [],
+                            children: undefined,
+                            titlePath: TITLE_PATH,
+                        },
+                    },
+                },
             },
             projects,
         );
@@ -183,7 +336,17 @@ describe('BaseTestRunCreator infrastructure project filtering', () => {
     it('strips infrastructure projects from mixed-project tests', async () => {
         const runInfo = makeRunInfo(
             {
-                'a.spec.ts': { '1:1': { 'test a': { timeout: 5000, projects: ['setup', 'chromium'], annotations: [], children: undefined } } },
+                'a.spec.ts': {
+                    '1:1': {
+                        'test a': {
+                            timeout: 5000,
+                            projects: ['setup', 'chromium'],
+                            annotations: [],
+                            children: undefined,
+                            titlePath: TITLE_PATH,
+                        },
+                    },
+                },
             },
             projects,
         );
@@ -195,12 +358,20 @@ describe('BaseTestRunCreator infrastructure project filtering', () => {
     });
 
     it('keeps all tests when no dependencies are configured', async () => {
-        const noDeps: Project[] = [
-            { name: 'chromium', use: {} as any, repeatEach: 1, dependencies: [], teardown: undefined },
-        ];
+        const noDeps: Project[] = [{ name: 'chromium', use: {}, repeatEach: 1, dependencies: [], teardown: undefined }];
         const runInfo = makeRunInfo(
             {
-                'a.spec.ts': { '1:1': { 'test a': { timeout: 5000, projects: ['chromium'], annotations: [], children: undefined } } },
+                'a.spec.ts': {
+                    '1:1': {
+                        'test a': {
+                            timeout: 5000,
+                            projects: ['chromium'],
+                            annotations: [],
+                            children: undefined,
+                            titlePath: TITLE_PATH,
+                        },
+                    },
+                },
             },
             noDeps,
         );

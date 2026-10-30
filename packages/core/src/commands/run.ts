@@ -53,7 +53,8 @@ export default async () => {
                     const runner = container.get<TestRunner>(SYMBOLS.TestRunner);
                     const passed = await runner.runTests();
                     if (options.failOnTestFailure && !passed) {
-                        process.exitCode = 1;
+                        // Keep the signal's exit code if the run was interrupted
+                        process.exitCode ??= 1;
                     }
                     console.log('Run completed');
                 }),
