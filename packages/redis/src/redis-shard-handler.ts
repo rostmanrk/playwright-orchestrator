@@ -45,11 +45,11 @@ end
 local bestKey = nil
 local bestLen = 0
 
-for i = 1, #ARGV do
-    local len = redis.call('LLEN', ARGV[i])
+for i = 2, #KEYS do
+    local len = redis.call('LLEN', KEYS[i])
     if len > bestLen then
         bestLen = len
-        bestKey = ARGV[i]
+        bestKey = KEYS[i]
     end
 end
 
@@ -61,8 +61,8 @@ return nil`;
         const client = await this.connection.getClient();
         const primaryKey = `${this._namePrefix}:${TESTS}:${runId}:queue`;
         const res = (await client.eval(script, {
-            keys: [primaryKey],
-            arguments: config.projects.map((project) => `${primaryKey}:${project.name}`),
+            // Every key the script touches goes in KEYS, so Redis ACLs and proxies see them
+            keys: [primaryKey, ...config.projects.map((project) => `${primaryKey}:${project.name}`)],
         })) as string | null;
         if (!res) return undefined;
         const test: TestItem = JSON.parse(res);
