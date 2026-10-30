@@ -15,7 +15,7 @@ import { SYMBOLS } from '../symbols.js';
 import { playwrightVersion, runPlaywright, supportsTestList } from '../helpers/run-playwright.js';
 import type { TestEventHandlerFactory } from './test-event-handler.js';
 import { cliVersion } from '../commands/version.js';
-import { registerOnExit } from '../helpers/register-on-exit.js';
+import { registerOnExit, registerOnInterrupt } from '../helpers/register-on-exit.js';
 import { PlaywrightConfigLoader } from '../helpers/playwright-config.js';
 import { buildTestList } from '../helpers/test-list.js';
 import { makeGrepPatterns } from '../helpers/regex.js';
@@ -24,6 +24,7 @@ import { makeGrepPatterns } from '../helpers/regex.js';
 export class TestRunner {
     private cleanupFs = new Set<string>();
     private readonly useTestList = supportsTestList();
+    private readonly interruption = new AbortController();
 
     constructor(
         @inject(SYMBOLS.RunContext) private readonly runContext: TestRunContext,
@@ -68,9 +69,14 @@ export class TestRunner {
         }
         await this.globalSetupManager.runSetup(config, browsers);
 
+        const removeInterruptHandler = registerOnInterrupt((signal) => {
+            this.reporter.warn(`Received ${signal}, stopping running tests. Send it again to exit immediately.`);
+            this.interruption.abort();
+        });
         try {
             await this.runTestsUntilAvailable(config, browsers);
         } finally {
+            removeInterruptHandler();
             await this.globalSetupManager.runTeardown(config, browsers);
             this.reporter.printSummary();
             await this.shardHandler.finishShard();
@@ -101,7 +107,7 @@ export class TestRunner {
                     runningBatches.delete(batchPromise);
                 });
                 runningBatches.add(batchPromise);
-                nextBatch = await batchHandler.getNextBatch(config);
+                nextBatch = this.interruption.signal.aborted ? undefined : await batchHandler.getNextBatch(config);
             } else {
                 await Promise.race(runningBatches);
             }
@@ -125,14 +131,19 @@ export class TestRunner {
         this.cleanupFs.add(testListFile);
         try {
             const selection = await this.selectTests(tests, testListFile);
-            const exitCode = await runPlaywright(this.buildParams(tests, config, selection), onData, {
-                ...process.env,
-                PLAYWRIGHT_BLOB_OUTPUT_FILE: batchArtifact,
-                ...(config.configFile && {
-                    PLAYWRIGHT_ORCHESTRATOR_BROWSERS: JSON.stringify(browsers),
-                }),
-                PLAYWRIGHT_ORCHESTRATOR_GROUPING: config.options.grouping,
-            }).catch(async (err) => {
+            const exitCode = await runPlaywright(
+                this.buildParams(tests, config, selection),
+                onData,
+                {
+                    ...process.env,
+                    PLAYWRIGHT_BLOB_OUTPUT_FILE: batchArtifact,
+                    ...(config.configFile && {
+                        PLAYWRIGHT_ORCHESTRATOR_BROWSERS: JSON.stringify(browsers),
+                    }),
+                    PLAYWRIGHT_ORCHESTRATOR_GROUPING: config.options.grouping,
+                },
+                this.interruption.signal,
+            ).catch(async (err) => {
                 // Playwright failed to start, so none of the batch's tests reported. Save them as failed first.
                 await onExit(null);
                 throw err;
