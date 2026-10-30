@@ -6,10 +6,10 @@ import type { Adapter } from '../packages/core/src/adapters/adapter.js';
 import { TestExecutionReporter } from '../packages/core/src/runner/test-execution-reporter.js';
 import { TestStatus } from '../packages/core/src/types/test-info.js';
 
-function makeConfig(repeatEach = 1, projects = ['chrome'], grouping = Grouping.Project): TestRunConfig {
+function makeConfig(repeatEach = 1, projects = ['chrome'], grouping: Grouping = Grouping.Project): TestRunConfig {
     return {
         workers: 1,
-        projects: projects.map((name) => ({ name, use: {}, repeatEach })),
+        projects: projects.map((name) => ({ name, use: {}, repeatEach, dependencies: [] })),
         args: [],
         options: {
             batchMode: BatchMode.Off,
@@ -79,7 +79,11 @@ function makeHandler() {
     const addTestSpy = vi
         .spyOn(reporter, 'addTest')
         .mockImplementation((_test, _subId, _displayName, run) => void run.catch(() => {}));
-    const handler = new PlaywrightTestEventHandler('run-id', adapter, reporter);
+    const handler = new PlaywrightTestEventHandler(
+        { runId: 'run-id', shardId: 'shard', outputFolder: '' },
+        adapter,
+        reporter,
+    );
     return { handler, adapter, reporter, addTestSpy };
 }
 
@@ -115,11 +119,11 @@ describe('PlaywrightTestEventHandler — repeatEach', () => {
         const { onData } = handler.init([test], makeConfig(2), 'Batch 1');
 
         // repeat 0
-        onData(JSON.stringify(makeEvent('foo', 'foo', 0, 0, 0, true, 'begin')));
-        onData(JSON.stringify(makeEvent('foo', 'foo', 0, 0, 0, true)));
+        onData(JSON.stringify(makeEvent('foo', 'foo', 0, 0, 0, true, 'begin')), false);
+        onData(JSON.stringify(makeEvent('foo', 'foo', 0, 0, 0, true)), false);
         // repeat 1
-        onData(JSON.stringify(makeEvent('foo', 'foo', 1, 0, 0, true, 'begin')));
-        onData(JSON.stringify(makeEvent('foo', 'foo', 1, 0, 0, true)));
+        onData(JSON.stringify(makeEvent('foo', 'foo', 1, 0, 0, true, 'begin')), false);
+        onData(JSON.stringify(makeEvent('foo', 'foo', 1, 0, 0, true)), false);
 
         expect(addTestSpy).toHaveBeenCalledTimes(2);
         const displayNames = addTestSpy.mock.calls.map(([_test, _subId, displayName]) => displayName);
@@ -132,10 +136,10 @@ describe('PlaywrightTestEventHandler — repeatEach', () => {
         const test = makeTestItem('bar');
         const { onData, onExit } = handler.init([test], makeConfig(2), 'Batch 1');
 
-        onData(JSON.stringify(makeEvent('bar', 'bar', 0, 0, 0, true, 'begin')));
-        onData(JSON.stringify(makeEvent('bar', 'bar', 0, 0, 0, true)));
-        onData(JSON.stringify(makeEvent('bar', 'bar', 1, 0, 0, true, 'begin')));
-        onData(JSON.stringify(makeEvent('bar', 'bar', 1, 0, 0, true)));
+        onData(JSON.stringify(makeEvent('bar', 'bar', 0, 0, 0, true, 'begin')), false);
+        onData(JSON.stringify(makeEvent('bar', 'bar', 0, 0, 0, true)), false);
+        onData(JSON.stringify(makeEvent('bar', 'bar', 1, 0, 0, true, 'begin')), false);
+        onData(JSON.stringify(makeEvent('bar', 'bar', 1, 0, 0, true)), false);
 
         await onExit(0);
         expect(adapter.updateTestWithResults).toHaveBeenCalledTimes(1);
@@ -171,8 +175,8 @@ describe('PlaywrightTestEventHandler — unreported tests', () => {
         const { onData, onExit } = handler.init([test], makeConfig(2), 'Batch 1');
 
         // Only repeat 0 of 2 reports before Playwright exits
-        onData(JSON.stringify(makeEvent('partial', 'partial', 0, 0, 0, true, 'begin')));
-        onData(JSON.stringify(makeEvent('partial', 'partial', 0, 0, 0, true)));
+        onData(JSON.stringify(makeEvent('partial', 'partial', 0, 0, 0, true, 'begin')), false);
+        onData(JSON.stringify(makeEvent('partial', 'partial', 0, 0, 0, true)), false);
 
         const allReported = await onExit(1);
 
@@ -190,8 +194,8 @@ describe('PlaywrightTestEventHandler — unreported tests', () => {
         const test = makeTestItem('done');
         const { onData, onExit } = handler.init([test], makeConfig(), 'Batch 1');
 
-        onData(JSON.stringify(makeEvent('done', 'done', 0, 0, 0, true, 'begin')));
-        onData(JSON.stringify(makeEvent('done', 'done', 0, 0, 0, true)));
+        onData(JSON.stringify(makeEvent('done', 'done', 0, 0, 0, true, 'begin')), false);
+        onData(JSON.stringify(makeEvent('done', 'done', 0, 0, 0, true)), false);
 
         const allReported = await onExit(0);
 

@@ -1,0 +1,4 @@
+{
+    // Lets the editor type-check these files with the same settings ESLint uses
+    "extends": "../tsconfig.eslint.json"
+}

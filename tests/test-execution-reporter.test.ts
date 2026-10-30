@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, type MockInstance } from 'vitest';
 import type { TestItem } from '../packages/core/src/types/adapters.js';
 import { TestExecutionReporter } from '../packages/core/src/runner/test-execution-reporter.js';
 
@@ -25,7 +25,7 @@ function deferred() {
 
 describe('TestExecutionReporter groups', () => {
     let reporter: TestExecutionReporter;
-    let consoleSpy: ReturnType<typeof vi.spyOn>;
+    let consoleSpy: MockInstance<typeof console.log>;
 
     beforeEach(() => {
         vi.useFakeTimers();
