@@ -1,7 +1,7 @@
 import child_process from 'node:child_process';
 
 export async function spawnAsync(command: string, args: string[] = [], options?: child_process.SpawnOptions) {
-    return new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
+    return new Promise<{ stdout: string; stderr: string; code: number | null }>((resolve, reject) => {
         const child = child_process.spawn(command, args, { ...options });
 
         let stdout = '';
@@ -15,8 +15,8 @@ export async function spawnAsync(command: string, args: string[] = [], options?:
             stderr += data.toString();
         });
 
-        child.on('close', () => {
-            resolve({ stdout, stderr });
+        child.on('close', (code) => {
+            resolve({ stdout, stderr, code });
         });
 
         child.on('error', (err) => {
