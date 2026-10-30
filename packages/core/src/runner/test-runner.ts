@@ -58,6 +58,17 @@ export class TestRunner {
                     'Until then tests are selected with --grep, which is less exact than --test-list. Please upgrade Playwright.',
             );
         }
+        // The shard is started, so finish it even when setup or teardown fails
+        try {
+            await this.setupAndRunTests(config);
+        } finally {
+            this.reporter.printSummary();
+            await this.shardHandler.finishShard();
+        }
+        return !this.reporter.hasFailed();
+    }
+
+    private async setupAndRunTests(config: TestRunConfig) {
         await this.configLoader.loadPlaywrightConfig(config.configFile);
         const [browsers] = await Promise.all([
             this.browserManager.runBrowsers(config),
@@ -67,21 +78,13 @@ export class TestRunner {
         if (config.configFile) {
             this.cleanupFs.add(config.configFile);
         }
-        await this.globalSetupManager.runSetup(config, browsers);
-
-        const removeInterruptHandler = registerOnInterrupt((signal) => {
-            this.reporter.warn(`Received ${signal}, stopping running tests. Send it again to exit immediately.`);
-            this.interruption.abort();
-        });
+        // Teardown also runs when setup fails part way, to undo what it did
         try {
+            await this.globalSetupManager.runSetup(config, browsers);
             await this.runTestsUntilAvailable(config, browsers);
         } finally {
-            removeInterruptHandler();
             await this.globalSetupManager.runTeardown(config, browsers);
-            this.reporter.printSummary();
-            await this.shardHandler.finishShard();
         }
-        return !this.reporter.hasFailed();
     }
 
     private cleanupTemp() {
@@ -96,6 +99,18 @@ export class TestRunner {
     }
 
     private async runTestsUntilAvailable(config: TestRunConfig, browsers: Record<string, string>) {
+        const removeInterruptHandler = registerOnInterrupt((signal) => {
+            this.reporter.warn(`Received ${signal}, stopping running tests. Send it again to exit immediately.`);
+            this.interruption.abort();
+        });
+        try {
+            await this.runBatches(config, browsers);
+        } finally {
+            removeInterruptHandler();
+        }
+    }
+
+    private async runBatches(config: TestRunConfig, browsers: Record<string, string>) {
         const batchHandler = this.batchHandlerFactory(config.options.batchMode);
         const runningBatches = new Set<Promise<void>>();
         let batchNumber = 0;
