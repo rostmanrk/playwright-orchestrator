@@ -65,6 +65,7 @@ export class RunBuilder {
                     timeout: getEntryTimeout(entry),
                     projects: [project],
                     annotations: this.getAnnotations(entry),
+                    titlePath: this.getTitlePath(entry),
                 };
             }
             return true;
@@ -82,12 +83,18 @@ export class RunBuilder {
                     projects: [project],
                     annotations: this.getAnnotations(entry),
                     children: entry.allTests().map((test) => test.title),
+                    titlePath: this.getTitlePath(entry),
                 };
             }
             return true;
         }
 
         return false;
+    }
+
+    private getTitlePath(entry: TestCase | Suite) {
+        // Drop the root, project and file segments
+        return entry.titlePath().slice(3);
     }
 
     private getAnnotations(entry: TestCase | Suite) {

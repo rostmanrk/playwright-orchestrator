@@ -57,10 +57,10 @@ export abstract class BaseTestRunCreator implements TestRunCreator {
             .flatMap(([file, positions]) =>
                 Object.entries(positions).flatMap(([position, titles]) => {
                     const titleEntries = Object.entries(titles);
-                    return titleEntries.flatMap(([title, { timeout, projects, annotations, children }]) => {
+                    return titleEntries.flatMap(([title, { timeout, projects, annotations, children, titlePath }]) => {
                         const baseItem = {
                             timeout,
-                            meta: { title, children, file, position, annotations },
+                            meta: { children, file, position, annotations, titlePath },
                         };
                         if (options.grouping === 'test') {
                             return {

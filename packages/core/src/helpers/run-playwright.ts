@@ -6,6 +6,14 @@ import { createInterface } from 'node:readline';
 const req = createRequire(join(process.cwd(), 'package.json'));
 const playwrightCli = join(dirname(req.resolve('@playwright/test/package.json')), 'cli.js');
 
+export const playwrightVersion = (req('@playwright/test/package.json') as { version: string }).version;
+
+/** `--test-list` exists since Playwright 1.56 */
+export function supportsTestList(): boolean {
+    const [major, minor] = playwrightVersion.split('.').map(Number);
+    return major > 1 || (major === 1 && minor >= 56);
+}
+
 export function runPlaywright(
     args: string[],
     onLine?: (line: string, isError: boolean) => void,

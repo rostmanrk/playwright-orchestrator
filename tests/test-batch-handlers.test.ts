@@ -29,11 +29,11 @@ function makeTest(id: string, project = 'chrome', ema = 0): TestItem {
         timeout: 5000,
         ema,
         meta: {
-            title: id,
             projects: [project],
             file: `${id}.spec.ts`,
             position: '1:1',
             annotations: [],
+            titlePath: [id],
         },
     };
 }

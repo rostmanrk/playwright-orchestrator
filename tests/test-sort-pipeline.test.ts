@@ -39,23 +39,60 @@ function makeCreator(runInfo: ReporterTestRunInfo): TestableCreator {
     return creator;
 }
 
+// Selector contents don't matter for sorting
+const TITLE_PATH = ['test a'];
+
 // Helper: single-test run with project grouping.
 // Resulting testId: '[chrome] a.spec.ts > test a'
 const SINGLE_TEST_RUN: ReporterTestRunInfo['testRun'] = {
-    'a.spec.ts': { '1:1': { 'test a': { timeout: 5000, projects: ['chrome'], annotations: [], children: undefined } } },
+    'a.spec.ts': {
+        '1:1': {
+            'test a': {
+                timeout: 5000,
+                projects: ['chrome'],
+                annotations: [],
+                children: undefined,
+                titlePath: TITLE_PATH,
+            },
+        },
+    },
 };
 
 describe('BaseTestRunCreator sort order', () => {
     it('sorts tests by EMA descending (highest ema = order 1)', async () => {
         const runInfo = makeRunInfo({
             'a.spec.ts': {
-                '1:1': { 'test a': { timeout: 5000, projects: ['chrome'], annotations: [], children: undefined } },
+                '1:1': {
+                    'test a': {
+                        timeout: 5000,
+                        projects: ['chrome'],
+                        annotations: [],
+                        children: undefined,
+                        titlePath: TITLE_PATH,
+                    },
+                },
             },
             'b.spec.ts': {
-                '1:1': { 'test b': { timeout: 5000, projects: ['chrome'], annotations: [], children: undefined } },
+                '1:1': {
+                    'test b': {
+                        timeout: 5000,
+                        projects: ['chrome'],
+                        annotations: [],
+                        children: undefined,
+                        titlePath: TITLE_PATH,
+                    },
+                },
             },
             'c.spec.ts': {
-                '1:1': { 'test c': { timeout: 5000, projects: ['chrome'], annotations: [], children: undefined } },
+                '1:1': {
+                    'test c': {
+                        timeout: 5000,
+                        projects: ['chrome'],
+                        annotations: [],
+                        children: undefined,
+                        titlePath: TITLE_PATH,
+                    },
+                },
             },
         });
         const creator = makeCreator(runInfo);
@@ -73,10 +110,26 @@ describe('BaseTestRunCreator sort order', () => {
     it('failure adjustment boosts sort value: ema=100, fails=5, window=10 → adjusted=150 > ema=130', async () => {
         const runInfo = makeRunInfo({
             'a.spec.ts': {
-                '1:1': { 'test a': { timeout: 5000, projects: ['chrome'], annotations: [], children: undefined } },
+                '1:1': {
+                    'test a': {
+                        timeout: 5000,
+                        projects: ['chrome'],
+                        annotations: [],
+                        children: undefined,
+                        titlePath: TITLE_PATH,
+                    },
+                },
             },
             'b.spec.ts': {
-                '1:1': { 'test b': { timeout: 5000, projects: ['chrome'], annotations: [], children: undefined } },
+                '1:1': {
+                    'test b': {
+                        timeout: 5000,
+                        projects: ['chrome'],
+                        annotations: [],
+                        children: undefined,
+                        titlePath: TITLE_PATH,
+                    },
+                },
             },
         });
         const creator = makeCreator(runInfo);
@@ -93,10 +146,26 @@ describe('BaseTestRunCreator sort order', () => {
     it('new test (no history) uses timeout as sort value', async () => {
         const runInfo = makeRunInfo({
             'a.spec.ts': {
-                '1:1': { new: { timeout: 5000, projects: ['chrome'], annotations: [], children: undefined } },
+                '1:1': {
+                    new: {
+                        timeout: 5000,
+                        projects: ['chrome'],
+                        annotations: [],
+                        children: undefined,
+                        titlePath: TITLE_PATH,
+                    },
+                },
             },
             'b.spec.ts': {
-                '1:1': { known: { timeout: 3000, projects: ['chrome'], annotations: [], children: undefined } },
+                '1:1': {
+                    known: {
+                        timeout: 3000,
+                        projects: ['chrome'],
+                        annotations: [],
+                        children: undefined,
+                        titlePath: TITLE_PATH,
+                    },
+                },
             },
         });
         const creator = makeCreator(runInfo);
@@ -111,10 +180,26 @@ describe('BaseTestRunCreator sort order', () => {
     it('order field is 1-indexed and ascending in result array', async () => {
         const runInfo = makeRunInfo({
             'a.spec.ts': {
-                '1:1': { test: { timeout: 5000, projects: ['chrome'], annotations: [], children: undefined } },
+                '1:1': {
+                    test: {
+                        timeout: 5000,
+                        projects: ['chrome'],
+                        annotations: [],
+                        children: undefined,
+                        titlePath: TITLE_PATH,
+                    },
+                },
             },
             'b.spec.ts': {
-                '1:1': { test: { timeout: 5000, projects: ['chrome'], annotations: [], children: undefined } },
+                '1:1': {
+                    test: {
+                        timeout: 5000,
+                        projects: ['chrome'],
+                        annotations: [],
+                        children: undefined,
+                        titlePath: TITLE_PATH,
+                    },
+                },
             },
         });
         const creator = makeCreator(runInfo);
@@ -139,6 +224,7 @@ describe('BaseTestRunCreator duplicate ID validation', () => {
                         projects: ['chrome'],
                         annotations: [{ type: ID_TYPE, description: 'dup' }],
                         children: undefined,
+                        titlePath: TITLE_PATH,
                     },
                 },
             },
@@ -149,6 +235,7 @@ describe('BaseTestRunCreator duplicate ID validation', () => {
                         projects: ['chrome'],
                         annotations: [{ type: ID_TYPE, description: 'dup' }],
                         children: undefined,
+                        titlePath: TITLE_PATH,
                     },
                 },
             },
@@ -168,6 +255,7 @@ describe('BaseTestRunCreator grouping modes', () => {
                     projects: ['chrome', 'firefox'],
                     annotations: [],
                     children: undefined,
+                    titlePath: TITLE_PATH,
                 },
             },
         },
@@ -203,16 +291,36 @@ describe('BaseTestRunCreator infrastructure project filtering', () => {
         const runInfo = makeRunInfo(
             {
                 'setup.spec.ts': {
-                    '1:1': { setup: { timeout: 5000, projects: ['setup'], annotations: [], children: undefined } },
+                    '1:1': {
+                        setup: {
+                            timeout: 5000,
+                            projects: ['setup'],
+                            annotations: [],
+                            children: undefined,
+                            titlePath: TITLE_PATH,
+                        },
+                    },
                 },
                 'teardown.spec.ts': {
                     '1:1': {
-                        teardown: { timeout: 5000, projects: ['teardown'], annotations: [], children: undefined },
+                        teardown: {
+                            timeout: 5000,
+                            projects: ['teardown'],
+                            annotations: [],
+                            children: undefined,
+                            titlePath: TITLE_PATH,
+                        },
                     },
                 },
                 'a.spec.ts': {
                     '1:1': {
-                        'test a': { timeout: 5000, projects: ['chromium'], annotations: [], children: undefined },
+                        'test a': {
+                            timeout: 5000,
+                            projects: ['chromium'],
+                            annotations: [],
+                            children: undefined,
+                            titlePath: TITLE_PATH,
+                        },
                     },
                 },
             },
@@ -235,6 +343,7 @@ describe('BaseTestRunCreator infrastructure project filtering', () => {
                             projects: ['setup', 'chromium'],
                             annotations: [],
                             children: undefined,
+                            titlePath: TITLE_PATH,
                         },
                     },
                 },
@@ -254,7 +363,13 @@ describe('BaseTestRunCreator infrastructure project filtering', () => {
             {
                 'a.spec.ts': {
                     '1:1': {
-                        'test a': { timeout: 5000, projects: ['chromium'], annotations: [], children: undefined },
+                        'test a': {
+                            timeout: 5000,
+                            projects: ['chromium'],
+                            annotations: [],
+                            children: undefined,
+                            titlePath: TITLE_PATH,
+                        },
                     },
                 },
             },

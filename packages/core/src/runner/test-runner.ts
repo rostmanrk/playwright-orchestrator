@@ -3,6 +3,7 @@ import { rm, writeFile } from 'node:fs/promises';
 import { rmSync } from 'node:fs';
 import { TestExecutionReporter } from './test-execution-reporter.js';
 import path from 'node:path';
+import { tmpdir } from 'node:os';
 import * as uuid from 'uuid';
 import { injectable, inject } from 'inversify';
 import type { ShardHandler } from '../adapters/shard-handler.js';
@@ -11,16 +12,18 @@ import { BrowserManager } from './browser-manager.js';
 import { WebServerManager } from './web-server-manager.js';
 import { GlobalSetupManager } from './global-setup-manager.js';
 import { SYMBOLS } from '../symbols.js';
-import { runPlaywright } from '../helpers/run-playwright.js';
+import { runPlaywright, supportsTestList } from '../helpers/run-playwright.js';
 import type { TestEventHandlerFactory } from './test-event-handler.js';
 import { cliVersion } from '../commands/version.js';
 import { registerOnExit } from '../helpers/register-on-exit.js';
 import { PlaywrightConfigLoader } from '../helpers/playwright-config.js';
-import { makeGrepPattern } from '../helpers/regex.js';
+import { buildTestList } from '../helpers/test-list.js';
+import { makeGrepPatterns } from '../helpers/regex.js';
 
 @injectable()
 export class TestRunner {
     private cleanupFs = new Set<string>();
+    private readonly useTestList = supportsTestList();
 
     constructor(
         @inject(SYMBOLS.RunContext) private readonly runContext: TestRunContext,
@@ -112,8 +115,11 @@ export class TestRunner {
         const batchId = uuid.v7();
 
         const batchArtifact = path.relative(process.cwd(), `${this.runContext.outputFolder}/${batchId}.zip`);
+        const testListFile = path.join(tmpdir(), `playwright-orchestrator-${batchId}.test-list.txt`);
+        this.cleanupFs.add(testListFile);
         try {
-            const exitCode = await runPlaywright(this.buildParams(tests, config), onData, {
+            const selection = await this.selectTests(tests, testListFile);
+            const exitCode = await runPlaywright(this.buildParams(tests, config, selection), onData, {
                 ...process.env,
                 PLAYWRIGHT_BLOB_OUTPUT_FILE: batchArtifact,
                 ...(config.configFile && {
@@ -134,10 +140,22 @@ export class TestRunner {
         } catch (err) {
             batchResolver.fail(err);
             throw err;
+        } finally {
+            await rm(testListFile, { force: true });
+            this.cleanupFs.delete(testListFile);
         }
     }
 
-    private buildParams(tests: TestItem[], config: TestRunConfig): string[] {
+    /** Arguments that make Playwright run exactly the batch's tests */
+    private async selectTests(tests: TestItem[], testListFile: string): Promise<string[]> {
+        if (!this.useTestList) {
+            return ['--grep', tests.flatMap(({ meta }) => makeGrepPatterns(meta)).join('|')];
+        }
+        await writeFile(testListFile, buildTestList(tests));
+        return ['--test-list', testListFile];
+    }
+
+    private buildParams(tests: TestItem[], config: TestRunConfig, selection: string[]): string[] {
         const args = [];
         const projects = new Set<string>();
         for (const test of tests) {
@@ -145,13 +163,7 @@ export class TestRunner {
                 projects.add(project);
             }
         }
-        const greps = tests.flatMap(({ meta: { file, title, children } }) => [
-            makeGrepPattern(file, title),
-            ...(children?.map((child) => makeGrepPattern(file, child)) ?? []),
-        ]);
-        if (greps.length > 0) {
-            args.push('--grep', greps.join('|'));
-        }
+        args.push(...selection);
         args.push(...config.args);
         args.push('--workers', '1');
         args.push('--reporter', 'blob,@playwright-orchestrator/core/test-result-reporter');
