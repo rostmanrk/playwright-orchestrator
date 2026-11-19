@@ -16,6 +16,16 @@ export class PgPool {
             config.ssl!.key = sslKey;
         }
         this.pool = new pg.Pool(config);
+        // Without listeners Node treats connection errors as uncaught and exits. The pool drops a broken
+        // connection and opens a new one, so errors only need logging.
+        // Errors from idle connections are re-emitted on the pool.
+        this.pool.on('error', (error) => {
+            console.error(`Postgres connection error: ${error.message}`);
+        });
+        // Connections in use emit on themselves; their queries already reject with the error.
+        this.pool.on('connect', (client) => {
+            client.on('error', () => {});
+        });
     }
 
     @preDestroy()
