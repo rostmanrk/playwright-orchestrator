@@ -113,21 +113,41 @@ export class TestRunner {
     private async runBatches(config: TestRunConfig, browsers: Record<string, string>) {
         const batchHandler = this.batchHandlerFactory(config.options.batchMode);
         const runningBatches = new Set<Promise<void>>();
+        const errors: unknown[] = [];
+        // After an error no new batch is claimed, but running batches finish: their tests are already off
+        // the queue, so they would be lost unless their results are saved.
+        const claimNextBatch = async () => {
+            if (this.interruption.signal.aborted || errors.length > 0) return undefined;
+            try {
+                return await batchHandler.getNextBatch(config);
+            } catch (error) {
+                errors.push(error);
+                return undefined;
+            }
+        };
         let batchNumber = 0;
-        let nextBatch = await batchHandler.getNextBatch(config);
+        let nextBatch = await claimNextBatch();
         while (nextBatch || runningBatches.size > 0) {
             if (nextBatch && runningBatches.size < config.workers) {
                 batchNumber++;
-                const batchPromise = this.runTestBatch(nextBatch, config, browsers, batchNumber).finally(() => {
-                    runningBatches.delete(batchPromise);
-                });
+                const batchPromise = this.runTestBatch(nextBatch, config, browsers, batchNumber)
+                    .catch((error: unknown) => {
+                        errors.push(error);
+                    })
+                    .finally(() => {
+                        runningBatches.delete(batchPromise);
+                    });
                 runningBatches.add(batchPromise);
-                nextBatch = this.interruption.signal.aborted ? undefined : await batchHandler.getNextBatch(config);
+                nextBatch = await claimNextBatch();
             } else {
                 await Promise.race(runningBatches);
             }
         }
-        await Promise.all(runningBatches);
+        if (errors.length === 0) return;
+        for (const error of errors.slice(1)) {
+            this.reporter.error(`Batch failed: ${error instanceof Error ? error.message : String(error)}`);
+        }
+        throw errors[0];
     }
 
     private async runTestBatch(

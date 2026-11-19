@@ -10,6 +10,11 @@ export class RedisConnection {
 
     constructor(@inject(REDIS_CONFIG) { connectionString }: CreateArgs) {
         this.client = createClient({ url: connectionString });
+        // Without a listener Node treats socket errors as uncaught and exits. node-redis reconnects on its own
+        // and queues commands meanwhile, so a dropped connection only needs logging.
+        this.client.on('error', (error: Error) => {
+            console.error(`Redis connection error: ${error.message}`);
+        });
     }
 
     async getClient(): Promise<RedisClientType> {
