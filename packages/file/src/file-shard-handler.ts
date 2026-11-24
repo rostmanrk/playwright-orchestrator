@@ -25,12 +25,12 @@ export class FileShardHandler implements ShardHandler {
         const file = getRunConfigPath(this.dir, runId);
         const queueFile = getRunIdFilePath(this.dir, runId);
         // A repeat run rewrites the queue and claimed files, which shards still running the first run change under
-        // the queue lock. Taken before the config lock, in the same order as popNextTest.
+        // the queue lock. Taken before the config lock, in the same order as popNextTest. The results lock comes last.
         return withLock(queueFile, () => this.startShardLocked(file, queueFile));
     }
 
     private async startShardLocked(file: string, queueFile: string): Promise<TestRunConfig> {
-        const { runId, shardId } = this.runContext;
+        const { shardId } = this.runContext;
         return withLock(file, async () => {
             const testRun = JSON.parse(await readFile(file, 'utf-8')) as TestRun;
             // Read before this shard's aliveUntil is refreshed below
@@ -42,37 +42,42 @@ export class FileShardHandler implements ShardHandler {
                 testRun.status = testRun.status === RunStatus.Created ? RunStatus.Run : RunStatus.RepeatRun;
                 testRun.updated = Date.now();
                 if (testRun.status === RunStatus.RepeatRun) {
-                    const results = JSON.parse(
-                        await readFile(getResultsRunPath(this.dir, runId), 'utf-8'),
-                    ) as ResultTestItem[];
-                    const failed: TestItem[] = results
-                        .filter((r) => r.status === TestStatus.Failed)
-                        .map(({ testId, order, timeout, ema, meta }) => ({
-                            testId,
-                            order,
-                            timeout,
-                            ema,
-                            meta,
-                        }));
-
-                    const rest = results.filter((r) => r.status !== TestStatus.Failed);
-                    // Keep tests the previous run never claimed, e.g. after it was interrupted
-                    const unclaimed = JSON.parse(await readFile(queueFile, 'utf-8')) as TestItem[];
-                    // A claim is recorded before the queue is written, so a crash in between leaves the test in both
-                    const queuedIds = new Set(unclaimed.map((test) => test.testId));
-                    const abandoned = (await this.takeAbandonedTests(deadShardIds)).filter(
-                        (test) => !queuedIds.has(test.testId),
-                    );
-                    // Tests are popped from the end, so keep the queue sorted by descending order
-                    const queue = [...unclaimed, ...failed, ...abandoned].sort((a, b) => b.order - a.order);
-                    await writeFileAtomic(queueFile, JSON.stringify(queue, null, 2));
-                    await writeFileAtomic(getResultsRunPath(this.dir, runId), JSON.stringify(rest, null, 2));
+                    const queue = await this.buildRepeatQueue(queueFile, deadShardIds);
                     testRun.config.remainingCount = queue.length;
                     testRun.config.remainingTime = queue.reduce((sum, t) => sum + t.ema, 0);
                 }
             }
             await writeFileAtomic(file, JSON.stringify(testRun));
             return testRun.config;
+        });
+    }
+
+    /**
+     * Queues the failed tests, the tests never claimed and the abandoned ones, and removes the failed results.
+     * Runs under the results lock: shards still running the first run save results meanwhile, and a save that
+     * landed between reading and writing the results would be lost.
+     */
+    private async buildRepeatQueue(queueFile: string, deadShardIds: string[]): Promise<TestItem[]> {
+        const resultsFile = getResultsRunPath(this.dir, this.runContext.runId);
+        return withLock(resultsFile, async () => {
+            const results = JSON.parse(await readFile(resultsFile, 'utf-8')) as ResultTestItem[];
+            const failed: TestItem[] = results
+                .filter((r) => r.status === TestStatus.Failed)
+                .map(({ testId, order, timeout, ema, meta }) => ({ testId, order, timeout, ema, meta }));
+            const rest = results.filter((r) => r.status !== TestStatus.Failed);
+            // Keep tests the previous run never claimed, e.g. after it was interrupted
+            const unclaimed = JSON.parse(await readFile(queueFile, 'utf-8')) as TestItem[];
+            // A claim is recorded before the queue is written, and removed after the result is saved, so a crash
+            // in between leaves the test queued or with a result as well. Such a test is already handled.
+            const handledIds = new Set([...unclaimed, ...results].map((test) => test.testId));
+            const abandoned = (await this.takeAbandonedTests(deadShardIds)).filter(
+                (test) => !handledIds.has(test.testId),
+            );
+            // Tests are popped from the end, so keep the queue sorted by descending order
+            const queue = [...unclaimed, ...failed, ...abandoned].sort((a, b) => b.order - a.order);
+            await writeFileAtomic(queueFile, JSON.stringify(queue, null, 2));
+            await writeFileAtomic(resultsFile, JSON.stringify(rest, null, 2));
+            return queue;
         });
     }
 

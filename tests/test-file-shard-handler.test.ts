@@ -211,13 +211,16 @@ describe('FileShardHandler.startShard', () => {
         expect((await readJson<TestItem[]>(getRunIdFilePath(dir, RUN_ID))).map((test) => test.order)).toEqual([1]);
     });
 
-    it('waits for the queue lock, which shards still running hold while they claim tests', async () => {
+    it.each([
+        ['queue', 'claim tests', () => getRunIdFilePath(dir, RUN_ID)],
+        ['results', 'save results', () => getResultsRunPath(dir, RUN_ID)],
+    ])('waits for the %s lock, which shards still running hold while they %s', async (_lock, _action, lockFile) => {
         await writeFinishedRun();
         await writeJson(getClaimedRunPath(dir, RUN_ID), {});
         let started = false;
         let release!: () => void;
         const held = new Promise<void>((resolve) => (release = resolve));
-        const locked = withLock(getRunIdFilePath(dir, RUN_ID), () => held);
+        const locked = withLock(lockFile(), () => held);
         // Let the lock be taken first
         await new Promise((resolve) => setTimeout(resolve, 50));
         const starting = makeHandler()
@@ -231,6 +234,24 @@ describe('FileShardHandler.startShard', () => {
         await locked;
         await starting;
         expect(started).toBe(true);
+    });
+
+    it('does not queue a claim whose test already has a result, e.g. after a crash before the claim was removed', async () => {
+        await writeFinishedRun();
+        await writeJson(getResultsRunPath(dir, RUN_ID), [
+            makeResult(makeTest(1), TestStatus.Failed),
+            makeResult(makeTest(2), TestStatus.Passed),
+        ]);
+        const claimedBy = (test: TestItem) => ({ ...test, meta: { ...test.meta, shardId: 'new' } });
+        await writeJson(getClaimedRunPath(dir, RUN_ID), {
+            [makeTest(1).testId]: claimedBy(makeTest(1)),
+            [makeTest(2).testId]: claimedBy(makeTest(2)),
+            [makeTest(3).testId]: claimedBy(makeTest(3)),
+        });
+        await makeHandler().startShard();
+        // Test 1 is queued once, as failed; test 2 passed; test 3 has no result
+        expect((await readJson<TestItem[]>(getRunIdFilePath(dir, RUN_ID))).map((test) => test.order)).toEqual([3, 1]);
+        expect(await readJson<ClaimedTests>(getClaimedRunPath(dir, RUN_ID))).toEqual({});
     });
 });
 
