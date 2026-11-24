@@ -57,6 +57,12 @@ export interface TestItem {
         annotations: TestDetailsAnnotation[];
         /** Describe titles followed by the test title; for a serial group, the path to the group (empty when the whole file is serial) */
         titlePath: string[];
+        /**
+         * Set on a claimed test: the time its batch must have finished if its shard is alive. Past it, a repeat run
+         * queues the test again if it still has no result. Removed when the batch has a test without a timeout.
+         * See `getClaimDeadline` and `getBatchDeadline`.
+         */
+        deadline?: number;
     };
 }
 

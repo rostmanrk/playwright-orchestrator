@@ -16,6 +16,7 @@
         "dependencies": [],
         "name": "setup",
         "repeatEach": 1,
+        "retries": 1,
         "use": {
           "baseURL": "http://localhost:4321",
           "trace": "on-first-retry"
@@ -25,6 +26,7 @@
         "dependencies": [],
         "name": "teardown",
         "repeatEach": 1,
+        "retries": 1,
         "use": {
           "baseURL": "http://localhost:4321",
           "trace": "on-first-retry"
@@ -36,6 +38,7 @@
         ],
         "name": "chromium",
         "repeatEach": 1,
+        "retries": 1,
         "teardown": "teardown",
         "use": {
           "baseURL": "http://localhost:4321",
@@ -49,6 +52,7 @@
         ],
         "name": "firefox",
         "repeatEach": 1,
+        "retries": 1,
         "teardown": "teardown",
         "use": {
           "baseURL": "http://localhost:4321",

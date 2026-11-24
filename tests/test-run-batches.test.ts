@@ -1,4 +1,5 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { CLAIM_MARGIN } from '../packages/core/src/helpers/claim.js';
 import { TestRunner } from '../packages/core/src/runner/test-runner.js';
 import type { TestItem, TestRunConfig } from '../packages/core/src/types/adapters.js';
 import { BatchMode, Grouping } from '../packages/core/src/types/adapters.js';
@@ -51,9 +52,10 @@ function makeRunner(batches: (TestItem[] | Error)[], workers: number) {
         return next instanceof Error ? Promise.reject(next) : Promise.resolve(next);
     });
     const reporter = { error: vi.fn(), warn: vi.fn() } as unknown as TestExecutionReporter;
+    const setClaimDeadline = vi.fn((_tests: TestItem[], _deadline: number | null) => Promise.resolve());
     const runner = new TestRunner(
         {} as any,
-        {} as any,
+        { setClaimDeadline } as any,
         {} as any,
         {} as any,
         {} as any,
@@ -78,7 +80,7 @@ function makeRunner(batches: (TestItem[] | Error)[], workers: number) {
         result.catch(() => {});
         return result;
     };
-    return { run, getNextBatch, reporter, runs, isSettled: () => settled };
+    return { run, getNextBatch, setClaimDeadline, reporter, runs, isSettled: () => settled };
 }
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
@@ -150,5 +152,52 @@ describe('TestRunner.runBatches', () => {
         await expect(result).rejects.toBe(first);
         expect(reporter.error).toHaveBeenCalledTimes(1);
         expect(reporter.error).toHaveBeenCalledWith('Batch failed: second');
+    });
+
+    describe('claim deadlines', () => {
+        afterEach(() => {
+            vi.restoreAllMocks();
+        });
+
+        it('starts a batch now when a worker is free, otherwise when the first running batch must be done', async () => {
+            vi.spyOn(Date, 'now').mockReturnValue(1000);
+            const { run, setClaimDeadline, runs } = makeRunner([makeBatch('a'), makeBatch('b')], 1);
+            const result = run();
+            await vi.waitFor(() => expect(setClaimDeadline).toHaveBeenCalledTimes(2));
+            // Each batch is one 5s test
+            const first = 1000 + 5000 + CLAIM_MARGIN;
+            expect(setClaimDeadline.mock.calls.map(([tests, deadline]) => [tests[0].testId, deadline])).toEqual([
+                ['a', first],
+                ['b', first + 5000 + CLAIM_MARGIN],
+            ]);
+            runs[0].resolve();
+            await vi.waitFor(() => expect(runs).toHaveLength(2));
+            runs[1].resolve();
+            await expect(result).resolves.toBeUndefined();
+        });
+
+        it('removes the claim deadline of a batch with a test without a timeout', async () => {
+            const batch = makeBatch('a');
+            batch[0].timeout = 0;
+            const { run, setClaimDeadline, runs } = makeRunner([batch], 1);
+            const result = run();
+            await vi.waitFor(() => expect(runs).toHaveLength(1));
+            runs[0].resolve();
+            await expect(result).resolves.toBeUndefined();
+            expect(setClaimDeadline).toHaveBeenCalledWith(batch, null);
+        });
+
+        it('still runs a batch whose deadline could not be saved', async () => {
+            const error = new Error('setClaimDeadline failed');
+            const { run, setClaimDeadline, getNextBatch, runs } = makeRunner([makeBatch('a'), makeBatch('b')], 2);
+            setClaimDeadline.mockRejectedValueOnce(error);
+            const result = run();
+            await vi.waitFor(() => expect(runs).toHaveLength(1));
+            await flush();
+            // No new batch is claimed after the error
+            expect(getNextBatch).toHaveBeenCalledTimes(1);
+            runs[0].resolve();
+            await expect(result).rejects.toBe(error);
+        });
     });
 });

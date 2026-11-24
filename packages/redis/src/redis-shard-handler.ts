@@ -1,6 +1,6 @@
 import { injectable, inject } from 'inversify';
-import type { ShardHandler, TestRunConfig, TestRunContext } from '@playwright-orchestrator/core';
-import { RunStatus, SYMBOLS } from '@playwright-orchestrator/core';
+import type { ShardHandler, TestRunConfig, TestRunContext, TestShard } from '@playwright-orchestrator/core';
+import { everyOtherShardFinished, getClaimDeadline, RunStatus, SYMBOLS } from '@playwright-orchestrator/core';
 import type { TestItem } from '@playwright-orchestrator/core';
 import type { CreateArgs } from './create-args.js';
 import { RedisConnection } from './redis-connection.js';
@@ -8,6 +8,22 @@ import { REDIS_CONFIG, REDIS_CONNECTION } from './symbols.js';
 
 const TESTS = 'T';
 const TEST_RUN = 'TR';
+
+/**
+ * Records a popped test in the run's hash of claimed tests (KEYS[1]) until its result is saved,
+ * so a repeat run can queue it again if its shard dies, with its claim deadline in KEYS[2].
+ * ARGV[1] is the TTL, ARGV[2] the deadline.
+ * The item is kept as the raw string: decoding and encoding it with cjson would corrupt empty arrays.
+ */
+const RECORD_CLAIM = `
+local function recordClaim(item)
+    local testId = cjson.decode(item).testId
+    redis.call('HSET', KEYS[1], testId, item)
+    redis.call('HSET', KEYS[2], testId, ARGV[2])
+    redis.call('EXPIRE', KEYS[1], ARGV[1])
+    redis.call('EXPIRE', KEYS[2], ARGV[1])
+    return item
+end`;
 
 @injectable()
 export class RedisShardHandler implements ShardHandler {
@@ -27,7 +43,20 @@ export class RedisShardHandler implements ShardHandler {
     async getNextTestByProject(project: string): Promise<TestItem | undefined> {
         const { runId } = this.runContext;
         const client = await this.connection.getClient();
-        const res = await client.lPop(`${this._namePrefix}:${TESTS}:${runId}:queue:${project}`);
+        const script = `${RECORD_CLAIM}
+local item = redis.call('LPOP', KEYS[3])
+if item then
+    return recordClaim(item)
+end
+return nil`;
+        const res = (await client.eval(script, {
+            keys: [
+                this.claimedKey(runId),
+                this.deadlinesKey(runId),
+                `${this._namePrefix}:${TESTS}:${runId}:queue:${project}`,
+            ],
+            arguments: [String(this.ttl), String(getClaimDeadline())],
+        })) as string | null;
         if (!res) return undefined;
         const test: TestItem = JSON.parse(res);
         await this.decrementCounters(test.ema);
@@ -36,16 +65,16 @@ export class RedisShardHandler implements ShardHandler {
 
     async getNextTest(config: TestRunConfig): Promise<TestItem | undefined> {
         const { runId } = this.runContext;
-        const script = `
-local item = redis.call('LPOP', KEYS[1])
+        const script = `${RECORD_CLAIM}
+local item = redis.call('LPOP', KEYS[3])
 if item then
-    return item
+    return recordClaim(item)
 end
 
 local bestKey = nil
 local bestLen = 0
 
-for i = 2, #KEYS do
+for i = 4, #KEYS do
     local len = redis.call('LLEN', KEYS[i])
     if len > bestLen then
         bestLen = len
@@ -54,7 +83,7 @@ for i = 2, #KEYS do
 end
 
 if bestKey then
-    return redis.call('LPOP', bestKey)
+    return recordClaim(redis.call('LPOP', bestKey))
 end
 
 return nil`;
@@ -62,7 +91,13 @@ return nil`;
         const primaryKey = `${this._namePrefix}:${TESTS}:${runId}:queue`;
         const res = (await client.eval(script, {
             // Every key the script touches goes in KEYS, so Redis ACLs and proxies see them
-            keys: [primaryKey, ...config.projects.map((project) => `${primaryKey}:${project.name}`)],
+            keys: [
+                this.claimedKey(runId),
+                this.deadlinesKey(runId),
+                primaryKey,
+                ...config.projects.map((project) => `${primaryKey}:${project.name}`),
+            ],
+            arguments: [String(this.ttl), String(getClaimDeadline())],
         })) as string | null;
         if (!res) return undefined;
         const test: TestItem = JSON.parse(res);
@@ -107,7 +142,7 @@ redis.call('SET', KEYS[5], tostring(totalEma), 'EX', ttl)
 redis.call('SET', KEYS[1], ARGV[2], 'EX', ttl)
 redis.call('SET', KEYS[6], ARGV[3], 'EX', ttl)
 return 1`;
-            await client.eval(script, {
+            const won = await client.eval(script, {
                 keys: [
                     statusKey,
                     `${queueKey}:failed`,
@@ -123,6 +158,9 @@ return 1`;
                     String(this.ttl),
                 ],
             });
+            if (won === 1) {
+                await this.requeueAbandonedTests(runId);
+            }
         } else if (status === RunStatus.Created) {
             await client
                 .multi()
@@ -138,6 +176,70 @@ return 1`;
                 .exec();
         }
         return this.loadConfig();
+    }
+
+    /** Queues again the claimed tests without a result whose shard is done or must have died */
+    private async requeueAbandonedTests(runId: string): Promise<void> {
+        const client = await this.connection.getClient();
+        const key = `${this._namePrefix}:${TEST_RUN}:${runId}`;
+        const shards = Object.fromEntries(
+            Object.entries(await client.hGetAll(`${key}:shards`)).map(([shardId, shard]) => [
+                shardId,
+                JSON.parse(shard) as TestShard,
+            ]),
+        );
+        const script = `
+local claimed = redis.call('HGETALL', KEYS[1])
+for i = 1, #claimed, 2 do
+    local testId = claimed[i]
+    local deadline = tonumber(redis.call('HGET', KEYS[2], testId))
+    if ARGV[1] == '1' or (deadline and deadline < tonumber(ARGV[2])) then
+        local item = claimed[i + 1]
+        redis.call('RPUSH', KEYS[3], item)
+        redis.call('HDEL', KEYS[1], testId)
+        redis.call('HDEL', KEYS[2], testId)
+        redis.call('INCRBY', KEYS[4], 1)
+        redis.call('INCRBYFLOAT', KEYS[5], cjson.decode(item).ema or 0)
+    end
+end`;
+        await client.eval(script, {
+            keys: [
+                this.claimedKey(runId),
+                this.deadlinesKey(runId),
+                `${this._namePrefix}:${TESTS}:${runId}:queue`,
+                `${key}:remainingCount`,
+                `${key}:remainingTime`,
+            ],
+            arguments: [everyOtherShardFinished(shards, this.runContext.shardId) ? '1' : '0', String(Date.now())],
+        });
+    }
+
+    async setClaimDeadline(tests: TestItem[], deadline: number | null): Promise<void> {
+        const { runId } = this.runContext;
+        const client = await this.connection.getClient();
+        // Only for tests still claimed, so a test with a result gets no deadline entry back
+        const script = `
+for i = 1, #ARGV - 1 do
+    if redis.call('HEXISTS', KEYS[1], ARGV[i]) == 1 then
+        if ARGV[#ARGV] == '' then
+            redis.call('HDEL', KEYS[2], ARGV[i])
+        else
+            redis.call('HSET', KEYS[2], ARGV[i], ARGV[#ARGV])
+        end
+    end
+end`;
+        await client.eval(script, {
+            keys: [this.claimedKey(runId), this.deadlinesKey(runId)],
+            arguments: [...tests.map((test) => test.testId), deadline === null ? '' : String(deadline)],
+        });
+    }
+
+    private deadlinesKey(runId: string): string {
+        return `${this.claimedKey(runId)}:deadline`;
+    }
+
+    private claimedKey(runId: string): string {
+        return `${this._namePrefix}:${TESTS}:${runId}:claimed`;
     }
 
     async finishShard(): Promise<void> {

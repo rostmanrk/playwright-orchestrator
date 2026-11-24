@@ -1,6 +1,6 @@
 import { injectable, inject } from 'inversify';
-import type { ShardHandler, TestRunContext } from '@playwright-orchestrator/core';
-import { RunStatus, SYMBOLS } from '@playwright-orchestrator/core';
+import type { ShardHandler, TestRun, TestRunContext } from '@playwright-orchestrator/core';
+import { everyOtherShardFinished, getClaimDeadline, RunStatus, SYMBOLS } from '@playwright-orchestrator/core';
 import type { TestItem, TestRunConfig } from '@playwright-orchestrator/core';
 import type { CreateArgs } from './create-args.js';
 import { DynamoDbConnection } from './dynamo-db-connection.js';
@@ -11,8 +11,9 @@ import {
     GetCommand,
     UpdateCommand,
     QueryCommandInput,
+    TransactWriteCommand,
 } from '@aws-sdk/lib-dynamodb';
-import { ConditionalCheckFailedException } from '@aws-sdk/client-dynamodb';
+import { ConditionalCheckFailedException, TransactionCanceledException } from '@aws-sdk/client-dynamodb';
 import { mapDbToTestItem, mapTestItemToDb, getTtl, mapDbToTestRun } from './helpers.js';
 import { Fields, OFFSET_STEP, StatusOffset } from './constants.js';
 import type { TestItemDb, TestRunDb } from './types.js';
@@ -44,7 +45,10 @@ export class DynamoDbShardHandler implements ShardHandler {
             const nextStatus = isRepeat ? RunStatus.RepeatRun : RunStatus.Run;
             const won = await this.tryTransitionStatus(runId, status, nextStatus);
             if (won && isRepeat) {
-                const { count, totalEma } = await this.updateFailedTests(runId);
+                const failed = await this.updateFailedTests(runId);
+                const abandoned = await this.requeueAbandonedTests(runId, testRun);
+                const count = failed.count + abandoned.count;
+                const totalEma = failed.totalEma + abandoned.totalEma;
                 await this.connection.docClient.send(
                     new UpdateCommand({
                         TableName: this.testsTableName,
@@ -88,6 +92,28 @@ export class DynamoDbShardHandler implements ShardHandler {
     async getNextTestByProject(project: string): Promise<TestItem | undefined> {
         const { runId } = this.runContext;
         return await this.getNextTestByStatus(runId, StatusOffset.Pending, project);
+    }
+
+    async setClaimDeadline(tests: TestItem[], deadline: number | null): Promise<void> {
+        const { runId } = this.runContext;
+        for (const test of tests) {
+            try {
+                await this.connection.docClient.send(
+                    new UpdateCommand({
+                        TableName: this.testsTableName,
+                        Key: { [Fields.Id]: runId, [Fields.Order]: (test.order % OFFSET_STEP) + StatusOffset.Running },
+                        UpdateExpression:
+                            deadline === null ? 'REMOVE #meta.#deadline' : 'SET #meta.#deadline = :deadline',
+                        // Skipped when the test already has a result
+                        ConditionExpression: 'attribute_exists(#pk)',
+                        ExpressionAttributeNames: { '#pk': Fields.Id, '#meta': Fields.Meta, '#deadline': 'deadline' },
+                        ...(deadline === null ? {} : { ExpressionAttributeValues: { ':deadline': deadline } }),
+                    }),
+                );
+            } catch (error) {
+                if (!(error instanceof ConditionalCheckFailedException)) throw error;
+            }
+        }
     }
 
     private async getTestRun(runId: string): Promise<TestRunDb> {
@@ -146,6 +172,7 @@ export class DynamoDbShardHandler implements ShardHandler {
         }
     }
 
+    /** A pending test is claimed: moved to the running range until its result is saved */
     private async getNextTestByStatus(
         runId: string,
         status: StatusOffset,
@@ -156,7 +183,10 @@ export class DynamoDbShardHandler implements ShardHandler {
         while (!deleted) {
             test = await this.queryNextTest(runId, status, project);
             if (!test) return;
-            deleted = await this.tryToDeleteItem(runId, test.order);
+            deleted =
+                status === StatusOffset.Pending
+                    ? await this.tryToMoveItem(runId, withClaimDeadline(test), StatusOffset.Running)
+                    : await this.tryToDeleteItem(runId, test.order);
         }
         if (status === StatusOffset.Pending) {
             await this.connection.docClient.send(
@@ -192,6 +222,75 @@ export class DynamoDbShardHandler implements ShardHandler {
             test = await this.getNextTestByStatus(runId, StatusOffset.Failed);
         }
         return { count, totalEma };
+    }
+
+    /** Queues again the claimed tests without a result whose shard is done or must have died */
+    private async requeueAbandonedTests(runId: string, testRun: TestRun): Promise<{ count: number; totalEma: number }> {
+        const allClaimed = everyOtherShardFinished(testRun.shards, this.runContext.shardId);
+        let count = 0;
+        let totalEma = 0;
+        let exclusiveStartKey: QueryCommandInput['ExclusiveStartKey'];
+        do {
+            const queryOutput = await this.connection.docClient.send(
+                new QueryCommand({
+                    TableName: this.testsTableName,
+                    KeyConditionExpression: '#pk = :pk AND #sk BETWEEN :start AND :end',
+                    ExpressionAttributeNames: {
+                        '#pk': Fields.Id,
+                        '#sk': Fields.Order,
+                        ...(allClaimed ? {} : { '#meta': Fields.Meta, '#deadline': 'deadline' }),
+                    },
+                    ExpressionAttributeValues: {
+                        ':pk': runId,
+                        ':start': StatusOffset.Running + 1,
+                        ':end': StatusOffset.Running + OFFSET_STEP - 1,
+                        ...(allClaimed ? {} : { ':now': Date.now() }),
+                    },
+                    ...(allClaimed ? {} : { FilterExpression: '#meta.#deadline < :now' }),
+                    ExclusiveStartKey: exclusiveStartKey,
+                }),
+            );
+            for (const item of (queryOutput.Items ?? []) as TestItemDb[]) {
+                const test = mapDbToTestItem(item);
+                // Skipped when the result was saved meanwhile
+                if (await this.tryToMoveItem(runId, test, StatusOffset.Pending)) {
+                    count++;
+                    totalEma += test.ema;
+                }
+            }
+            exclusiveStartKey = queryOutput.LastEvaluatedKey;
+        } while (exclusiveStartKey);
+        return { count, totalEma };
+    }
+
+    /** Moves a test to another status range, if it is still where it was found */
+    private async tryToMoveItem(runId: string, test: TestItem, to: StatusOffset): Promise<boolean> {
+        try {
+            await this.connection.docClient.send(
+                new TransactWriteCommand({
+                    TransactItems: [
+                        {
+                            Delete: {
+                                TableName: this.testsTableName,
+                                Key: { [Fields.Id]: runId, [Fields.Order]: test.order },
+                                ConditionExpression: 'attribute_exists(#pk) AND attribute_exists(#sk)',
+                                ExpressionAttributeNames: { '#pk': Fields.Id, '#sk': Fields.Order },
+                            },
+                        },
+                        {
+                            Put: {
+                                TableName: this.testsTableName,
+                                Item: mapTestItemToDb(runId, getTtl(this.ttl), test, to),
+                            },
+                        },
+                    ],
+                }),
+            );
+            return true;
+        } catch (error) {
+            if (error instanceof TransactionCanceledException) return false;
+            throw error;
+        }
     }
 
     private async addPendingTestItem(runId: string, test: TestItem): Promise<void> {
@@ -288,4 +387,8 @@ export class DynamoDbShardHandler implements ShardHandler {
             remainingTime: Math.max(0, cfg?.remainingTime ?? 0),
         };
     }
+}
+
+function withClaimDeadline(test: TestItem): TestItem {
+    return { ...test, meta: { ...test.meta, deadline: getClaimDeadline() } };
 }

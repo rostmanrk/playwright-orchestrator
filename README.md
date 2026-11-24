@@ -201,6 +201,8 @@ Creates and configures a new test run. Outputs created run ID. Supports most of 
 
 Starts a test shard for the provided test run. If used with a finished run, it will only start failed tests.
 
+A repeat run also picks up tests that a shard claimed but never saved a result for, e.g. because the shard was killed (OOM, evicted pod, lost node). Such a test is queued again when every other shard has finished, or when its batch's deadline has passed. A claimed test gets a one-minute deadline right away, replaced once its batch is ready by the sum of the batch's tests' timeouts times retries, `repeatEach` and projects, plus a minute. Until then the test is assumed to still be running on a live shard. A batch with a test that has no timeout gets no deadline, so its tests are only queued again once every other shard has finished.
+
 Command generate blob reports into `--output` directory. To merge it use [Playwright's Merge-reports CLI](https://playwright.dev/docs/test-sharding#merge-reports-cli)
 
 | Option                   | Description                                                                                                                                                       | Type     | Default        | Required? |

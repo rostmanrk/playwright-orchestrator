@@ -1,6 +1,12 @@
 import { injectable, inject } from 'inversify';
 import type { ShardHandler, TestRunContext } from '@playwright-orchestrator/core';
-import { RunStatus, SYMBOLS, TestStatus } from '@playwright-orchestrator/core';
+import {
+    everyOtherShardFinished,
+    getClaimDeadline,
+    RunStatus,
+    SYMBOLS,
+    TestStatus,
+} from '@playwright-orchestrator/core';
 import type { TestItem, TestRunConfig } from '@playwright-orchestrator/core';
 import type { CreateArgs } from './create-args.js';
 import { MongoConnection } from './mongo-connection.js';
@@ -39,7 +45,7 @@ export class MongoShardHandler implements ShardHandler {
             ? { ...this.generateTestIdQuery(runId, TestStatus.Ready), 'meta.projects': project }
             : this.generateTestIdQuery(runId, TestStatus.Ready);
         const result = await this.tests.findOneAndUpdate(query, {
-            $set: { updated: new Date(), status: TestStatus.Ongoing },
+            $set: { updated: new Date(), status: TestStatus.Ongoing, 'meta.deadline': getClaimDeadline() },
         });
         if (!result) return undefined;
         const effectiveEma = result.ema;
@@ -75,6 +81,16 @@ export class MongoShardHandler implements ShardHandler {
         ]);
         if (!run) throw new Error(`Run ${runId} not found`);
         const { status: statusBefore } = run;
+        if (statusBefore === RunStatus.Finished) {
+            // Claimed tests without a result whose shard is done or must have died
+            await this.tests.updateMany(
+                {
+                    ...this.generateTestIdQuery(runId, TestStatus.Ongoing),
+                    ...(everyOtherShardFinished(run.shards, shardId) ? {} : { 'meta.deadline': { $lt: Date.now() } }),
+                },
+                { $set: { status: TestStatus.Ready, updated: now } },
+            );
+        }
         if (statusBefore === RunStatus.Created || statusBefore === RunStatus.Finished) {
             await this.tests.updateMany(this.generateTestIdQuery(runId, TestStatus.Failed), {
                 $set: { status: TestStatus.Ready, updated: now },
@@ -96,6 +112,14 @@ export class MongoShardHandler implements ShardHandler {
             }
         }
         return run.config;
+    }
+
+    async setClaimDeadline(tests: TestItem[], deadline: number | null): Promise<void> {
+        const { runId } = this.runContext;
+        await this.tests.updateMany(
+            { _id: { $in: tests.map((test) => generateTestId(runId, test.order)) }, status: TestStatus.Ongoing },
+            deadline === null ? { $unset: { 'meta.deadline': '' } } : { $set: { 'meta.deadline': deadline } },
+        );
     }
 
     async finishShard(): Promise<void> {

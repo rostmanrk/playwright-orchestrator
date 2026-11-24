@@ -19,6 +19,7 @@ import { registerOnExit, registerOnInterrupt } from '../helpers/register-on-exit
 import { PlaywrightConfigLoader } from '../helpers/playwright-config.js';
 import { buildTestList, canSelectWithTestList } from '../helpers/test-list.js';
 import { makeGrepPatterns } from '../helpers/regex.js';
+import { getBatchDeadline } from '../helpers/claim.js';
 
 @injectable()
 export class TestRunner {
@@ -112,35 +113,44 @@ export class TestRunner {
 
     private async runBatches(config: TestRunConfig, browsers: Record<string, string>) {
         const batchHandler = this.batchHandlerFactory(config.options.batchMode);
-        const runningBatches = new Set<Promise<void>>();
+        // Each running batch with its deadline
+        const runningBatches = new Map<Promise<void>, number | null>();
         const errors: unknown[] = [];
         // After an error no new batch is claimed, but running batches finish: their tests are already off
         // the queue, so they would be lost unless their results are saved.
         const claimNextBatch = async () => {
             if (this.interruption.signal.aborted || errors.length > 0) return undefined;
+            let tests: TestItem[] | undefined;
             try {
-                return await batchHandler.getNextBatch(config);
+                tests = await batchHandler.getNextBatch(config);
             } catch (error) {
                 errors.push(error);
                 return undefined;
             }
+            if (!tests) return undefined;
+            const deadline = getBatchDeadline(tests, config, this.getBatchStart(config, [...runningBatches.values()]));
+            // The batch is claimed either way, so it still runs when its deadline could not be saved
+            await this.shardHandler.setClaimDeadline(tests, deadline).catch((error: unknown) => {
+                errors.push(error);
+            });
+            return { tests, deadline };
         };
         let batchNumber = 0;
         let nextBatch = await claimNextBatch();
         while (nextBatch || runningBatches.size > 0) {
             if (nextBatch && runningBatches.size < config.workers) {
                 batchNumber++;
-                const batchPromise = this.runTestBatch(nextBatch, config, browsers, batchNumber)
+                const batchPromise = this.runTestBatch(nextBatch.tests, config, browsers, batchNumber)
                     .catch((error: unknown) => {
                         errors.push(error);
                     })
                     .finally(() => {
                         runningBatches.delete(batchPromise);
                     });
-                runningBatches.add(batchPromise);
+                runningBatches.set(batchPromise, nextBatch.deadline);
                 nextBatch = await claimNextBatch();
             } else {
-                await Promise.race(runningBatches);
+                await Promise.race(runningBatches.keys());
             }
         }
         if (errors.length === 0) return;
@@ -148,6 +158,15 @@ export class TestRunner {
             this.reporter.error(`Batch failed: ${error instanceof Error ? error.message : String(error)}`);
         }
         throw errors[0];
+    }
+
+    /**
+     * Latest time a claimed batch starts: now when a worker is free, otherwise when the first running batch
+     * must have finished. Infinity when no running batch has a deadline.
+     */
+    private getBatchStart(config: TestRunConfig, runningDeadlines: (number | null)[]): number {
+        if (runningDeadlines.length < config.workers) return Date.now();
+        return Math.min(...runningDeadlines.map((deadline) => deadline ?? Infinity));
     }
 
     private async runTestBatch(
