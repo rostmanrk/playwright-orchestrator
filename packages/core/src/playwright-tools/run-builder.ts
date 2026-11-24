@@ -35,7 +35,6 @@ export class RunBuilder {
                 name: project.name,
                 use: project.use,
                 repeatEach: project.repeatEach,
-                retries: project.retries,
                 dependencies: project.dependencies,
                 teardown: project.teardown,
             })),

@@ -1,12 +1,6 @@
 import { injectable, inject } from 'inversify';
 import type { ShardHandler, TestRunContext, TestShard } from '@playwright-orchestrator/core';
-import {
-    everyOtherShardFinished,
-    getClaimDeadline,
-    RunStatus,
-    SYMBOLS,
-    TestStatus,
-} from '@playwright-orchestrator/core';
+import { getAliveUntil, getDeadShardIds, RunStatus, SYMBOLS, TestStatus } from '@playwright-orchestrator/core';
 import type { TestItem, TestRunConfig } from '@playwright-orchestrator/core';
 import type { CreateArgs } from './create-args.js';
 import { MySQLPool } from './mysql-pool.js';
@@ -68,7 +62,7 @@ export class MySQLShardHandler implements ShardHandler {
                     LIMIT 1
                     FOR UPDATE SKIP LOCKED);
                 UPDATE ??
-                SET status = ?, updated = CURRENT_TIMESTAMP, meta = JSON_SET(meta, '$.deadline', ?)
+                SET status = ?, updated = CURRENT_TIMESTAMP, meta = JSON_SET(meta, '$.shardId', ?)
                 WHERE run_id = UUID_TO_BIN(?) AND order_num = @order_num;
                 UPDATE ??
                 SET config = JSON_SET(
@@ -88,7 +82,7 @@ export class MySQLShardHandler implements ShardHandler {
                     ...filterParams,
                     this.testsTable,
                     TestStatus.Ongoing,
-                    getClaimDeadline(),
+                    this.runContext.shardId,
                     runId,
                     this.configTable,
                     this.testsTable,
@@ -131,17 +125,16 @@ export class MySQLShardHandler implements ShardHandler {
             }
             const { updated: updatedBefore, status: statusBefore, shards } = result[0];
             if (statusBefore === RunStatus.Finished) {
-                // Claimed tests without a result whose shard is done or must have died
+                // Claimed tests without a result whose shard died
                 await client.query({
                     sql: `UPDATE ?? SET status = ?, updated = CURRENT_TIMESTAMP
-                        WHERE run_id = UUID_TO_BIN(?) AND status = ? AND (? OR JSON_EXTRACT(meta, '$.deadline') < ?)`,
+                        WHERE run_id = UUID_TO_BIN(?) AND status = ? AND meta->>'$.shardId' IN (?)`,
                     values: [
                         this.testsTable,
                         TestStatus.Ready,
                         runId,
                         TestStatus.Ongoing,
-                        everyOtherShardFinished(shards, shardId),
-                        Date.now(),
+                        getDeadShardIds(shards, shardId),
                     ],
                 });
             }
@@ -179,6 +172,16 @@ export class MySQLShardHandler implements ShardHandler {
                     WHERE id = UUID_TO_BIN(?) AND JSON_EXTRACT(shards, ?) IS NULL`,
                 values: [this.configTable, shardPath, shardId, runId, shardPath],
             });
+            // Also for a shard with the same id, which keeps its record
+            await client.query({
+                sql: `UPDATE ?? SET shards = JSON_SET(shards, ?, ?) WHERE id = UUID_TO_BIN(?)`,
+                values: [
+                    this.configTable,
+                    `${shardPath}.aliveUntil`,
+                    getAliveUntil(this.runContext.heartbeatTimeout),
+                    runId,
+                ],
+            });
             [result] = await client.query<Run[]>(`SELECT * FROM ?? WHERE id = UUID_TO_BIN(?)`, [
                 this.configTable,
                 runId,
@@ -193,17 +196,11 @@ export class MySQLShardHandler implements ShardHandler {
         }
     }
 
-    async setClaimDeadline(tests: TestItem[], deadline: number | null): Promise<void> {
+    async heartbeat(): Promise<void> {
+        const { runId, shardId, heartbeatTimeout } = this.runContext;
         await this.pool.query({
-            sql: `UPDATE ?? SET meta = ${deadline === null ? "JSON_REMOVE(meta, '$.deadline')" : "JSON_SET(meta, '$.deadline', ?)"}
-                WHERE run_id = UUID_TO_BIN(?) AND status = ? AND order_num IN (?)`,
-            values: [
-                this.testsTable,
-                ...(deadline === null ? [] : [deadline]),
-                this.runContext.runId,
-                TestStatus.Ongoing,
-                tests.map((test) => test.order),
-            ],
+            sql: `UPDATE ?? SET shards = JSON_SET(shards, ?, ?) WHERE id = UUID_TO_BIN(?)`,
+            values: [this.configTable, `$."${shardId}".aliveUntil`, getAliveUntil(heartbeatTimeout), runId],
         });
     }
 

@@ -1,12 +1,6 @@
 import { injectable, inject } from 'inversify';
 import type { ShardHandler, TestRunContext } from '@playwright-orchestrator/core';
-import {
-    everyOtherShardFinished,
-    getClaimDeadline,
-    RunStatus,
-    SYMBOLS,
-    TestStatus,
-} from '@playwright-orchestrator/core';
+import { getAliveUntil, getDeadShardIds, RunStatus, SYMBOLS, TestStatus } from '@playwright-orchestrator/core';
 import type { TestItem, TestRunConfig } from '@playwright-orchestrator/core';
 import type { CreateArgs } from './create-args.js';
 import { PgPool } from './pg-pool.js';
@@ -40,7 +34,7 @@ export class PgShardHandler implements ShardHandler {
 
     private async claimNextTest(runId: string, project?: string): Promise<TestItem | undefined> {
         const projectFilter = project ? `AND meta->'projects' @> to_jsonb(ARRAY[$5]::text[])` : '';
-        const values: unknown[] = [runId, TestStatus.Ready, TestStatus.Ongoing, getClaimDeadline()];
+        const values: unknown[] = [runId, TestStatus.Ready, TestStatus.Ongoing, this.runContext.shardId];
         if (project) values.push(project);
         const client = await this.pool.connect();
         try {
@@ -54,7 +48,7 @@ export class PgShardHandler implements ShardHandler {
                     FOR UPDATE SKIP LOCKED
                 )
                 UPDATE ${this.testsTable} t
-                SET status = $3, updated = NOW(), meta = jsonb_set(meta, '{deadline}', to_jsonb($4::bigint))
+                SET status = $3, updated = NOW(), meta = jsonb_set(meta, '{shardId}', to_jsonb($4::text))
                 FROM next_test
                 WHERE t.run_id = $1 AND t.order_num = next_test.order_num
                 RETURNING *`,
@@ -103,18 +97,12 @@ export class PgShardHandler implements ShardHandler {
             }
             const { updated: updatedBefore, status: statusBefore, shards } = result.rows[0];
             if (statusBefore === RunStatus.Finished) {
-                // Claimed tests without a result whose shard is done or must have died
+                // Claimed tests without a result whose shard died
                 await client.query({
                     text: `UPDATE ${this.testsTable}
                     SET status = $3, updated = NOW()
-                    WHERE run_id = $1 AND status = $2 AND ($4::boolean OR (meta->>'deadline')::bigint < $5)`,
-                    values: [
-                        runId,
-                        TestStatus.Ongoing,
-                        TestStatus.Ready,
-                        everyOtherShardFinished(shards, shardId),
-                        Date.now(),
-                    ],
+                    WHERE run_id = $1 AND status = $2 AND meta->>'shardId' = ANY($4::text[])`,
+                    values: [runId, TestStatus.Ongoing, TestStatus.Ready, getDeadShardIds(shards, shardId)],
                 });
             }
             if (statusBefore === RunStatus.Created || statusBefore === RunStatus.Finished) {
@@ -145,15 +133,19 @@ export class PgShardHandler implements ShardHandler {
                     });
                 }
             }
+            // A shard with the same id keeps its record, with a new aliveUntil
             await client.query({
                 text: `UPDATE ${this.configTable}
                 SET shards = jsonb_set(
                     shards,
                     $2,
-                    jsonb_build_object('shardId', $3, 'started', (EXTRACT(EPOCH FROM NOW()) * 1000)::bigint)
+                    COALESCE(
+                        shards->$3::text,
+                        jsonb_build_object('shardId', $3::text, 'started', (EXTRACT(EPOCH FROM NOW()) * 1000)::bigint)
+                    ) || jsonb_build_object('aliveUntil', $4::bigint)
                 )
-                WHERE id = $1 AND (shards->>$3 IS NULL);`,
-                values: [runId, `{${shardId}}`, shardId],
+                WHERE id = $1;`,
+                values: [runId, `{${shardId}}`, shardId, getAliveUntil(this.runContext.heartbeatTimeout)],
             });
             await client.query('COMMIT');
             return result.rows[0].config;
@@ -165,13 +157,11 @@ export class PgShardHandler implements ShardHandler {
         }
     }
 
-    async setClaimDeadline(tests: TestItem[], deadline: number | null): Promise<void> {
+    async heartbeat(): Promise<void> {
+        const { runId, shardId, heartbeatTimeout } = this.runContext;
         await this.pool.query({
-            text: `UPDATE ${this.testsTable}
-            SET meta = CASE WHEN $4::bigint IS NULL THEN meta - 'deadline'
-                ELSE jsonb_set(meta, '{deadline}', to_jsonb($4::bigint)) END
-            WHERE run_id = $1 AND status = $2 AND order_num = ANY($3::int[])`,
-            values: [this.runContext.runId, TestStatus.Ongoing, tests.map((test) => test.order), deadline],
+            text: `UPDATE ${this.configTable} SET shards = jsonb_set(shards, $2, to_jsonb($3::bigint)) WHERE id = $1`,
+            values: [runId, `{${shardId},aliveUntil}`, getAliveUntil(heartbeatTimeout)],
         });
     }
 

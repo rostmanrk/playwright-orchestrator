@@ -28,6 +28,8 @@ export interface TestShard {
     shardId: string;
     started: number;
     finished?: number;
+    /** Set when the shard starts and moved forward by its heartbeat. Once it has passed, the shard is assumed dead. See `getDeadShardIds`. */
+    aliveUntil?: number;
 }
 
 export interface TestRun {
@@ -58,11 +60,10 @@ export interface TestItem {
         /** Describe titles followed by the test title; for a serial group, the path to the group (empty when the whole file is serial) */
         titlePath: string[];
         /**
-         * Set on a claimed test: the time its batch must have finished if its shard is alive. Past it, a repeat run
-         * queues the test again if it still has no result. Removed when the batch has a test without a timeout.
-         * See `getClaimDeadline` and `getBatchDeadline`.
+         * Set when a test is claimed: the shard running it. A repeat run queues the test again if it still has
+         * no result and that shard is dead. See `getDeadShardIds`.
          */
-        deadline?: number;
+        shardId?: string;
     };
 }
 
@@ -114,4 +115,8 @@ export interface TestRunContext {
     runId: string;
     shardId: string;
     outputFolder: string;
+    /** Milliseconds between heartbeats, which move the shard's `aliveUntil` forward */
+    heartbeatInterval: number;
+    /** Milliseconds a shard counts as alive after its last heartbeat */
+    heartbeatTimeout: number;
 }

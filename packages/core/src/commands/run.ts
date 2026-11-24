@@ -17,6 +17,7 @@ import { TestExecutionReporter } from '../runner/test-execution-reporter.js';
 import { PlaywrightConfigLoader } from '../helpers/playwright-config.js';
 import { Container } from 'inversify';
 import * as uuid from 'uuid';
+import { DEFAULT_HEARTBEAT_INTERVAL, DEFAULT_HEARTBEAT_TIMEOUT } from '../helpers/claim.js';
 
 export type BatchHandlerFactory = (mode: BatchMode) => BatchHandler;
 
@@ -36,6 +37,16 @@ export default async () => {
                 '--shard-id <string>',
                 'Shard id for the current run (alphanumeric, hyphens, and underscores only). If not provided, a random shard id will be generated. This option is used for tracking the status of individual shards in the test run.',
             )
+            .option(
+                '--heartbeat-interval <seconds>',
+                'How often the shard reports that it is alive. At most half of --heartbeat-timeout.',
+                String(DEFAULT_HEARTBEAT_INTERVAL / 1000),
+            )
+            .option(
+                '--heartbeat-timeout <seconds>',
+                'How long a shard counts as alive after its last heartbeat. After that a repeat run assumes the shard died and runs the tests it claimed again.',
+                String(DEFAULT_HEARTBEAT_TIMEOUT / 1000),
+            )
             .action(
                 handle(async (container, options) => {
                     if (options.shardId && !/^[\w-]+$/.test(options.shardId)) {
@@ -43,11 +54,19 @@ export default async () => {
                             '--shard-id must contain only alphanumeric characters, hyphens, and underscores',
                         );
                     }
+                    const heartbeatInterval = parseSeconds(options.heartbeatInterval, '--heartbeat-interval');
+                    const heartbeatTimeout = parseSeconds(options.heartbeatTimeout, '--heartbeat-timeout');
+                    // A single late heartbeat must not expire the claims of a live shard
+                    if (heartbeatInterval * 2 > heartbeatTimeout) {
+                        throw new Error('--heartbeat-interval must be at most half of --heartbeat-timeout');
+                    }
                     await register(container, options);
                     container.bind<TestRunContext>(SYMBOLS.RunContext).toConstantValue({
                         runId: options.runId,
                         shardId: options.shardId ?? uuid.v7(),
                         outputFolder: options.output,
+                        heartbeatInterval,
+                        heartbeatTimeout,
                     });
                     registerServices(container);
                     const runner = container.get<TestRunner>(SYMBOLS.TestRunner);
@@ -86,4 +105,13 @@ function registerServices(container: Container) {
     container.bind(SYMBOLS.PlaywrightConfigLoader).to(PlaywrightConfigLoader).inSingletonScope();
 
     container.bind<TestRunner>(SYMBOLS.TestRunner).to(TestRunner);
+}
+
+/** Parses a positive whole number of seconds into milliseconds */
+function parseSeconds(value: string, option: string): number {
+    const seconds = Number(value);
+    if (!Number.isInteger(seconds) || seconds <= 0) {
+        throw new Error(`${option} must be a positive whole number of seconds`);
+    }
+    return seconds * 1000;
 }

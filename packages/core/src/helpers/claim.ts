@@ -1,46 +1,29 @@
-import type { TestItem, TestRun, TestRunConfig } from '../types/adapters.js';
+import type { TestRun } from '../types/adapters.js';
 
-/** Time on top of a batch's budget for starting Playwright, hooks and saving the results */
-export const CLAIM_MARGIN = 1 * 60 * 1000;
+/** Default for `--heartbeat-interval`: how often a running shard moves its `aliveUntil` forward */
+export const DEFAULT_HEARTBEAT_INTERVAL = 15 * 1000;
 
-/**
- * Deadline a test gets when it is claimed, until its batch is ready and `getBatchDeadline` replaces it.
- * Assembling a batch takes far less than the margin, and a shard that dies meanwhile still leaves a deadline.
- */
-export function getClaimDeadline(now = Date.now()): number {
-    return now + CLAIM_MARGIN;
+/** Default for `--heartbeat-timeout`: how long a shard counts as alive after its last heartbeat */
+export const DEFAULT_HEARTBEAT_TIMEOUT = 60 * 1000;
+
+/** `aliveUntil` a shard writes when it starts and on each heartbeat */
+export function getAliveUntil(heartbeatTimeout: number, now = Date.now()): number {
+    return now + heartbeatTimeout;
 }
 
 /**
- * Longest time a test can run: every attempt, repeat and project. Infinity when it has no timeout.
- * A serial group's timeout is already the sum of its children's.
+ * Shards whose claimed tests a repeat run queues again: those without a heartbeat since `aliveUntil`, and the
+ * current shard. The current shard has only just started, so tests claimed under its id come from an earlier
+ * process with the same id, e.g. a CI retry. `finished` is not used: CI reuses shard ids, so a shard
+ * that finished the first run may be running the repeat run.
  */
-export function getTestBudget(test: TestItem, config: TestRunConfig): number {
-    if (!test.timeout) return Infinity;
-    let budget = 0;
-    for (const name of test.meta.projects) {
-        const project = config.projects.find((project) => project.name === name);
-        budget += test.timeout * (project?.repeatEach ?? 1) * ((project?.retries ?? 0) + 1);
-    }
-    return budget;
-}
-
-/**
- * When a batch must have finished if its shard is alive. A batch runs its tests one after another,
- * so it takes at most the sum of their budgets. Null when one of them has no timeout or the start is unknown:
- * such a batch's tests are only queued again once every other shard has finished.
- */
-export function getBatchDeadline(batch: TestItem[], config: TestRunConfig, start: number): number | null {
-    const deadline = start + batch.reduce((sum, test) => sum + getTestBudget(test, config), 0) + CLAIM_MARGIN;
-    return Number.isFinite(deadline) ? deadline : null;
-}
-
-/**
- * Whether every shard other than the current one has finished. Then no shard is running the tests
- * that are still claimed, so a repeat run can queue them all again, whatever their deadline.
- */
-export function everyOtherShardFinished(shards: TestRun['shards'] | undefined, currentShardId: string): boolean {
-    return Object.entries(shards ?? {}).every(
-        ([shardId, shard]) => shardId === currentShardId || shard.finished != null,
-    );
+export function getDeadShardIds(
+    shards: TestRun['shards'] | undefined,
+    currentShardId: string,
+    now = Date.now(),
+): string[] {
+    const expired = Object.entries(shards ?? {})
+        .filter(([shardId, shard]) => shardId !== currentShardId && (shard.aliveUntil ?? 0) < now)
+        .map(([shardId]) => shardId);
+    return [currentShardId, ...expired];
 }

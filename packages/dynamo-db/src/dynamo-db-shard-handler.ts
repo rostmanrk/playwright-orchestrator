@@ -1,6 +1,6 @@
 import { injectable, inject } from 'inversify';
 import type { ShardHandler, TestRun, TestRunContext } from '@playwright-orchestrator/core';
-import { everyOtherShardFinished, getClaimDeadline, RunStatus, SYMBOLS } from '@playwright-orchestrator/core';
+import { getAliveUntil, getDeadShardIds, RunStatus, SYMBOLS } from '@playwright-orchestrator/core';
 import type { TestItem, TestRunConfig } from '@playwright-orchestrator/core';
 import type { CreateArgs } from './create-args.js';
 import { DynamoDbConnection } from './dynamo-db-connection.js';
@@ -71,6 +71,9 @@ export class DynamoDbShardHandler implements ShardHandler {
             { '#shards': Fields.Shards, '#shardId': shardId },
             { ':shard': { shardId, started: Date.now() } },
         );
+        // Also for a shard with the same id, which keeps its record. A separate update: DynamoDB rejects setting
+        // the shard and a field inside it in one expression.
+        await this.heartbeat();
         return testRun.config;
     }
 
@@ -94,26 +97,21 @@ export class DynamoDbShardHandler implements ShardHandler {
         return await this.getNextTestByStatus(runId, StatusOffset.Pending, project);
     }
 
-    async setClaimDeadline(tests: TestItem[], deadline: number | null): Promise<void> {
-        const { runId } = this.runContext;
-        for (const test of tests) {
-            try {
-                await this.connection.docClient.send(
-                    new UpdateCommand({
-                        TableName: this.testsTableName,
-                        Key: { [Fields.Id]: runId, [Fields.Order]: (test.order % OFFSET_STEP) + StatusOffset.Running },
-                        UpdateExpression:
-                            deadline === null ? 'REMOVE #meta.#deadline' : 'SET #meta.#deadline = :deadline',
-                        // Skipped when the test already has a result
-                        ConditionExpression: 'attribute_exists(#pk)',
-                        ExpressionAttributeNames: { '#pk': Fields.Id, '#meta': Fields.Meta, '#deadline': 'deadline' },
-                        ...(deadline === null ? {} : { ExpressionAttributeValues: { ':deadline': deadline } }),
-                    }),
-                );
-            } catch (error) {
-                if (!(error instanceof ConditionalCheckFailedException)) throw error;
-            }
-        }
+    async heartbeat(): Promise<void> {
+        const { runId, shardId, heartbeatTimeout } = this.runContext;
+        await this.connection.docClient.send(
+            new UpdateCommand({
+                TableName: this.testsTableName,
+                Key: { [Fields.Id]: runId, [Fields.Order]: 0 },
+                UpdateExpression: 'SET #shards.#shardId.#aliveUntil = :aliveUntil',
+                ExpressionAttributeNames: {
+                    '#shards': Fields.Shards,
+                    '#shardId': shardId,
+                    '#aliveUntil': 'aliveUntil',
+                },
+                ExpressionAttributeValues: { ':aliveUntil': getAliveUntil(heartbeatTimeout) },
+            }),
+        );
     }
 
     private async getTestRun(runId: string): Promise<TestRunDb> {
@@ -185,7 +183,11 @@ export class DynamoDbShardHandler implements ShardHandler {
             if (!test) return;
             deleted =
                 status === StatusOffset.Pending
-                    ? await this.tryToMoveItem(runId, withClaimDeadline(test), StatusOffset.Running)
+                    ? await this.tryToMoveItem(
+                          runId,
+                          { ...test, meta: { ...test.meta, shardId: this.runContext.shardId } },
+                          StatusOffset.Running,
+                      )
                     : await this.tryToDeleteItem(runId, test.order);
         }
         if (status === StatusOffset.Pending) {
@@ -224,9 +226,10 @@ export class DynamoDbShardHandler implements ShardHandler {
         return { count, totalEma };
     }
 
-    /** Queues again the claimed tests without a result whose shard is done or must have died */
+    /** Queues again the claimed tests without a result whose shard died */
     private async requeueAbandonedTests(runId: string, testRun: TestRun): Promise<{ count: number; totalEma: number }> {
-        const allClaimed = everyOtherShardFinished(testRun.shards, this.runContext.shardId);
+        const deadShardIds = getDeadShardIds(testRun.shards, this.runContext.shardId);
+        const deadShardValues = Object.fromEntries(deadShardIds.map((shardId, index) => [`:shard${index}`, shardId]));
         let count = 0;
         let totalEma = 0;
         let exclusiveStartKey: QueryCommandInput['ExclusiveStartKey'];
@@ -238,15 +241,16 @@ export class DynamoDbShardHandler implements ShardHandler {
                     ExpressionAttributeNames: {
                         '#pk': Fields.Id,
                         '#sk': Fields.Order,
-                        ...(allClaimed ? {} : { '#meta': Fields.Meta, '#deadline': 'deadline' }),
+                        '#meta': Fields.Meta,
+                        '#shardId': 'shardId',
                     },
                     ExpressionAttributeValues: {
                         ':pk': runId,
                         ':start': StatusOffset.Running + 1,
                         ':end': StatusOffset.Running + OFFSET_STEP - 1,
-                        ...(allClaimed ? {} : { ':now': Date.now() }),
+                        ...deadShardValues,
                     },
-                    ...(allClaimed ? {} : { FilterExpression: '#meta.#deadline < :now' }),
+                    FilterExpression: `#meta.#shardId IN (${Object.keys(deadShardValues).join(', ')})`,
                     ExclusiveStartKey: exclusiveStartKey,
                 }),
             );
@@ -387,8 +391,4 @@ export class DynamoDbShardHandler implements ShardHandler {
             remainingTime: Math.max(0, cfg?.remainingTime ?? 0),
         };
     }
-}
-
-function withClaimDeadline(test: TestItem): TestItem {
-    return { ...test, meta: { ...test.meta, deadline: getClaimDeadline() } };
 }

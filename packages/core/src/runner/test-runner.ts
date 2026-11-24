@@ -19,7 +19,6 @@ import { registerOnExit, registerOnInterrupt } from '../helpers/register-on-exit
 import { PlaywrightConfigLoader } from '../helpers/playwright-config.js';
 import { buildTestList, canSelectWithTestList } from '../helpers/test-list.js';
 import { makeGrepPatterns } from '../helpers/regex.js';
-import { getBatchDeadline } from '../helpers/claim.js';
 
 @injectable()
 export class TestRunner {
@@ -60,9 +59,11 @@ export class TestRunner {
             );
         }
         // The shard is started, so finish it even when setup or teardown fails
+        const stopHeartbeat = this.startHeartbeat();
         try {
             await this.setupAndRunTests(config);
         } finally {
+            await stopHeartbeat();
             this.reporter.printSummary();
             await this.shardHandler.finishShard();
         }
@@ -113,44 +114,35 @@ export class TestRunner {
 
     private async runBatches(config: TestRunConfig, browsers: Record<string, string>) {
         const batchHandler = this.batchHandlerFactory(config.options.batchMode);
-        // Each running batch with its deadline
-        const runningBatches = new Map<Promise<void>, number | null>();
+        const runningBatches = new Set<Promise<void>>();
         const errors: unknown[] = [];
         // After an error no new batch is claimed, but running batches finish: their tests are already off
         // the queue, so they would be lost unless their results are saved.
         const claimNextBatch = async () => {
             if (this.interruption.signal.aborted || errors.length > 0) return undefined;
-            let tests: TestItem[] | undefined;
             try {
-                tests = await batchHandler.getNextBatch(config);
+                return await batchHandler.getNextBatch(config);
             } catch (error) {
                 errors.push(error);
                 return undefined;
             }
-            if (!tests) return undefined;
-            const deadline = getBatchDeadline(tests, config, this.getBatchStart(config, [...runningBatches.values()]));
-            // The batch is claimed either way, so it still runs when its deadline could not be saved
-            await this.shardHandler.setClaimDeadline(tests, deadline).catch((error: unknown) => {
-                errors.push(error);
-            });
-            return { tests, deadline };
         };
         let batchNumber = 0;
         let nextBatch = await claimNextBatch();
         while (nextBatch || runningBatches.size > 0) {
             if (nextBatch && runningBatches.size < config.workers) {
                 batchNumber++;
-                const batchPromise = this.runTestBatch(nextBatch.tests, config, browsers, batchNumber)
+                const batchPromise = this.runTestBatch(nextBatch, config, browsers, batchNumber)
                     .catch((error: unknown) => {
                         errors.push(error);
                     })
                     .finally(() => {
                         runningBatches.delete(batchPromise);
                     });
-                runningBatches.set(batchPromise, nextBatch.deadline);
+                runningBatches.add(batchPromise);
                 nextBatch = await claimNextBatch();
             } else {
-                await Promise.race(runningBatches.keys());
+                await Promise.race(runningBatches);
             }
         }
         if (errors.length === 0) return;
@@ -161,12 +153,32 @@ export class TestRunner {
     }
 
     /**
-     * Latest time a claimed batch starts: now when a worker is free, otherwise when the first running batch
-     * must have finished. Infinity when no running batch has a deadline.
+     * Every heartbeat interval, moves the shard's `aliveUntil` forward, so a repeat run does not take its claimed tests
+     * while it runs them. A failed heartbeat only warns: the next one may succeed, and the shard stays alive until the
+     * heartbeat timeout. Returns a function that stops it and waits for a heartbeat in flight.
      */
-    private getBatchStart(config: TestRunConfig, runningDeadlines: (number | null)[]): number {
-        if (runningDeadlines.length < config.workers) return Date.now();
-        return Math.min(...runningDeadlines.map((deadline) => deadline ?? Infinity));
+    private startHeartbeat(): () => Promise<void> {
+        let stopped = false;
+        let timer: NodeJS.Timeout | undefined;
+        let inFlight: Promise<void> = Promise.resolve();
+        const beat = async () => {
+            await this.shardHandler.heartbeat().catch((error: unknown) => {
+                this.reporter.warn(`Heartbeat failed: ${error instanceof Error ? error.message : String(error)}`);
+            });
+            // Scheduled after the previous heartbeat finishes, so two never overlap
+            if (!stopped) schedule();
+        };
+        const schedule = () => {
+            timer = setTimeout(() => {
+                inFlight = beat();
+            }, this.runContext.heartbeatInterval);
+        };
+        schedule();
+        return async () => {
+            stopped = true;
+            clearTimeout(timer);
+            await inFlight;
+        };
     }
 
     private async runTestBatch(
