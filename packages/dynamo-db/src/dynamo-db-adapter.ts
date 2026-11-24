@@ -10,7 +10,7 @@ import type { CreateArgs } from './create-args.js';
 import { TransactionCanceledException } from '@aws-sdk/client-dynamodb';
 import { QueryCommand, GetCommand, TransactWriteCommand } from '@aws-sdk/lib-dynamodb';
 import { idToStatus, mapTestItemToDb, getTtl } from './helpers.js';
-import { Fields, StatusOffset } from './constants.js';
+import { Fields, OFFSET_STEP, StatusOffset } from './constants.js';
 import { TestInfoItem, TestItemDb, TestRunDb } from './types.js';
 import { DynamoDbConnection } from './dynamo-db-connection.js';
 import { DYNAMO_CONFIG, DYNAMO_CONNECTION } from './symbols.js';
@@ -111,6 +111,16 @@ export class DynamoDbAdapter extends BaseAdapter {
                                     ':ema': newEma,
                                     ':v': stats[Fields.Version],
                                     ':inc': 1,
+                                },
+                            },
+                        },
+                        {
+                            // The test has a result, so a repeat run no longer needs to queue it again
+                            Delete: {
+                                TableName: this.testsTableName,
+                                Key: {
+                                    [Fields.Id]: runId,
+                                    [Fields.Order]: (test.order % OFFSET_STEP) + StatusOffset.Running,
                                 },
                             },
                         },

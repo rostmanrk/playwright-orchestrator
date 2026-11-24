@@ -80,7 +80,7 @@ function makeHandler() {
         .spyOn(reporter, 'addTest')
         .mockImplementation((_test, _subId, _displayName, run) => void run.catch(() => {}));
     const handler = new PlaywrightTestEventHandler(
-        { runId: 'run-id', shardId: 'shard', outputFolder: '' },
+        { runId: 'run-id', shardId: 'shard', outputFolder: '', heartbeatInterval: 15_000, heartbeatTimeout: 60_000 },
         adapter,
         reporter,
     );

@@ -1,6 +1,6 @@
 import { injectable, inject } from 'inversify';
 import type { ShardHandler, TestRunContext } from '@playwright-orchestrator/core';
-import { RunStatus, SYMBOLS, TestStatus } from '@playwright-orchestrator/core';
+import { getAliveUntil, getDeadShardIds, RunStatus, SYMBOLS, TestStatus } from '@playwright-orchestrator/core';
 import type { TestItem, TestRunConfig } from '@playwright-orchestrator/core';
 import type { CreateArgs } from './create-args.js';
 import { MongoConnection } from './mongo-connection.js';
@@ -39,7 +39,11 @@ export class MongoShardHandler implements ShardHandler {
             ? { ...this.generateTestIdQuery(runId, TestStatus.Ready), 'meta.projects': project }
             : this.generateTestIdQuery(runId, TestStatus.Ready);
         const result = await this.tests.findOneAndUpdate(query, {
-            $set: { updated: new Date(), status: TestStatus.Ongoing },
+            $set: {
+                updated: new Date(),
+                status: TestStatus.Ongoing,
+                'meta.shardId': this.runContext.shardId,
+            },
         });
         if (!result) return undefined;
         const effectiveEma = result.ema;
@@ -66,8 +70,12 @@ export class MongoShardHandler implements ShardHandler {
                             else: RunStatus.RepeatRun,
                         },
                     },
+                    // A shard with the same id keeps its record, with a new aliveUntil
                     [`shards.${shardId}`]: {
-                        $ifNull: [`$shards.${shardId}`, { shardId, started: nowMs }],
+                        $mergeObjects: [
+                            { $ifNull: [`$shards.${shardId}`, { shardId, started: nowMs }] },
+                            { aliveUntil: getAliveUntil(this.runContext.heartbeatTimeout) },
+                        ],
                     },
                     updated: now,
                 },
@@ -75,6 +83,16 @@ export class MongoShardHandler implements ShardHandler {
         ]);
         if (!run) throw new Error(`Run ${runId} not found`);
         const { status: statusBefore } = run;
+        if (statusBefore === RunStatus.Finished) {
+            // Claimed tests without a result whose shard died
+            await this.tests.updateMany(
+                {
+                    ...this.generateTestIdQuery(runId, TestStatus.Ongoing),
+                    'meta.shardId': { $in: getDeadShardIds(run.shards, shardId) },
+                },
+                { $set: { status: TestStatus.Ready, updated: now } },
+            );
+        }
         if (statusBefore === RunStatus.Created || statusBefore === RunStatus.Finished) {
             await this.tests.updateMany(this.generateTestIdQuery(runId, TestStatus.Failed), {
                 $set: { status: TestStatus.Ready, updated: now },
@@ -96,6 +114,14 @@ export class MongoShardHandler implements ShardHandler {
             }
         }
         return run.config;
+    }
+
+    async heartbeat(): Promise<void> {
+        const { runId, shardId, heartbeatTimeout } = this.runContext;
+        await this.runs.updateOne(
+            { _id: generateRunId(runId) },
+            { $set: { [`shards.${shardId}.aliveUntil`]: getAliveUntil(heartbeatTimeout) } },
+        );
     }
 
     async finishShard(): Promise<void> {

@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import { open, rename, rm } from 'node:fs/promises';
+import { open, readFile, rename, rm } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { lock } from 'proper-lockfile';
+import type { ClaimedTests } from './types.js';
 
 /**
  * Locks are held for a few milliseconds, so retry every 50-100ms. The default backoff starts at 1s and doubles,
@@ -53,5 +54,15 @@ async function syncDirectory(directory: string): Promise<void> {
         await handle.sync();
     } finally {
         await handle.close();
+    }
+}
+
+/** Reads the claimed tests. A run created before claims were recorded has no claimed file, so it has none. */
+export async function readClaimedTests(file: string): Promise<ClaimedTests> {
+    try {
+        return JSON.parse(await readFile(file, 'utf-8')) as ClaimedTests;
+    } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') return {};
+        throw error;
     }
 }

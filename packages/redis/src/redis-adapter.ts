@@ -89,7 +89,10 @@ export class RedisAdapter extends BaseAdapter {
             .multi()
             .set(`${baseTestInfoKey}:fails`, report.fails, updateOptions)
             .hSet(reportKey, test.testId, JSON.stringify({ ...report, testId: test.testId }))
-            .expire(reportKey, this.ttl);
+            .expire(reportKey, this.ttl)
+            // The test has a result, so a repeat run no longer needs to queue it again
+            .hDel(`${this._namePrefix}:${TESTS}:${runId}:claimed`, test.testId)
+            .hDel(`${this._namePrefix}:${TESTS}:${runId}:claimed:shard`, test.testId);
         if (item.status === TestStatus.Failed) {
             pipeline.rPush(`${this._namePrefix}:${TESTS}:${runId}:failed`, JSON.stringify(test));
         }

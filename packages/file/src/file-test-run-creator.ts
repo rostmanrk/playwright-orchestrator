@@ -6,7 +6,13 @@ import { readFile, mkdir } from 'node:fs/promises';
 import { writeFileAtomic } from './file-utils.js';
 import { existsSync } from 'node:fs';
 import { FILE_CONFIG } from './symbols.js';
-import { getRunIdFilePath, getRunConfigPath, getHistoryRunPath, getResultsRunPath } from './file-paths.js';
+import {
+    getRunIdFilePath,
+    getRunConfigPath,
+    getHistoryRunPath,
+    getResultsRunPath,
+    getClaimedRunPath,
+} from './file-paths.js';
 import { TestHistoryItem } from './types.js';
 
 @injectable()
@@ -52,5 +58,6 @@ export class FileTestRunCreator extends BaseTestRunCreator {
         await writeFileAtomic(getRunConfigPath(this.dir, runId), JSON.stringify(testRun, null, 2));
         await writeFileAtomic(getRunIdFilePath(this.dir, runId), JSON.stringify(tests, null, 2));
         await writeFileAtomic(getResultsRunPath(this.dir, runId), '[]');
+        await writeFileAtomic(getClaimedRunPath(this.dir, runId), '{}');
     }
 }

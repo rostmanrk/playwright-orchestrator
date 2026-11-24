@@ -2,10 +2,16 @@ import { BaseAdapter, TestRunReport, HistoryItem, SaveTestResultParams, TestRun 
 import { injectable, inject } from 'inversify';
 import type { CreateArgs } from './create-args.js';
 import { readFile } from 'node:fs/promises';
-import { withLock, writeFileAtomic } from './file-utils.js';
+import { readClaimedTests, withLock, writeFileAtomic } from './file-utils.js';
 import { existsSync } from 'node:fs';
 import { FILE_CONFIG } from './symbols.js';
-import { getRunConfigPath, getHistoryRunPath, getResultsRunPath } from './file-paths.js';
+import {
+    getRunConfigPath,
+    getHistoryRunPath,
+    getResultsRunPath,
+    getClaimedRunPath,
+    getRunIdFilePath,
+} from './file-paths.js';
 import { ResultTestItem, TestHistoryItem } from './types.js';
 
 @injectable()
@@ -89,6 +95,14 @@ export class FileAdapter extends BaseAdapter {
                 },
             });
             await writeFileAtomic(resultsFile, JSON.stringify(results, null, 2));
+        });
+        // The test has a result, so a repeat run no longer needs to queue it again.
+        // The claimed file is guarded by the queue lock, taken here while holding no other lock.
+        const claimedFile = getClaimedRunPath(this.dir, runId);
+        await withLock(getRunIdFilePath(this.dir, runId), async () => {
+            const claimed = await readClaimedTests(claimedFile);
+            delete claimed[test.testId];
+            await writeFileAtomic(claimedFile, JSON.stringify(claimed, null, 2));
         });
     }
 }

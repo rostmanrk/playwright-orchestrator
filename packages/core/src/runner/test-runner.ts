@@ -59,9 +59,11 @@ export class TestRunner {
             );
         }
         // The shard is started, so finish it even when setup or teardown fails
+        const stopHeartbeat = this.startHeartbeat();
         try {
             await this.setupAndRunTests(config);
         } finally {
+            await stopHeartbeat();
             this.reporter.printSummary();
             await this.shardHandler.finishShard();
         }
@@ -113,21 +115,70 @@ export class TestRunner {
     private async runBatches(config: TestRunConfig, browsers: Record<string, string>) {
         const batchHandler = this.batchHandlerFactory(config.options.batchMode);
         const runningBatches = new Set<Promise<void>>();
+        const errors: unknown[] = [];
+        // After an error no new batch is claimed, but running batches finish: their tests are already off
+        // the queue, so they would be lost unless their results are saved.
+        const claimNextBatch = async () => {
+            if (this.interruption.signal.aborted || errors.length > 0) return undefined;
+            try {
+                return await batchHandler.getNextBatch(config);
+            } catch (error) {
+                errors.push(error);
+                return undefined;
+            }
+        };
         let batchNumber = 0;
-        let nextBatch = await batchHandler.getNextBatch(config);
+        let nextBatch = await claimNextBatch();
         while (nextBatch || runningBatches.size > 0) {
             if (nextBatch && runningBatches.size < config.workers) {
                 batchNumber++;
-                const batchPromise = this.runTestBatch(nextBatch, config, browsers, batchNumber).finally(() => {
-                    runningBatches.delete(batchPromise);
-                });
+                const batchPromise = this.runTestBatch(nextBatch, config, browsers, batchNumber)
+                    .catch((error: unknown) => {
+                        errors.push(error);
+                    })
+                    .finally(() => {
+                        runningBatches.delete(batchPromise);
+                    });
                 runningBatches.add(batchPromise);
-                nextBatch = this.interruption.signal.aborted ? undefined : await batchHandler.getNextBatch(config);
+                nextBatch = await claimNextBatch();
             } else {
                 await Promise.race(runningBatches);
             }
         }
-        await Promise.all(runningBatches);
+        if (errors.length === 0) return;
+        for (const error of errors.slice(1)) {
+            this.reporter.error(`Batch failed: ${error instanceof Error ? error.message : String(error)}`);
+        }
+        throw errors[0];
+    }
+
+    /**
+     * Every heartbeat interval, moves the shard's `aliveUntil` forward, so a repeat run does not take its claimed tests
+     * while it runs them. A failed heartbeat only warns: the next one may succeed, and the shard stays alive until the
+     * heartbeat timeout. Returns a function that stops it and waits for a heartbeat in flight.
+     */
+    private startHeartbeat(): () => Promise<void> {
+        let stopped = false;
+        let timer: NodeJS.Timeout | undefined;
+        let inFlight: Promise<void> = Promise.resolve();
+        const beat = async () => {
+            await this.shardHandler.heartbeat().catch((error: unknown) => {
+                this.reporter.warn(`Heartbeat failed: ${error instanceof Error ? error.message : String(error)}`);
+            });
+            // Scheduled after the previous heartbeat finishes, so two never overlap
+            if (!stopped) schedule();
+        };
+        const schedule = () => {
+            timer = setTimeout(() => {
+                inFlight = beat();
+            }, this.runContext.heartbeatInterval);
+        };
+        schedule();
+        return async () => {
+            stopped = true;
+            clearTimeout(timer);
+            await inFlight;
+        };
     }
 
     private async runTestBatch(

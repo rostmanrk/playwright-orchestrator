@@ -11,6 +11,9 @@ export interface ResultTestItem extends TestItem {
     };
 }
 
+/** Claimed tests without a result, by test id. The claiming shard is in `meta.shardId`. */
+export type ClaimedTests = Record<string, TestItem>;
+
 export interface TestHistoryItem {
     ema: number;
     created: number;

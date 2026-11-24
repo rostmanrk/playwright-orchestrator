@@ -1,12 +1,12 @@
 import { injectable, inject } from 'inversify';
 import type { ShardHandler, TestRun, TestRunContext } from '@playwright-orchestrator/core';
-import { RunStatus, SYMBOLS, TestStatus } from '@playwright-orchestrator/core';
+import { getAliveUntil, getDeadShardIds, RunStatus, SYMBOLS, TestStatus } from '@playwright-orchestrator/core';
 import type { TestItem, TestRunConfig } from '@playwright-orchestrator/core';
 import type { CreateArgs } from './create-args.js';
 import { readFile } from 'node:fs/promises';
-import { withLock, writeFileAtomic } from './file-utils.js';
+import { readClaimedTests, withLock, writeFileAtomic } from './file-utils.js';
 import { FILE_CONFIG } from './symbols.js';
-import { getRunIdFilePath, getRunConfigPath, getResultsRunPath } from './file-paths.js';
+import { getRunIdFilePath, getRunConfigPath, getResultsRunPath, getClaimedRunPath } from './file-paths.js';
 import { ResultTestItem } from './types.js';
 
 @injectable()
@@ -21,38 +21,28 @@ export class FileShardHandler implements ShardHandler {
     }
 
     async startShard(): Promise<TestRunConfig> {
-        const { runId, shardId } = this.runContext;
+        const { runId } = this.runContext;
         const file = getRunConfigPath(this.dir, runId);
+        const queueFile = getRunIdFilePath(this.dir, runId);
+        // A repeat run rewrites the queue and claimed files, which shards still running the first run change under
+        // the queue lock. Taken before the config lock, in the same order as popNextTest. The results lock comes last.
+        return withLock(queueFile, () => this.startShardLocked(file, queueFile));
+    }
+
+    private async startShardLocked(file: string, queueFile: string): Promise<TestRunConfig> {
+        const { shardId } = this.runContext;
         return withLock(file, async () => {
             const testRun = JSON.parse(await readFile(file, 'utf-8')) as TestRun;
-            if (!testRun.shards[shardId]) {
-                testRun.shards[shardId] = { shardId, started: Date.now() };
-            }
+            // Read before this shard's aliveUntil is refreshed below
+            const deadShardIds = getDeadShardIds(testRun.shards, shardId);
+            testRun.shards[shardId] ??= { shardId, started: Date.now() };
+            // Also for a shard with the same id, which keeps its record
+            testRun.shards[shardId].aliveUntil = getAliveUntil(this.runContext.heartbeatTimeout);
             if (testRun.status === RunStatus.Created || testRun.status === RunStatus.Finished) {
                 testRun.status = testRun.status === RunStatus.Created ? RunStatus.Run : RunStatus.RepeatRun;
                 testRun.updated = Date.now();
                 if (testRun.status === RunStatus.RepeatRun) {
-                    const results = JSON.parse(
-                        await readFile(getResultsRunPath(this.dir, runId), 'utf-8'),
-                    ) as ResultTestItem[];
-                    const failed: TestItem[] = results
-                        .filter((r) => r.status === TestStatus.Failed)
-                        .map(({ testId, order, timeout, ema, meta }) => ({
-                            testId,
-                            order,
-                            timeout,
-                            ema,
-                            meta,
-                        }));
-
-                    const rest = results.filter((r) => r.status !== TestStatus.Failed);
-                    const queueFile = getRunIdFilePath(this.dir, runId);
-                    // Keep tests the previous run never claimed, e.g. after it was interrupted
-                    const unclaimed = JSON.parse(await readFile(queueFile, 'utf-8')) as TestItem[];
-                    // Tests are popped from the end, so keep the queue sorted by descending order
-                    const queue = [...unclaimed, ...failed].sort((a, b) => b.order - a.order);
-                    await writeFileAtomic(queueFile, JSON.stringify(queue, null, 2));
-                    await writeFileAtomic(getResultsRunPath(this.dir, runId), JSON.stringify(rest, null, 2));
+                    const queue = await this.buildRepeatQueue(queueFile, deadShardIds);
                     testRun.config.remainingCount = queue.length;
                     testRun.config.remainingTime = queue.reduce((sum, t) => sum + t.ema, 0);
                 }
@@ -60,6 +50,51 @@ export class FileShardHandler implements ShardHandler {
             await writeFileAtomic(file, JSON.stringify(testRun));
             return testRun.config;
         });
+    }
+
+    /**
+     * Queues the failed tests, the tests never claimed and the abandoned ones, and removes the failed results.
+     * Runs under the results lock: shards still running the first run save results meanwhile, and a save that
+     * landed between reading and writing the results would be lost.
+     */
+    private async buildRepeatQueue(queueFile: string, deadShardIds: string[]): Promise<TestItem[]> {
+        const resultsFile = getResultsRunPath(this.dir, this.runContext.runId);
+        return withLock(resultsFile, async () => {
+            const results = JSON.parse(await readFile(resultsFile, 'utf-8')) as ResultTestItem[];
+            const failed: TestItem[] = results
+                .filter((r) => r.status === TestStatus.Failed)
+                .map(({ testId, order, timeout, ema, meta }) => ({ testId, order, timeout, ema, meta }));
+            const rest = results.filter((r) => r.status !== TestStatus.Failed);
+            // Keep tests the previous run never claimed, e.g. after it was interrupted
+            const unclaimed = JSON.parse(await readFile(queueFile, 'utf-8')) as TestItem[];
+            // A claim is recorded before the queue is written, and removed after the result is saved, so a crash
+            // in between leaves the test queued or with a result as well. Such a test is already handled.
+            const handledIds = new Set([...unclaimed, ...results].map((test) => test.testId));
+            const abandoned = (await this.takeAbandonedTests(deadShardIds)).filter(
+                (test) => !handledIds.has(test.testId),
+            );
+            // Tests are popped from the end, so keep the queue sorted by descending order
+            const queue = [...unclaimed, ...failed, ...abandoned].sort((a, b) => b.order - a.order);
+            await writeFileAtomic(queueFile, JSON.stringify(queue, null, 2));
+            await writeFileAtomic(resultsFile, JSON.stringify(rest, null, 2));
+            return queue;
+        });
+    }
+
+    /** Removes and returns the tests that were claimed but never got a result because their shard died */
+    private async takeAbandonedTests(deadShardIds: string[]): Promise<TestItem[]> {
+        const { runId } = this.runContext;
+        const claimedFile = getClaimedRunPath(this.dir, runId);
+        const claimed = await readClaimedTests(claimedFile);
+        const dead = new Set(deadShardIds);
+        const abandoned: TestItem[] = [];
+        for (const [testId, test] of Object.entries(claimed)) {
+            if (!test.meta.shardId || !dead.has(test.meta.shardId)) continue;
+            abandoned.push(test);
+            delete claimed[testId];
+        }
+        await writeFileAtomic(claimedFile, JSON.stringify(claimed, null, 2));
+        return abandoned;
     }
 
     async finishShard(): Promise<void> {
@@ -86,6 +121,18 @@ export class FileShardHandler implements ShardHandler {
         return this.popNextTest(runId, project);
     }
 
+    async heartbeat(): Promise<void> {
+        const { runId, shardId, heartbeatTimeout } = this.runContext;
+        const file = getRunConfigPath(this.dir, runId);
+        await withLock(file, async () => {
+            const testRun = JSON.parse(await readFile(file, 'utf-8')) as TestRun;
+            const shard = testRun.shards[shardId];
+            if (!shard) return;
+            shard.aliveUntil = getAliveUntil(heartbeatTimeout);
+            await writeFileAtomic(file, JSON.stringify(testRun, null, 2));
+        });
+    }
+
     private async popNextTest(runId: string, project?: string): Promise<TestItem | undefined> {
         const file = getRunIdFilePath(this.dir, runId);
         return withLock(file, async () => {
@@ -93,6 +140,11 @@ export class FileShardHandler implements ShardHandler {
             const index = project ? tests.findLastIndex((t) => t.meta.projects.includes(project)) : tests.length - 1;
             if (index === -1) return undefined;
             const [test] = tests.splice(index, 1);
+            // Recorded before the queue is written, so a crash in between can only leave a test in both
+            const claimedFile = getClaimedRunPath(this.dir, runId);
+            const claimed = await readClaimedTests(claimedFile);
+            claimed[test.testId] = { ...test, meta: { ...test.meta, shardId: this.runContext.shardId } };
+            await writeFileAtomic(claimedFile, JSON.stringify(claimed, null, 2));
             await writeFileAtomic(file, JSON.stringify(tests, null, 2));
             await this.decrementCounters(runId, test.ema);
             return test;
