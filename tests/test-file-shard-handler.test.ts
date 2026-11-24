@@ -181,6 +181,59 @@ describe('FileShardHandler claimed tests', () => {
     });
 });
 
+describe('FileShardHandler.startShard', () => {
+    function makeHandler() {
+        return new FileShardHandler(
+            { directory: dir },
+            { runId: RUN_ID, shardId: 'new', outputFolder: '', ...HEARTBEAT },
+        );
+    }
+
+    async function writeFinishedRun() {
+        await writeJson(getRunConfigPath(dir, RUN_ID), {
+            status: RunStatus.Finished,
+            updated: 0,
+            shards: {},
+            config: {
+                workers: 1,
+                projects: [],
+                args: [],
+                options: { batchMode: BatchMode.Off, grouping: Grouping.Test, historyWindow: 10 },
+            },
+        } satisfies TestRun);
+        await writeJson(getRunIdFilePath(dir, RUN_ID), []);
+        await writeJson(getResultsRunPath(dir, RUN_ID), [makeResult(makeTest(1), TestStatus.Failed)]);
+    }
+
+    it('starts a repeat run of a run that has no claimed file', async () => {
+        await writeFinishedRun();
+        await makeHandler().startShard();
+        expect((await readJson<TestItem[]>(getRunIdFilePath(dir, RUN_ID))).map((test) => test.order)).toEqual([1]);
+    });
+
+    it('waits for the queue lock, which shards still running hold while they claim tests', async () => {
+        await writeFinishedRun();
+        await writeJson(getClaimedRunPath(dir, RUN_ID), {});
+        let started = false;
+        let release!: () => void;
+        const held = new Promise<void>((resolve) => (release = resolve));
+        const locked = withLock(getRunIdFilePath(dir, RUN_ID), () => held);
+        // Let the lock be taken first
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        const starting = makeHandler()
+            .startShard()
+            .then(() => {
+                started = true;
+            });
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        expect(started).toBe(false);
+        release();
+        await locked;
+        await starting;
+        expect(started).toBe(true);
+    });
+});
+
 describe('withLock', () => {
     it('hands a contended lock over quickly', async () => {
         const file = join(dir, 'locked.json');
