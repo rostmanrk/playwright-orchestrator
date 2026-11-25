@@ -92,7 +92,7 @@
       "fails": 0,
       "file": "basic-case.spec.ts",
       "lastSuccessfulRunTimestamp": 0,
-      "position": "10:9",
+      "position": "10:5",
       "projects": [
         "chromium",
         "firefox"
@@ -106,7 +106,7 @@
       "fails": 0,
       "file": "basic-case.spec.ts",
       "lastSuccessfulRunTimestamp": 0,
-      "position": "4:5",
+      "position": "4:1",
       "projects": [
         "chromium",
         "firefox"
@@ -120,7 +120,7 @@
       "fails": 0,
       "file": "constant-timeout.spec.ts",
       "lastSuccessfulRunTimestamp": 0,
-      "position": "12:9",
+      "position": "12:5",
       "projects": [
         "chromium",
         "firefox"
@@ -134,7 +134,7 @@
       "fails": 0,
       "file": "constant-timeout.spec.ts",
       "lastSuccessfulRunTimestamp": 0,
-      "position": "16:9",
+      "position": "16:5",
       "projects": [
         "chromium",
         "firefox"
@@ -148,7 +148,7 @@
       "fails": 0,
       "file": "constant-timeout.spec.ts",
       "lastSuccessfulRunTimestamp": 0,
-      "position": "22:13",
+      "position": "22:9",
       "projects": [
         "chromium",
         "firefox"
@@ -162,7 +162,7 @@
       "fails": 0,
       "file": "constant-timeout.spec.ts",
       "lastSuccessfulRunTimestamp": 0,
-      "position": "4:5",
+      "position": "4:1",
       "projects": [
         "chromium",
         "firefox"
@@ -176,7 +176,7 @@
       "fails": 0,
       "file": "failed.spec.ts",
       "lastSuccessfulRunTimestamp": 0,
-      "position": "4:5",
+      "position": "4:1",
       "projects": [
         "chromium",
         "firefox"
@@ -190,7 +190,7 @@
       "fails": 0,
       "file": "failed.spec.ts",
       "lastSuccessfulRunTimestamp": 0,
-      "position": "9:5",
+      "position": "9:1",
       "projects": [
         "chromium",
         "firefox"
@@ -204,7 +204,7 @@
       "fails": 0,
       "file": "parametrized-case.spec.ts",
       "lastSuccessfulRunTimestamp": 0,
-      "position": "11:9",
+      "position": "11:5",
       "projects": [
         "chromium",
         "firefox"
@@ -218,7 +218,7 @@
       "fails": 0,
       "file": "parametrized-case.spec.ts",
       "lastSuccessfulRunTimestamp": 0,
-      "position": "11:9",
+      "position": "11:5",
       "projects": [
         "chromium",
         "firefox"
@@ -232,7 +232,7 @@
       "fails": 0,
       "file": "parametrized-case.spec.ts",
       "lastSuccessfulRunTimestamp": 0,
-      "position": "11:9",
+      "position": "11:5",
       "projects": [
         "chromium",
         "firefox"
@@ -260,7 +260,7 @@
       "fails": 0,
       "file": "serial.spec.ts",
       "lastSuccessfulRunTimestamp": 0,
-      "position": "11:9",
+      "position": "11:5",
       "projects": [
         "chromium",
         "firefox"
@@ -274,7 +274,7 @@
       "fails": 0,
       "file": "serial.spec.ts",
       "lastSuccessfulRunTimestamp": 0,
-      "position": "5:5",
+      "position": "5:1",
       "projects": [
         "chromium",
         "firefox"
